@@ -3,7 +3,7 @@ package repo
 import (
 	"time"
 
-	"github.com/nick130920/proyecto-fintech/internal/entity"
+	"github.com/nick130920/fintech-backend/internal/entity"
 )
 
 // ExpenseRepo define la interfaz para operaciones de gasto en la base de datos

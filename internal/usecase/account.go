@@ -3,9 +3,9 @@ package usecase
 import (
 	"errors"
 
-	"github.com/nick130920/proyecto-fintech/internal/controller/http/v1/dto"
-	"github.com/nick130920/proyecto-fintech/internal/entity"
-	"github.com/nick130920/proyecto-fintech/internal/usecase/repo"
+	"github.com/nick130920/fintech-backend/internal/controller/http/v1/dto"
+	"github.com/nick130920/fintech-backend/internal/entity"
+	"github.com/nick130920/fintech-backend/internal/usecase/repo"
 )
 
 // AccountUseCase contiene la lógica de negocio para cuentas

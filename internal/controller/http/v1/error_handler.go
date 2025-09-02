@@ -5,8 +5,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/nick130920/proyecto-fintech/internal/controller/http/v1/dto"
-	"github.com/nick130920/proyecto-fintech/pkg/apperrors"
+	"github.com/nick130920/fintech-backend/internal/controller/http/v1/dto"
+	"github.com/nick130920/fintech-backend/pkg/apperrors"
 )
 
 func handleErrorResponse(c *gin.Context, err error) {

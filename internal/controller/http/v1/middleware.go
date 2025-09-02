@@ -7,8 +7,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/nick130920/proyecto-fintech/internal/controller/http/v1/dto"
-	"github.com/nick130920/proyecto-fintech/pkg/auth"
+	"github.com/nick130920/fintech-backend/internal/controller/http/v1/dto"
+	"github.com/nick130920/fintech-backend/pkg/auth"
 )
 
 // AuthMiddleware maneja la autenticación JWT

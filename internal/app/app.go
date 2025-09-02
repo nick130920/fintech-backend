@@ -12,14 +12,14 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 	"gorm.io/gorm"
 
-	docs "github.com/nick130920/proyecto-fintech/api/swagger"
-	"github.com/nick130920/proyecto-fintech/configs"
-	v1 "github.com/nick130920/proyecto-fintech/internal/controller/http/v1"
-	"github.com/nick130920/proyecto-fintech/internal/usecase"
-	"github.com/nick130920/proyecto-fintech/internal/usecase/repo"
-	"github.com/nick130920/proyecto-fintech/pkg/auth"
-	"github.com/nick130920/proyecto-fintech/pkg/database"
-	"github.com/nick130920/proyecto-fintech/pkg/repository"
+	docs "github.com/nick130920/fintech-backend/api/swagger"
+	"github.com/nick130920/fintech-backend/configs"
+	v1 "github.com/nick130920/fintech-backend/internal/controller/http/v1"
+	"github.com/nick130920/fintech-backend/internal/usecase"
+	"github.com/nick130920/fintech-backend/internal/usecase/repo"
+	"github.com/nick130920/fintech-backend/pkg/auth"
+	"github.com/nick130920/fintech-backend/pkg/database"
+	"github.com/nick130920/fintech-backend/pkg/repository"
 )
 
 // Run inicializa y ejecuta la aplicación

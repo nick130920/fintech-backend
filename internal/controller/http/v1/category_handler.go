@@ -6,10 +6,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/nick130920/proyecto-fintech/internal/controller/http/v1/dto"
-	"github.com/nick130920/proyecto-fintech/internal/entity"
-	"github.com/nick130920/proyecto-fintech/internal/usecase/repo"
-	"github.com/nick130920/proyecto-fintech/pkg/validator"
+	"github.com/nick130920/fintech-backend/internal/controller/http/v1/dto"
+	"github.com/nick130920/fintech-backend/internal/entity"
+	"github.com/nick130920/fintech-backend/internal/usecase/repo"
+	"github.com/nick130920/fintech-backend/pkg/validator"
 )
 
 // CategoryHandler maneja las peticiones HTTP relacionadas con categorías

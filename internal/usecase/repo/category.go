@@ -1,6 +1,6 @@
 package repo
 
-import "github.com/nick130920/proyecto-fintech/internal/entity"
+import "github.com/nick130920/fintech-backend/internal/entity"
 
 // CategoryRepo define la interfaz para operaciones de categoría en la base de datos
 type CategoryRepo interface {

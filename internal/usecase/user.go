@@ -6,10 +6,10 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/nick130920/proyecto-fintech/internal/controller/http/v1/dto"
-	"github.com/nick130920/proyecto-fintech/internal/entity"
-	"github.com/nick130920/proyecto-fintech/internal/usecase/repo"
-	"github.com/nick130920/proyecto-fintech/pkg/auth"
+	"github.com/nick130920/fintech-backend/internal/controller/http/v1/dto"
+	"github.com/nick130920/fintech-backend/internal/entity"
+	"github.com/nick130920/fintech-backend/internal/usecase/repo"
+	"github.com/nick130920/fintech-backend/pkg/auth"
 )
 
 // UserUseCase contiene la lógica de negocio para usuarios

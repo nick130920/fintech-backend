@@ -9,8 +9,8 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	"github.com/nick130920/proyecto-fintech/configs"
-	"github.com/nick130920/proyecto-fintech/internal/entity"
+	"github.com/nick130920/fintech-backend/configs"
+	"github.com/nick130920/fintech-backend/internal/entity"
 )
 
 // Database representa una conexión a la base de datos

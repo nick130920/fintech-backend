@@ -3,7 +3,7 @@ package repo
 import (
 	"time"
 
-	"github.com/nick130920/proyecto-fintech/internal/entity"
+	"github.com/nick130920/fintech-backend/internal/entity"
 )
 
 // UserRepo define la interfaz para operaciones de usuario en la base de datos

@@ -1,6 +1,6 @@
 package dto
 
-import "github.com/nick130920/proyecto-fintech/internal/entity"
+import "github.com/nick130920/fintech-backend/internal/entity"
 
 // CreateExpenseRequest representa la estructura para crear un gasto
 type CreateExpenseRequest struct {

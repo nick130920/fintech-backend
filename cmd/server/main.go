@@ -5,7 +5,7 @@ import (
 
 	"github.com/joho/godotenv"
 
-	"github.com/nick130920/proyecto-fintech/internal/app"
+	"github.com/nick130920/fintech-backend/internal/app"
 )
 
 // @title API Fintech

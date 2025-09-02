@@ -1,4 +1,4 @@
-module github.com/nick130920/proyecto-fintech
+module github.com/nick130920/fintech-backend
 
 go 1.25.0
 

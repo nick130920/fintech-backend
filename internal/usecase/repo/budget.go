@@ -1,7 +1,7 @@
 package repo
 
 import (
-	"github.com/nick130920/proyecto-fintech/internal/entity"
+	"github.com/nick130920/fintech-backend/internal/entity"
 )
 
 // BudgetRepo define la interfaz para operaciones de presupuesto en la base de datos

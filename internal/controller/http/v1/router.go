@@ -3,9 +3,9 @@ package v1
 import (
 	"github.com/gin-gonic/gin"
 
-	"github.com/nick130920/proyecto-fintech/internal/usecase"
-	"github.com/nick130920/proyecto-fintech/internal/usecase/repo"
-	"github.com/nick130920/proyecto-fintech/pkg/auth"
+	"github.com/nick130920/fintech-backend/internal/usecase"
+	"github.com/nick130920/fintech-backend/internal/usecase/repo"
+	"github.com/nick130920/fintech-backend/pkg/auth"
 )
 
 // NewRouter inicializa todas las rutas de la API v1

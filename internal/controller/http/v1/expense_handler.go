@@ -8,9 +8,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/nick130920/proyecto-fintech/internal/controller/http/v1/dto"
-	"github.com/nick130920/proyecto-fintech/internal/usecase"
-	"github.com/nick130920/proyecto-fintech/pkg/validator"
+	"github.com/nick130920/fintech-backend/internal/controller/http/v1/dto"
+	"github.com/nick130920/fintech-backend/internal/usecase"
+	"github.com/nick130920/fintech-backend/pkg/validator"
 )
 
 // ExpenseHandler maneja las peticiones HTTP relacionadas con gastos

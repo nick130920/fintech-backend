@@ -5,8 +5,8 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/nick130920/proyecto-fintech/internal/entity"
-	"github.com/nick130920/proyecto-fintech/internal/usecase/repo"
+	"github.com/nick130920/fintech-backend/internal/entity"
+	"github.com/nick130920/fintech-backend/internal/usecase/repo"
 )
 
 // TransactionPostgres implementa la interfaz TransactionRepo usando PostgreSQL

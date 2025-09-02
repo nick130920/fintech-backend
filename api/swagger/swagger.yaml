@@ -1,0 +1,1426 @@
+basePath: /api/v1
+definitions:
+  dto.AllocationAlert:
+    properties:
+      alert_type:
+        description: '"warning", "danger", "over_budget"'
+        type: string
+      allocated_amount:
+        type: number
+      category_icon:
+        type: string
+      category_name:
+        type: string
+      message:
+        type: string
+      progress_percent:
+        type: number
+      spent_amount:
+        type: number
+    type: object
+  dto.AllocationSummaryResponse:
+    properties:
+      alert_threshold:
+        type: number
+      allocated_amount:
+        type: number
+      allocation_percent:
+        type: number
+      category:
+        $ref: '#/definitions/dto.CategorySummaryResponse'
+      current_daily_limit:
+        type: number
+      daily_limit:
+        type: number
+      id:
+        type: integer
+      is_over_budget:
+        type: boolean
+      progress_percent:
+        type: number
+      remaining_amount:
+        type: number
+      should_alert:
+        type: boolean
+      spent_amount:
+        type: number
+    type: object
+  dto.BudgetDashboardResponse:
+    properties:
+      category_alerts:
+        items:
+          $ref: '#/definitions/dto.AllocationAlert'
+        type: array
+      current_budget:
+        $ref: '#/definitions/dto.BudgetSummaryResponse'
+      month_total:
+        type: number
+      quick_stats:
+        $ref: '#/definitions/dto.BudgetQuickStats'
+      today_expenses:
+        items:
+          $ref: '#/definitions/dto.ExpenseSummaryResponse'
+        type: array
+      today_total:
+        type: number
+      week_total:
+        type: number
+    type: object
+  dto.BudgetQuickStats:
+    properties:
+      average_daily_spent:
+        type: number
+      categories_on_track:
+        type: integer
+      categories_over_budget:
+        type: integer
+      days_until_payday:
+        type: integer
+      recommended_daily:
+        type: number
+      total_categories:
+        type: integer
+    type: object
+  dto.BudgetSummaryResponse:
+    properties:
+      allocations:
+        items:
+          $ref: '#/definitions/dto.AllocationSummaryResponse'
+        type: array
+      id:
+        type: integer
+      is_active:
+        type: boolean
+      is_current_month:
+        type: boolean
+      month:
+        type: integer
+      period_string:
+        type: string
+      progress_percent:
+        type: number
+      remaining_amount:
+        type: number
+      remaining_days:
+        type: integer
+      spent_amount:
+        type: number
+      total_amount:
+        type: number
+      year:
+        type: integer
+    type: object
+  dto.CategoriesResponse:
+    properties:
+      default_categories:
+        items:
+          $ref: '#/definitions/dto.CategorySummaryResponse'
+        type: array
+      total_count:
+        type: integer
+      user_categories:
+        items:
+          $ref: '#/definitions/dto.CategorySummaryResponse'
+        type: array
+    type: object
+  dto.CategorySummaryResponse:
+    properties:
+      can_be_deleted:
+        type: boolean
+      color:
+        type: string
+      description:
+        type: string
+      display_name:
+        type: string
+      icon:
+        type: string
+      id:
+        type: integer
+      is_active:
+        type: boolean
+      is_default:
+        type: boolean
+      is_user_category:
+        type: boolean
+      name:
+        type: string
+      sort_order:
+        type: integer
+    type: object
+  dto.CreateAllocationRequest:
+    properties:
+      alert_threshold:
+        description: 0.0 a 1.0
+        maximum: 1
+        minimum: 0
+        type: number
+      allocated_amount:
+        minimum: 0
+        type: number
+      category_id:
+        type: integer
+    required:
+    - allocated_amount
+    - category_id
+    type: object
+  dto.CreateBudgetRequest:
+    properties:
+      allocations:
+        items:
+          $ref: '#/definitions/dto.CreateAllocationRequest'
+        minItems: 1
+        type: array
+      month:
+        maximum: 12
+        minimum: 1
+        type: integer
+      total_amount:
+        type: number
+      year:
+        maximum: 2030
+        minimum: 2020
+        type: integer
+    required:
+    - allocations
+    - month
+    - total_amount
+    - year
+    type: object
+  dto.CreateCategoryRequest:
+    properties:
+      color:
+        type: string
+      description:
+        maxLength: 200
+        type: string
+      icon:
+        maxLength: 50
+        type: string
+      name:
+        maxLength: 50
+        minLength: 1
+        type: string
+    required:
+    - name
+    type: object
+  dto.CreateExpenseRequest:
+    properties:
+      amount:
+        type: number
+      category_id:
+        type: integer
+      date:
+        description: 'Formato: 2006-01-02 o 2006-01-02T15:04:05Z'
+        type: string
+      description:
+        maxLength: 500
+        minLength: 1
+        type: string
+      location:
+        maxLength: 200
+        type: string
+      merchant:
+        maxLength: 100
+        type: string
+      notes:
+        maxLength: 1000
+        type: string
+      receipt_url:
+        type: string
+      source:
+        allOf:
+        - $ref: '#/definitions/entity.ExpenseSource'
+        enum:
+        - manual
+        - whatsapp
+      tags:
+        items:
+          type: string
+        type: array
+    required:
+    - amount
+    - category_id
+    - date
+    - description
+    type: object
+  dto.CreateUserRequest:
+    properties:
+      date_of_birth:
+        description: 'Format: YYYY-MM-DD'
+        type: string
+      email:
+        type: string
+      first_name:
+        maxLength: 50
+        minLength: 2
+        type: string
+      last_name:
+        maxLength: 50
+        minLength: 2
+        type: string
+      locale:
+        description: 'Format: es-MX'
+        type: string
+      password:
+        maxLength: 50
+        minLength: 8
+        type: string
+      phone:
+        maxLength: 20
+        minLength: 10
+        type: string
+      timezone:
+        description: 'Format: America/Mexico_City'
+        type: string
+    required:
+    - email
+    - first_name
+    - last_name
+    - password
+    type: object
+  dto.ErrorResponse:
+    properties:
+      code:
+        type: string
+      details:
+        type: string
+      error:
+        type: string
+      message:
+        type: string
+    type: object
+  dto.ExpenseSummaryResponse:
+    properties:
+      amount:
+        type: number
+      can_be_cancelled:
+        type: boolean
+      can_be_modified:
+        type: boolean
+      category:
+        $ref: '#/definitions/dto.CategorySummaryResponse'
+      created_at:
+        type: string
+      currency:
+        type: string
+      date:
+        description: ISO format
+        type: string
+      description:
+        type: string
+      formatted_amount:
+        type: string
+      id:
+        type: integer
+      location:
+        type: string
+      merchant:
+        type: string
+      notes:
+        type: string
+      source:
+        $ref: '#/definitions/entity.ExpenseSource'
+      status:
+        $ref: '#/definitions/entity.ExpenseStatus'
+      tags:
+        items:
+          type: string
+        type: array
+      time_ago:
+        description: '"Hace 2 horas"'
+        type: string
+      triggered_alert:
+        type: boolean
+    type: object
+  dto.LoginRequest:
+    properties:
+      email:
+        type: string
+      password:
+        minLength: 1
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  dto.LoginResponse:
+    properties:
+      access_token:
+        type: string
+      expires_in:
+        description: segundos
+        type: integer
+      refresh_token:
+        type: string
+      token_type:
+        description: '"Bearer"'
+        type: string
+      user:
+        $ref: '#/definitions/entity.UserPublic'
+    type: object
+  dto.LogoutResponse:
+    properties:
+      message:
+        type: string
+    type: object
+  dto.RefreshTokenRequest:
+    properties:
+      refresh_token:
+        type: string
+    required:
+    - refresh_token
+    type: object
+  dto.Response:
+    properties:
+      code:
+        type: string
+      data: {}
+      message:
+        type: string
+    type: object
+  dto.SuccessResponse:
+    properties:
+      code:
+        type: string
+      data: {}
+      message:
+        type: string
+    type: object
+  dto.TokenResponse:
+    properties:
+      access_token:
+        type: string
+      expires_in:
+        description: segundos
+        type: integer
+      refresh_token:
+        type: string
+      token_type:
+        description: '"Bearer"'
+        type: string
+    type: object
+  dto.UpdateAllocationRequest:
+    properties:
+      alert_threshold:
+        maximum: 1
+        minimum: 0
+        type: number
+      allocated_amount:
+        minimum: 0
+        type: number
+      id:
+        type: integer
+    required:
+    - id
+    type: object
+  dto.UpdateBudgetRequest:
+    properties:
+      allocations:
+        items:
+          $ref: '#/definitions/dto.UpdateAllocationRequest'
+        type: array
+      auto_create_next:
+        type: boolean
+      total_amount:
+        type: number
+    type: object
+  dto.UpdateCategoryRequest:
+    properties:
+      color:
+        type: string
+      description:
+        maxLength: 200
+        type: string
+      icon:
+        maxLength: 50
+        type: string
+      is_active:
+        type: boolean
+      name:
+        maxLength: 50
+        minLength: 1
+        type: string
+      sort_order:
+        type: integer
+    type: object
+  dto.UpdateExpenseRequest:
+    properties:
+      amount:
+        type: number
+      category_id:
+        type: integer
+      date:
+        description: 'Formato: 2006-01-02 o 2006-01-02T15:04:05Z'
+        type: string
+      description:
+        maxLength: 500
+        minLength: 1
+        type: string
+      location:
+        maxLength: 200
+        type: string
+      merchant:
+        maxLength: 100
+        type: string
+      notes:
+        maxLength: 1000
+        type: string
+      receipt_url:
+        type: string
+      tags:
+        items:
+          type: string
+        type: array
+    type: object
+  dto.UpdateUserRequest:
+    properties:
+      date_of_birth:
+        description: 'Format: YYYY-MM-DD'
+        type: string
+      first_name:
+        maxLength: 50
+        minLength: 2
+        type: string
+      last_name:
+        maxLength: 50
+        minLength: 2
+        type: string
+      locale:
+        description: 'Format: es-MX'
+        type: string
+      phone:
+        maxLength: 20
+        minLength: 10
+        type: string
+      timezone:
+        description: 'Format: America/Mexico_City'
+        type: string
+    type: object
+  entity.ExpenseSource:
+    enum:
+    - manual
+    - sms
+    - whatsapp
+    - bank_api
+    - notification
+    type: string
+    x-enum-comments:
+      ExpenseSourceBankAPI: API bancaria
+      ExpenseSourceManual: Entrada manual del usuario
+      ExpenseSourceNotification: Notificación del sistema
+      ExpenseSourceSMS: Capturado desde SMS bancario
+      ExpenseSourceWhatsApp: Enviado por WhatsApp
+    x-enum-descriptions:
+    - Entrada manual del usuario
+    - Capturado desde SMS bancario
+    - Enviado por WhatsApp
+    - API bancaria
+    - Notificación del sistema
+    x-enum-varnames:
+    - ExpenseSourceManual
+    - ExpenseSourceSMS
+    - ExpenseSourceWhatsApp
+    - ExpenseSourceBankAPI
+    - ExpenseSourceNotification
+  entity.ExpenseStatus:
+    enum:
+    - pending
+    - confirmed
+    - cancelled
+    type: string
+    x-enum-comments:
+      ExpenseStatusCancelled: Cancelado
+      ExpenseStatusConfirmed: Confirmado
+      ExpenseStatusPending: Pendiente de confirmación
+    x-enum-descriptions:
+    - Pendiente de confirmación
+    - Confirmado
+    - Cancelado
+    x-enum-varnames:
+    - ExpenseStatusPending
+    - ExpenseStatusConfirmed
+    - ExpenseStatusCancelled
+  entity.UserPublic:
+    properties:
+      created_at:
+        description: ISO format string
+        type: string
+      date_of_birth:
+        description: 'Format: YYYY-MM-DD'
+        type: string
+      email:
+        type: string
+      first_name:
+        type: string
+      id:
+        type: integer
+      is_active:
+        type: boolean
+      is_verified:
+        type: boolean
+      last_login_at:
+        description: ISO format string
+        type: string
+      last_name:
+        type: string
+      locale:
+        type: string
+      phone:
+        type: string
+      timezone:
+        type: string
+    type: object
+host: fintech-production-5841.up.railway.app
+info:
+  contact:
+    email: support@swagger.io
+    name: Soporte API
+    url: http://www.swagger.io/support
+  description: API para aplicación de finanzas personales
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  termsOfService: http://swagger.io/terms/
+  title: API Fintech
+  version: "1.0"
+paths:
+  /api/v1/budgets:
+    post:
+      consumes:
+      - application/json
+      description: Crea un nuevo presupuesto mensual con asignaciones por categoría
+      parameters:
+      - description: Datos del presupuesto
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateBudgetRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.BudgetSummaryResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Crear presupuesto mensual
+      tags:
+      - budgets
+  /api/v1/budgets/{id}:
+    put:
+      consumes:
+      - application/json
+      description: Actualiza un presupuesto existente
+      parameters:
+      - description: ID del presupuesto
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Datos de actualización
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateBudgetRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.BudgetSummaryResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Actualizar presupuesto
+      tags:
+      - budgets
+  /api/v1/budgets/current:
+    get:
+      description: Obtiene el presupuesto del mes actual del usuario
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.BudgetSummaryResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Obtener presupuesto actual
+      tags:
+      - budgets
+  /api/v1/budgets/dashboard:
+    get:
+      description: Obtiene el dashboard con información del presupuesto actual, gastos
+        y alertas
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.BudgetDashboardResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Obtener dashboard principal
+      tags:
+      - budgets
+  /api/v1/budgets/month:
+    get:
+      description: Obtiene el presupuesto de un mes específico
+      parameters:
+      - description: 'Año (ej: 2024)'
+        in: query
+        name: year
+        required: true
+        type: integer
+      - description: Mes (1-12)
+        in: query
+        name: month
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.BudgetSummaryResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Obtener presupuesto por mes
+      tags:
+      - budgets
+  /api/v1/budgets/rollover:
+    post:
+      description: Procesa el rollover diario de saldos no gastados (endpoint interno/cron)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Procesar rollover diario
+      tags:
+      - budgets
+  /api/v1/categories:
+    get:
+      description: Obtiene todas las categorías disponibles para el usuario (sistema
+        + personalizadas)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.CategoriesResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Obtener categorías
+      tags:
+      - categories
+    post:
+      consumes:
+      - application/json
+      description: Crea una nueva categoría personalizada para el usuario
+      parameters:
+      - description: Datos de la categoría
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateCategoryRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.CategorySummaryResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Crear categoría personalizada
+      tags:
+      - categories
+  /api/v1/categories/{id}:
+    delete:
+      description: Elimina una categoría personalizada del usuario
+      parameters:
+      - description: ID de la categoría
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Eliminar categoría personalizada
+      tags:
+      - categories
+    put:
+      consumes:
+      - application/json
+      description: Actualiza una categoría personalizada del usuario
+      parameters:
+      - description: ID de la categoría
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Datos de actualización
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateCategoryRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.CategorySummaryResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Actualizar categoría personalizada
+      tags:
+      - categories
+  /api/v1/expenses:
+    get:
+      description: Obtiene el historial de gastos del usuario con filtros opcionales
+      parameters:
+      - description: ID de categoría para filtrar
+        in: query
+        name: category_id
+        type: integer
+      - description: Fecha de inicio (YYYY-MM-DD)
+        in: query
+        name: start_date
+        type: string
+      - description: Fecha de fin (YYYY-MM-DD)
+        in: query
+        name: end_date
+        type: string
+      - description: 'Número máximo de resultados (default: 50)'
+        in: query
+        name: limit
+        type: integer
+      - description: 'Número de resultados a omitir (default: 0)'
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/dto.ExpenseSummaryResponse'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Obtener historial de gastos
+      tags:
+      - expenses
+    post:
+      consumes:
+      - application/json
+      description: Crea un nuevo gasto manual con categoría, monto y fecha
+      parameters:
+      - description: Datos del gasto
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateExpenseRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.ExpenseSummaryResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Crear gasto manual
+      tags:
+      - expenses
+  /api/v1/expenses/{id}:
+    delete:
+      description: Elimina un gasto existente
+      parameters:
+      - description: ID del gasto
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Eliminar gasto
+      tags:
+      - expenses
+    put:
+      consumes:
+      - application/json
+      description: Actualiza un gasto existente
+      parameters:
+      - description: ID del gasto
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Datos de actualización
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateExpenseRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.ExpenseSummaryResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Actualizar gasto
+      tags:
+      - expenses
+  /api/v1/expenses/by-category:
+    get:
+      description: Obtiene gastos agrupados por categoría para el mes actual
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  additionalProperties: true
+                  type: object
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Obtener gastos por categoría
+      tags:
+      - expenses
+  /api/v1/expenses/recent:
+    get:
+      description: Obtiene los gastos más recientes del usuario
+      parameters:
+      - description: 'Número de gastos a obtener (default: 10)'
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/dto.ExpenseSummaryResponse'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Obtener gastos recientes
+      tags:
+      - expenses
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Autentica un usuario y devuelve tokens de acceso
+      parameters:
+      - description: Credenciales de login
+        in: body
+        name: credentials
+        required: true
+        schema:
+          $ref: '#/definitions/dto.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.LoginResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Iniciar sesión
+      tags:
+      - auth
+  /auth/logout:
+    post:
+      description: Cierra la sesión del usuario (invalida tokens)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.LogoutResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - Bearer: []
+      summary: Cerrar sesión
+      tags:
+      - auth
+  /auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Renueva el token de acceso usando el refresh token
+      parameters:
+      - description: Refresh token
+        in: body
+        name: refresh
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RefreshTokenRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.TokenResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Renovar token de acceso
+      tags:
+      - auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Crea una nueva cuenta de usuario
+      parameters:
+      - description: Datos del usuario
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.LoginResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Registrar nuevo usuario
+      tags:
+      - auth
+  /auth/validate:
+    get:
+      description: Valida si el token de acceso es válido y activo
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.SuccessResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - Bearer: []
+      summary: Validar token
+      tags:
+      - auth
+  /users/profile:
+    get:
+      description: Devuelve la información del perfil del usuario autenticado
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/entity.UserPublic'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - Bearer: []
+      summary: Obtener perfil del usuario
+      tags:
+      - users
+    put:
+      consumes:
+      - application/json
+      description: Actualiza la información del perfil del usuario autenticado
+      parameters:
+      - description: Datos a actualizar
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/entity.UserPublic'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - Bearer: []
+      summary: Actualizar perfil del usuario
+      tags:
+      - users
+securityDefinitions:
+  Bearer:
+    description: Bearer token para autenticación
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

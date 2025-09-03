@@ -16,7 +16,7 @@ type Category struct {
 	// Información básica
 	Name        string `json:"name" gorm:"not null" validate:"required,min=1,max=50"`
 	Description string `json:"description" validate:"max=200"`
-	Icon        int    `json:"icon" gorm:"comment:Material Icons codepoint"`
+	Icon        string `json:"icon" gorm:"comment:Material Icons name"`
 	Color       string `json:"color" gorm:"default:'#007bff'" validate:"hexcolor"`
 
 	// Configuración
@@ -45,14 +45,14 @@ const (
 // DefaultCategories retorna las categorías predefinidas del sistema
 func DefaultCategories() []Category {
 	return []Category{
-		{Name: "Alimentación", Description: "Comida, supermercado, restaurantes", Icon: 59701, Color: "#FF6B35", IsDefault: true, SortOrder: 1},
-		{Name: "Transporte", Description: "Gasolina, transporte público, Uber", Icon: 58288, Color: "#4ECDC4", IsDefault: true, SortOrder: 2},
-		{Name: "Ocio", Description: "Entretenimiento, cine, salidas", Icon: 59712, Color: "#45B7D1", IsDefault: true, SortOrder: 3},
-		{Name: "Servicios", Description: "Luz, agua, internet, teléfono", Icon: 58841, Color: "#96CEB4", IsDefault: true, SortOrder: 4},
-		{Name: "Salud", Description: "Médico, medicinas, seguros", Icon: 58845, Color: "#FFEAA7", IsDefault: true, SortOrder: 5},
-		{Name: "Compras", Description: "Ropa, electrónicos, compras varias", Icon: 59714, Color: "#DDA0DD", IsDefault: true, SortOrder: 6},
-		{Name: "Educación", Description: "Cursos, libros, capacitación", Icon: 58428, Color: "#74B9FF", IsDefault: true, SortOrder: 7},
-		{Name: "Otros", Description: "Gastos varios no clasificados", Icon: 58742, Color: "#FDCB6E", IsDefault: true, SortOrder: 8},
+		{Name: "Alimentación", Description: "Comida, supermercado, restaurantes", Icon: "restaurant", Color: "#FF6B35", IsDefault: true, SortOrder: 1},
+		{Name: "Transporte", Description: "Gasolina, transporte público, Uber", Icon: "directions_car", Color: "#4ECDC4", IsDefault: true, SortOrder: 2},
+		{Name: "Ocio", Description: "Entretenimiento, cine, salidas", Icon: "sports_esports", Color: "#45B7D1", IsDefault: true, SortOrder: 3},
+		{Name: "Servicios", Description: "Luz, agua, internet, teléfono", Icon: "home", Color: "#96CEB4", IsDefault: true, SortOrder: 4},
+		{Name: "Salud", Description: "Médico, medicinas, seguros", Icon: "healing", Color: "#FFEAA7", IsDefault: true, SortOrder: 5},
+		{Name: "Compras", Description: "Ropa, electrónicos, compras varias", Icon: "shopping_bag", Color: "#DDA0DD", IsDefault: true, SortOrder: 6},
+		{Name: "Educación", Description: "Cursos, libros, capacitación", Icon: "school", Color: "#74B9FF", IsDefault: true, SortOrder: 7},
+		{Name: "Otros", Description: "Gastos varios no clasificados", Icon: "category", Color: "#FDCB6E", IsDefault: true, SortOrder: 8},
 	}
 }
 

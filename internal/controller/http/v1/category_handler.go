@@ -233,7 +233,7 @@ func (h *CategoryHandler) UpdateCategory(c *gin.Context) {
 	if req.Description != "" {
 		category.Description = req.Description
 	}
-	if req.Icon != 0 { // Se comprueba si el codepoint no es cero
+	if req.Icon != "" { // Se comprueba si el nombre del icono no está vacío
 		category.Icon = req.Icon
 	}
 	if req.Color != "" {

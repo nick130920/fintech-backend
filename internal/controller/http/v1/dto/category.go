@@ -4,7 +4,7 @@ package dto
 type CreateCategoryRequest struct {
 	Name        string `json:"name" validate:"required,min=1,max=50"`
 	Description string `json:"description" validate:"max=200"`
-	Icon        int    `json:"icon" validate:"required"`
+	Icon        string `json:"icon" validate:"required"`
 	Color       string `json:"color" validate:"omitempty,hexcolor"`
 }
 
@@ -12,7 +12,7 @@ type CreateCategoryRequest struct {
 type UpdateCategoryRequest struct {
 	Name        string `json:"name" validate:"omitempty,min=1,max=50"`
 	Description string `json:"description" validate:"max=200"`
-	Icon        int    `json:"icon" validate:"omitempty"`
+	Icon        string `json:"icon" validate:"omitempty"`
 	Color       string `json:"color" validate:"omitempty,hexcolor"`
 	IsActive    *bool  `json:"is_active"`
 	SortOrder   *int   `json:"sort_order"`
@@ -23,7 +23,7 @@ type CategorySummaryResponse struct {
 	ID             uint   `json:"id"`
 	Name           string `json:"name"`
 	Description    string `json:"description"`
-	Icon           int    `json:"icon"`
+	Icon           string `json:"icon"`
 	Color          string `json:"color"`
 	DisplayName    string `json:"display_name"`
 	IsActive       bool   `json:"is_active"`

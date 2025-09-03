@@ -16,7 +16,7 @@ type Category struct {
 	// Información básica
 	Name        string `json:"name" gorm:"not null" validate:"required,min=1,max=50"`
 	Description string `json:"description" validate:"max=200"`
-	Icon        string `json:"icon" validate:"max=50"`
+	Icon        int    `json:"icon" gorm:"comment:Material Icons codepoint"`
 	Color       string `json:"color" gorm:"default:'#007bff'" validate:"hexcolor"`
 
 	// Configuración
@@ -32,27 +32,27 @@ type Category struct {
 type CategoryType string
 
 const (
-	CategoryTypeFood          CategoryType = "food"          // Alimentación
-	CategoryTypeTransport     CategoryType = "transport"     // Transporte
-	CategoryTypeEntertainment CategoryType = "entertainment" // Ocio
-	CategoryTypeHealth        CategoryType = "health"        // Salud
-	CategoryTypeEducation     CategoryType = "education"     // Educación
-	CategoryTypeUtilities     CategoryType = "utilities"     // Servicios
-	CategoryTypeShopping      CategoryType = "shopping"      // Compras
-	CategoryTypeOther         CategoryType = "other"         // Otros
+	CategoryTypeFood          CategoryType = "food"
+	CategoryTypeTransport     CategoryType = "transport"
+	CategoryTypeEntertainment CategoryType = "entertainment"
+	CategoryTypeHealth        CategoryType = "health"
+	CategoryTypeEducation     CategoryType = "education"
+	CategoryTypeUtilities     CategoryType = "utilities"
+	CategoryTypeShopping      CategoryType = "shopping"
+	CategoryTypeOther         CategoryType = "other"
 )
 
 // DefaultCategories retorna las categorías predefinidas del sistema
 func DefaultCategories() []Category {
 	return []Category{
-		{Name: "Alimentación", Description: "Comida, supermercado, restaurantes", Icon: "🍽️", Color: "#FF6B35", IsDefault: true, SortOrder: 1},
-		{Name: "Transporte", Description: "Gasolina, transporte público, Uber", Icon: "🚗", Color: "#4ECDC4", IsDefault: true, SortOrder: 2},
-		{Name: "Ocio", Description: "Entretenimiento, cine, salidas", Icon: "🎭", Color: "#45B7D1", IsDefault: true, SortOrder: 3},
-		{Name: "Servicios", Description: "Luz, agua, internet, teléfono", Icon: "🏠", Color: "#96CEB4", IsDefault: true, SortOrder: 4},
-		{Name: "Salud", Description: "Médico, medicinas, seguros", Icon: "⚕️", Color: "#FFEAA7", IsDefault: true, SortOrder: 5},
-		{Name: "Compras", Description: "Ropa, electrónicos, compras varias", Icon: "🛍️", Color: "#DDA0DD", IsDefault: true, SortOrder: 6},
-		{Name: "Educación", Description: "Cursos, libros, capacitación", Icon: "📚", Color: "#74B9FF", IsDefault: true, SortOrder: 7},
-		{Name: "Otros", Description: "Gastos varios no clasificados", Icon: "💼", Color: "#FDCB6E", IsDefault: true, SortOrder: 8},
+		{Name: "Alimentación", Description: "Comida, supermercado, restaurantes", Icon: 59701, Color: "#FF6B35", IsDefault: true, SortOrder: 1},
+		{Name: "Transporte", Description: "Gasolina, transporte público, Uber", Icon: 58288, Color: "#4ECDC4", IsDefault: true, SortOrder: 2},
+		{Name: "Ocio", Description: "Entretenimiento, cine, salidas", Icon: 59712, Color: "#45B7D1", IsDefault: true, SortOrder: 3},
+		{Name: "Servicios", Description: "Luz, agua, internet, teléfono", Icon: 58841, Color: "#96CEB4", IsDefault: true, SortOrder: 4},
+		{Name: "Salud", Description: "Médico, medicinas, seguros", Icon: 58845, Color: "#FFEAA7", IsDefault: true, SortOrder: 5},
+		{Name: "Compras", Description: "Ropa, electrónicos, compras varias", Icon: 59714, Color: "#DDA0DD", IsDefault: true, SortOrder: 6},
+		{Name: "Educación", Description: "Cursos, libros, capacitación", Icon: 58428, Color: "#74B9FF", IsDefault: true, SortOrder: 7},
+		{Name: "Otros", Description: "Gastos varios no clasificados", Icon: 58742, Color: "#FDCB6E", IsDefault: true, SortOrder: 8},
 	}
 }
 
@@ -68,14 +68,12 @@ func (c *Category) IsUserCategory() bool {
 
 // CanBeDeleted verifica si la categoría puede ser eliminada
 func (c *Category) CanBeDeleted() bool {
-	// Las categorías del sistema no se pueden eliminar
 	return !c.IsSystemCategory()
 }
 
-// GetDisplayName retorna el nombre con emoji si tiene icono
+// GetDisplayName retorna el nombre (el emoji ahora se maneja en el frontend)
 func (c *Category) GetDisplayName() string {
-	if c.Icon != "" {
-		return c.Icon + " " + c.Name
-	}
+	// Para mantener la consistencia con el plan, el frontend se encargará de mostrar el icono.
+	// El backend solo se preocupa de los datos crudos.
 	return c.Name
 }

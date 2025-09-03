@@ -213,7 +213,7 @@ func (uc *ExpenseUseCase) GetExpensesByCategory(userID uint) (map[string]interfa
 	// Agrupar por categoría
 	categoryTotals := make(map[uint]float64)
 	categoryNames := make(map[uint]string)
-	categoryIcons := make(map[uint]string)
+	categoryIcons := make(map[uint]int) // Cambiado a int
 
 	for _, expense := range expenses {
 		if expense.IsConfirmed() {

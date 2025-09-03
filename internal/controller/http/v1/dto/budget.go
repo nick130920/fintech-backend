@@ -75,7 +75,7 @@ type BudgetDashboardResponse struct {
 // AllocationAlert representa una alerta de categoría
 type AllocationAlert struct {
 	CategoryName    string  `json:"category_name"`
-	CategoryIcon    string  `json:"category_icon"`
+	CategoryIcon    int     `json:"category_icon"` // Cambiado a int
 	AllocatedAmount float64 `json:"allocated_amount"`
 	SpentAmount     float64 `json:"spent_amount"`
 	ProgressPercent float64 `json:"progress_percent"`

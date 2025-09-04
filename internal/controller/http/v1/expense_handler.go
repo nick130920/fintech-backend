@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -73,33 +74,34 @@ func (h *ExpenseHandler) CreateExpense(c *gin.Context) {
 		// Log detallado del error
 		log.Printf("❌ Error al crear gasto: %v | Usuario: %d | Request: %+v", err, userID, req)
 
-		switch err.Error() {
-		case "user not found":
+		errorStr := err.Error()
+		switch {
+		case errorStr == "user not found":
 			c.JSON(http.StatusNotFound, dto.ErrorResponse{
 				Code:    "USER_NOT_FOUND",
 				Message: "Usuario no encontrado",
 			})
-		case "user account is not active":
+		case errorStr == "user account is not active":
 			c.JSON(http.StatusForbidden, dto.ErrorResponse{
 				Code:    "ACCOUNT_INACTIVE",
 				Message: "La cuenta de usuario no está activa",
 			})
-		case "category not found":
+		case errorStr == "category not found":
 			c.JSON(http.StatusNotFound, dto.ErrorResponse{
 				Code:    "CATEGORY_NOT_FOUND",
 				Message: "Categoría no encontrada",
 			})
-		case "budget not found":
+		case errorStr == "budget not found" || strings.Contains(errorStr, "no budget found for date"):
 			c.JSON(http.StatusNotFound, dto.ErrorResponse{
 				Code:    "BUDGET_NOT_FOUND",
-				Message: "No hay presupuesto activo para registrar el gasto",
+				Message: "No hay presupuesto configurado para registrar gastos",
 			})
-		case "category not allocated in budget":
+		case strings.Contains(errorStr, "category not allocated in budget"):
 			c.JSON(http.StatusBadRequest, dto.ErrorResponse{
 				Code:    "CATEGORY_NOT_ALLOCATED",
 				Message: "La categoría no está asignada en el presupuesto actual",
 			})
-		case "invalid date format":
+		case strings.Contains(errorStr, "invalid date format"):
 			c.JSON(http.StatusBadRequest, dto.ErrorResponse{
 				Code:    "INVALID_DATE",
 				Message: "Formato de fecha inválido. Use YYYY-MM-DD o RFC3339",

@@ -93,15 +93,23 @@ func (uc *ExpenseUseCase) CreateExpense(userID uint, req *dto.CreateExpenseReque
 
 	log.Printf("✅ Fecha parseada: %v", expenseDate)
 
-	// Obtener el presupuesto del mes del gasto
+	// Intentar obtener el presupuesto del mes del gasto, si no existe usar el actual
 	log.Printf("🔍 Buscando presupuesto para: %d/%d, Usuario: %d", expenseDate.Year(), int(expenseDate.Month()), userID)
 	budget, err := uc.budgetRepo.GetByUserAndMonth(userID, expenseDate.Year(), int(expenseDate.Month()))
-	if err != nil {
-		log.Printf("❌ Presupuesto no encontrado para %d/%d | Error: %v", expenseDate.Year(), int(expenseDate.Month()), err)
-		return nil, fmt.Errorf("budget not found for %d/%d: %v", expenseDate.Year(), int(expenseDate.Month()), err)
-	}
 
-	log.Printf("✅ Presupuesto encontrado: ID=%d, Total=%.2f", budget.ID, budget.TotalAmount)
+	// Si no existe presupuesto para ese mes, intentar usar el presupuesto actual
+	if err != nil {
+		log.Printf("⚠️ Presupuesto no encontrado para %d/%d, intentando usar presupuesto actual", expenseDate.Year(), int(expenseDate.Month()))
+		currentBudget, currentErr := uc.budgetRepo.GetCurrentBudget(userID)
+		if currentErr != nil {
+			log.Printf("❌ Tampoco se encontró presupuesto actual | Error: %v", currentErr)
+			return nil, fmt.Errorf("no budget found for date %d/%d and no current budget exists: %v", expenseDate.Year(), int(expenseDate.Month()), err)
+		}
+		budget = currentBudget
+		log.Printf("✅ Usando presupuesto actual: ID=%d, Período=%d/%d", budget.ID, budget.Year, budget.Month)
+	} else {
+		log.Printf("✅ Presupuesto encontrado: ID=%d, Total=%.2f", budget.ID, budget.TotalAmount)
+	}
 
 	// Obtener la asignación de la categoría en el presupuesto
 	log.Printf("🔍 Buscando asignación: Budget=%d, Category=%d", budget.ID, category.ID)

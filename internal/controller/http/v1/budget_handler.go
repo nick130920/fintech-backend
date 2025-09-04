@@ -277,6 +277,67 @@ func (h *BudgetHandler) ProcessDailyRollover(c *gin.Context) {
 	})
 }
 
+// UpdateAllocation godoc
+// @Summary      Actualizar asignación de presupuesto
+// @Description  Actualiza una asignación individual de presupuesto por categoría
+// @Tags         budgets
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id      path      uint                               true  "ID de la asignación"
+// @Param        request body      dto.UpdateSingleAllocationRequest true  "Datos de actualización"
+// @Success      200     {object}  dto.Response{data=dto.AllocationSummaryResponse}
+// @Failure      400     {object}  dto.ErrorResponse
+// @Failure      401     {object}  dto.ErrorResponse
+// @Failure      404     {object}  dto.ErrorResponse
+// @Failure      500     {object}  dto.ErrorResponse
+// @Router       /api/v1/budgets/allocations/{id} [put]
+func (h *BudgetHandler) UpdateAllocation(c *gin.Context) {
+	userID := getUserIDFromContext(c)
+
+	// Obtener ID de la asignación
+	allocationID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{
+			Code:    "INVALID_ID",
+			Message: "ID de asignación inválido",
+		})
+		return
+	}
+
+	var req dto.UpdateSingleAllocationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{
+			Code:    "INVALID_REQUEST",
+			Message: "Datos de entrada inválidos",
+			Details: err.Error(),
+		})
+		return
+	}
+
+	// Validar datos
+	if err := h.validator.Validate(&req); err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{
+			Code:    "VALIDATION_ERROR",
+			Message: "Error de validación",
+			Details: err.Error(),
+		})
+		return
+	}
+
+	allocation, err := h.budgetUC.UpdateAllocation(userID, uint(allocationID), &req)
+	if err != nil {
+		handleErrorResponse(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.Response{
+		Code:    "SUCCESS",
+		Message: "Asignación actualizada exitosamente",
+		Data:    allocation,
+	})
+}
+
 // Helper function para obtener el ID del usuario del contexto JWT
 func getUserIDFromContext(c *gin.Context) uint {
 	userID, exists := c.Get("user_id")

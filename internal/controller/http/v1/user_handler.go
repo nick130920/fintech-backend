@@ -109,16 +109,16 @@ func (h *UserHandler) Login(c *gin.Context) {
 
 	response, err := h.userUC.Login(&req)
 	if err != nil {
-		if err.Error() == "invalid credentials" {
+		if err.Error() == "credenciales inválidas" {
 			c.JSON(http.StatusUnauthorized, dto.ErrorResponse{
-				Error:   "Invalid credentials",
-				Message: "Email or password is incorrect",
+				Error:   "Credenciales inválidas",
+				Message: "El email o contraseña son incorrectos",
 			})
 			return
 		}
 
 		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
-			Error:   "Login failed",
+			Error:   "Error de inicio de sesión",
 			Message: err.Error(),
 		})
 		return
@@ -195,7 +195,7 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusNotFound, dto.ErrorResponse{
-				Error:   "User not found",
+				Error:   "Usuario no encontrado",
 				Message: "User profile not found",
 			})
 			return
@@ -257,7 +257,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusNotFound, dto.ErrorResponse{
-				Error:   "User not found",
+				Error:   "Usuario no encontrado",
 				Message: "User profile not found",
 			})
 			return

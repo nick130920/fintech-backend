@@ -92,3 +92,9 @@ type BudgetQuickStats struct {
 	CategoriesOnTrack    int     `json:"categories_on_track"`
 	CategoriesOverBudget int     `json:"categories_over_budget"`
 }
+
+// UpdateSingleAllocationRequest representa la estructura para actualizar una asignación individual
+type UpdateSingleAllocationRequest struct {
+	AllocatedAmount *float64 `json:"allocated_amount" validate:"omitempty,gte=0"`
+	AlertThreshold  *float64 `json:"alert_threshold" validate:"omitempty,min=0,max=1"`
+}

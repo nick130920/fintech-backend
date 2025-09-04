@@ -96,6 +96,9 @@ func NewRouter(
 			budgetsGroup.PUT("/:id", budgetHandler.UpdateBudget)
 			budgetsGroup.GET("/dashboard", budgetHandler.GetDashboard)
 			budgetsGroup.POST("/rollover", budgetHandler.ProcessDailyRollover)
+
+			// Rutas de asignaciones de presupuesto
+			budgetsGroup.PUT("/allocations/:id", budgetHandler.UpdateAllocation)
 		}
 
 		// Rutas de categorías

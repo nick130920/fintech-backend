@@ -318,6 +318,74 @@ func (uc *BudgetUseCase) ProcessDailyRollover(userID uint) error {
 	return nil
 }
 
+// UpdateAllocation actualiza una asignación individual
+func (uc *BudgetUseCase) UpdateAllocation(userID, allocationID uint, req *dto.UpdateSingleAllocationRequest) (*dto.AllocationSummaryResponse, error) {
+	// Obtener la asignación
+	allocation, err := uc.budgetRepo.GetAllocationByID(allocationID)
+	if err != nil {
+		return nil, apperrors.ErrBudgetAllocationNotFound
+	}
+
+	// Obtener el presupuesto para verificar pertenencia
+	budget, err := uc.budgetRepo.GetByIDWithAllocations(allocation.BudgetID)
+	if err != nil {
+		return nil, apperrors.ErrBudgetNotFound
+	}
+
+	// Verificar que el presupuesto pertenece al usuario
+	if budget.UserID != userID {
+		return nil, apperrors.ErrBudgetNotFound
+	}
+
+	// Actualizar monto asignado si se proporciona
+	if req.AllocatedAmount != nil {
+		// Validar que el nuevo monto no sea menor que lo ya gastado
+		if *req.AllocatedAmount < allocation.SpentAmount {
+			return nil, fmt.Errorf("%w: allocated amount cannot be less than already spent (%.2f)", apperrors.ErrBudgetAllocationsExceed, allocation.SpentAmount)
+		}
+		allocation.AllocatedAmount = *req.AllocatedAmount
+		allocation.CalculateRemainingAmount()
+	}
+
+	// Actualizar umbral de alerta si se proporciona
+	if req.AlertThreshold != nil {
+		allocation.AlertThreshold = *req.AlertThreshold
+	}
+
+	// Recalcular límite diario
+	remainingDays := budget.GetRemainingDays()
+	allocation.CalculateDailyLimit(remainingDays)
+
+	// Actualizar en la base de datos
+	if err := uc.budgetRepo.UpdateAllocation(allocation); err != nil {
+		return nil, err
+	}
+
+	// Recargar la asignación con la categoría
+	updatedAllocation, err := uc.budgetRepo.GetAllocationByID(allocationID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Mapear a response
+	response := &dto.AllocationSummaryResponse{
+		ID:                updatedAllocation.ID,
+		Category:          uc.mapCategoryToSummaryResponse(&updatedAllocation.Category),
+		AllocatedAmount:   updatedAllocation.AllocatedAmount,
+		SpentAmount:       updatedAllocation.SpentAmount,
+		RemainingAmount:   updatedAllocation.RemainingAmount,
+		ProgressPercent:   updatedAllocation.GetProgressPercentage(),
+		DailyLimit:        updatedAllocation.DailyLimit,
+		CurrentDailyLimit: updatedAllocation.CurrentDailyLimit,
+		AlertThreshold:    updatedAllocation.AlertThreshold,
+		IsOverBudget:      updatedAllocation.IsOverBudgetCheck(),
+		ShouldAlert:       updatedAllocation.ShouldAlert(),
+		AllocationPercent: updatedAllocation.GetAllocationPercentage(budget.TotalAmount),
+	}
+
+	return response, nil
+}
+
 // Helper methods
 
 func (uc *BudgetUseCase) updateDailyLimits(budget *entity.Budget) error {

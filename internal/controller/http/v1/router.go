@@ -17,6 +17,8 @@ func NewRouter(
 	budgetUC *usecase.BudgetUseCase,
 	expenseUC *usecase.ExpenseUseCase,
 	incomeUC *usecase.IncomeUseCase,
+	bankAccountUC *usecase.BankAccountUseCase,
+	bankNotificationPatternUC *usecase.BankNotificationPatternUseCase,
 	categoryRepo repo.CategoryRepo,
 	jwtManager *auth.JWTManager,
 ) {
@@ -30,6 +32,8 @@ func NewRouter(
 	budgetHandler := NewBudgetHandler(budgetUC)
 	expenseHandler := NewExpenseHandler(expenseUC)
 	incomeHandler := NewIncomeHandler(incomeUC)
+	bankAccountHandler := NewBankAccountHandler(bankAccountUC)
+	bankNotificationPatternHandler := NewBankNotificationPatternHandler(bankNotificationPatternUC)
 	categoryHandler := NewCategoryHandler(categoryRepo)
 
 	// Middleware de autenticación
@@ -132,6 +136,36 @@ func NewRouter(
 			incomesGroup.GET("/:id", incomeHandler.GetIncome)
 			incomesGroup.PUT("/:id", incomeHandler.UpdateIncome)
 			incomesGroup.DELETE("/:id", incomeHandler.DeleteIncome)
+		}
+
+		// Rutas de cuentas bancarias
+		bankAccountsGroup := protectedGroup.Group("/bank-accounts")
+		{
+			bankAccountsGroup.GET("/", bankAccountHandler.GetUserBankAccounts)
+			bankAccountsGroup.POST("/", bankAccountHandler.CreateBankAccount)
+			bankAccountsGroup.GET("/summary", bankAccountHandler.GetBankAccountSummary)
+			bankAccountsGroup.GET("/type/:type", bankAccountHandler.GetBankAccountsByType)
+			bankAccountsGroup.GET("/:id", bankAccountHandler.GetBankAccount)
+			bankAccountsGroup.PUT("/:id", bankAccountHandler.UpdateBankAccount)
+			bankAccountsGroup.DELETE("/:id", bankAccountHandler.DeleteBankAccount)
+			bankAccountsGroup.PATCH("/:id/active", bankAccountHandler.SetBankAccountActive)
+			bankAccountsGroup.PATCH("/:id/balance", bankAccountHandler.UpdateBankAccountBalance)
+
+			// Rutas de patrones de notificación por cuenta bancaria
+			bankAccountsGroup.GET("/:bank_account_id/notification-patterns", bankNotificationPatternHandler.GetBankAccountPatterns)
+		}
+
+		// Rutas de patrones de notificación
+		notificationPatternsGroup := protectedGroup.Group("/notification-patterns")
+		{
+			notificationPatternsGroup.GET("/", bankNotificationPatternHandler.GetUserPatterns)
+			notificationPatternsGroup.POST("/", bankNotificationPatternHandler.CreatePattern)
+			notificationPatternsGroup.GET("/statistics", bankNotificationPatternHandler.GetPatternStatistics)
+			notificationPatternsGroup.POST("/process", bankNotificationPatternHandler.ProcessNotification)
+			notificationPatternsGroup.GET("/:id", bankNotificationPatternHandler.GetPattern)
+			notificationPatternsGroup.PUT("/:id", bankNotificationPatternHandler.UpdatePattern)
+			notificationPatternsGroup.DELETE("/:id", bankNotificationPatternHandler.DeletePattern)
+			notificationPatternsGroup.PATCH("/:id/status", bankNotificationPatternHandler.SetPatternStatus)
 		}
 	}
 }

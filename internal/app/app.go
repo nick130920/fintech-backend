@@ -64,12 +64,14 @@ func Run() {
 // Dependencies contiene todas las dependencias de la aplicación
 type Dependencies struct {
 	// Use cases
-	UserUC        *usecase.UserUseCase
-	AccountUC     *usecase.AccountUseCase
-	TransactionUC *usecase.TransactionUseCase
-	BudgetUC      *usecase.BudgetUseCase
-	ExpenseUC     *usecase.ExpenseUseCase
-	IncomeUC      *usecase.IncomeUseCase
+	UserUC                    *usecase.UserUseCase
+	AccountUC                 *usecase.AccountUseCase
+	TransactionUC             *usecase.TransactionUseCase
+	BudgetUC                  *usecase.BudgetUseCase
+	ExpenseUC                 *usecase.ExpenseUseCase
+	IncomeUC                  *usecase.IncomeUseCase
+	BankAccountUC             *usecase.BankAccountUseCase
+	BankNotificationPatternUC *usecase.BankNotificationPatternUseCase
 
 	// Repositories (necesarios para algunos handlers)
 	CategoryRepo repo.CategoryRepo
@@ -86,6 +88,8 @@ func initDependencies(db *gorm.DB, jwtManager *auth.JWTManager) *Dependencies {
 	transactionRepo := repository.NewTransactionPostgres(db)
 	budgetRepo := repository.NewBudgetPostgres(db)
 	categoryRepo := repository.NewCategoryPostgres(db)
+	bankAccountRepo := repository.NewBankAccountPostgres(db)
+	bankNotificationPatternRepo := repository.NewBankNotificationPatternPostgres(db)
 
 	// Asegurar que existan las categorías por defecto
 	if err := categoryRepo.EnsureDefaultCategoriesExist(); err != nil {
@@ -103,16 +107,20 @@ func initDependencies(db *gorm.DB, jwtManager *auth.JWTManager) *Dependencies {
 	budgetUC := usecase.NewBudgetUseCase(budgetRepo, categoryRepo, expenseRepo, userRepo)
 	expenseUC := usecase.NewExpenseUseCase(expenseRepo, budgetRepo, categoryRepo, userRepo)
 	incomeUC := usecase.NewIncomeUseCase(incomeRepo, userRepo)
+	bankAccountUC := usecase.NewBankAccountUseCase(bankAccountRepo, userRepo)
+	bankNotificationPatternUC := usecase.NewBankNotificationPatternUseCase(bankNotificationPatternRepo, bankAccountRepo, userRepo)
 
 	return &Dependencies{
-		UserUC:        userUC,
-		AccountUC:     accountUC,
-		TransactionUC: transactionUC,
-		BudgetUC:      budgetUC,
-		ExpenseUC:     expenseUC,
-		IncomeUC:      incomeUC,
-		CategoryRepo:  categoryRepo,
-		JWTManager:    jwtManager,
+		UserUC:                    userUC,
+		AccountUC:                 accountUC,
+		TransactionUC:             transactionUC,
+		BudgetUC:                  budgetUC,
+		ExpenseUC:                 expenseUC,
+		IncomeUC:                  incomeUC,
+		BankAccountUC:             bankAccountUC,
+		BankNotificationPatternUC: bankNotificationPatternUC,
+		CategoryRepo:              categoryRepo,
+		JWTManager:                jwtManager,
 	}
 }
 
@@ -140,7 +148,7 @@ func initHTTPServer(cfg *configs.Config, deps *Dependencies) *gin.Engine {
 	})
 
 	// Inicializar rutas API v1
-	v1.NewRouter(router, deps.UserUC, deps.AccountUC, deps.TransactionUC, deps.BudgetUC, deps.ExpenseUC, deps.IncomeUC, deps.CategoryRepo, deps.JWTManager)
+	v1.NewRouter(router, deps.UserUC, deps.AccountUC, deps.TransactionUC, deps.BudgetUC, deps.ExpenseUC, deps.IncomeUC, deps.BankAccountUC, deps.BankNotificationPatternUC, deps.CategoryRepo, deps.JWTManager)
 
 	// Documentación Swagger (solo en desarrollo)
 	if cfg.Features.EnableSwagger {

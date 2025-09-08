@@ -150,9 +150,6 @@ func NewRouter(
 			bankAccountsGroup.DELETE("/:id", bankAccountHandler.DeleteBankAccount)
 			bankAccountsGroup.PATCH("/:id/active", bankAccountHandler.SetBankAccountActive)
 			bankAccountsGroup.PATCH("/:id/balance", bankAccountHandler.UpdateBankAccountBalance)
-
-			// Rutas de patrones de notificación por cuenta bancaria
-			bankAccountsGroup.GET("/:bank_account_id/notification-patterns", bankNotificationPatternHandler.GetBankAccountPatterns)
 		}
 
 		// Rutas de patrones de notificación
@@ -166,6 +163,9 @@ func NewRouter(
 			notificationPatternsGroup.PUT("/:id", bankNotificationPatternHandler.UpdatePattern)
 			notificationPatternsGroup.DELETE("/:id", bankNotificationPatternHandler.DeletePattern)
 			notificationPatternsGroup.PATCH("/:id/status", bankNotificationPatternHandler.SetPatternStatus)
+
+			// Rutas de patrones por cuenta bancaria (usando ruta alternativa)
+			notificationPatternsGroup.GET("/bank-account/:bank_account_id", bankNotificationPatternHandler.GetBankAccountPatterns)
 		}
 	}
 }

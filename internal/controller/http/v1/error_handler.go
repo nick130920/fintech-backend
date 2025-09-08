@@ -51,7 +51,7 @@ func handleErrorResponse(c *gin.Context, err error) {
 		message = "Recurso no encontrado"
 
 	// 409 Conflict
-	case errors.Is(err, apperrors.ErrDuplicateRecord),
+	case errors.Is(err, apperrors.ErrConflict),
 		errors.Is(err, apperrors.ErrBudgetExists),
 		errors.Is(err, apperrors.ErrEmailExists):
 		status = http.StatusConflict

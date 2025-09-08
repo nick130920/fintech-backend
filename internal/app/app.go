@@ -129,10 +129,8 @@ func initHTTPServer(cfg *configs.Config, deps *Dependencies) *gin.Engine {
 	// Crear router
 	router := gin.New()
 
-	// Middleware global mejorado
-	router.Use(v1.RequestLoggerMiddleware())
-	router.Use(v1.RecoveryMiddleware())
-	router.Use(v1.ErrorLoggerMiddleware())
+	// Los middlewares avanzados están integrados en el router v1
+	// No necesitamos configurarlos aquí
 
 	// Middleware CORS
 	router.Use(corsMiddleware(cfg.CORS))

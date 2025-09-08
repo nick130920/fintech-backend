@@ -1,6 +1,8 @@
 package v1
 
 import (
+	"time"
+
 	"github.com/gin-gonic/gin"
 
 	"github.com/nick130920/fintech-backend/internal/usecase"
@@ -22,8 +24,14 @@ func NewRouter(
 	categoryRepo repo.CategoryRepo,
 	jwtManager *auth.JWTManager,
 ) {
+	// Configurar middlewares globales de seguridad
+	setupGlobalMiddlewares(router)
+
 	// Grupo principal de API v1
 	v1 := router.Group("/api/v1")
+
+	// Configurar middlewares específicos de API
+	setupAPIMiddlewares(v1)
 
 	// Inicializar handlers
 	userHandler := NewUserHandler(userUC)
@@ -168,4 +176,56 @@ func NewRouter(
 			notificationPatternsGroup.GET("/bank-account/:bank_account_id", bankNotificationPatternHandler.GetBankAccountPatterns)
 		}
 	}
+}
+
+// setupGlobalMiddlewares configura middlewares globales
+func setupGlobalMiddlewares(router *gin.Engine) {
+	// Recovery mejorado (debe ir primero)
+	router.Use(RecoveryMiddleware())
+
+	// Headers de seguridad
+	router.Use(SecurityHeadersMiddleware())
+
+	// CORS (si es necesario)
+	router.Use(func(c *gin.Context) {
+		c.Header("Access-Control-Allow-Origin", "*")
+		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS")
+		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Authorization")
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+
+		c.Next()
+	})
+}
+
+// setupAPIMiddlewares configura middlewares específicos de la API
+func setupAPIMiddlewares(group *gin.RouterGroup) {
+	// Logging avanzado con métricas
+	group.Use(EnhancedLoggerMiddleware())
+
+	// Manejo de errores centralizado
+	group.Use(ErrorHandlerMiddleware())
+
+	// Rate limiting: 100 requests por minuto por IP
+	rateLimiter := NewRateLimiter(100, time.Minute)
+	group.Use(rateLimiter.RateLimitMiddleware())
+
+	// Validación de content-type
+	group.Use(ValidateContentTypeMiddleware())
+
+	// Límite de tamaño de request: 10MB
+	group.Use(RequestSizeLimitMiddleware(10 * 1024 * 1024))
+
+	// Timeout de request: 30 segundos
+	group.Use(TimeoutMiddleware(30 * time.Second))
+
+	// Detección de actividad sospechosa
+	group.Use(SuspiciousActivityMiddleware())
+
+	// Validador personalizado
+	customValidator := NewCustomValidator()
+	group.Use(ValidationMiddleware(customValidator))
 }

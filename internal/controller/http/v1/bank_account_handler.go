@@ -9,6 +9,7 @@ import (
 	"github.com/nick130920/fintech-backend/internal/controller/http/v1/dto"
 	"github.com/nick130920/fintech-backend/internal/entity"
 	"github.com/nick130920/fintech-backend/internal/usecase"
+	"github.com/nick130920/fintech-backend/pkg/apperrors"
 	"github.com/nick130920/fintech-backend/pkg/validator"
 )
 
@@ -43,43 +44,31 @@ func NewBankAccountHandler(bankAccountUC *usecase.BankAccountUseCase) *BankAccou
 func (h *BankAccountHandler) CreateBankAccount(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, dto.ErrorResponse{
-			Error:   "Unauthorized",
-			Message: "User ID not found in context",
-		})
+		AbortWithAppError(c, apperrors.ErrUnauthorized.WithDetails("ID de usuario no encontrado"))
 		return
 	}
 
 	var req dto.CreateBankAccountRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, dto.ErrorResponse{
-			Error:   "Invalid request format",
-			Message: err.Error(),
-		})
-		return
-	}
-
-	if err := h.validator.Validate(req); err != nil {
-		c.JSON(http.StatusBadRequest, dto.ErrorResponse{
-			Error:   "Validation failed",
-			Message: err.Error(),
-		})
+	if !ValidateAndRespond(c, &req) {
 		return
 	}
 
 	response, err := h.bankAccountUC.CreateBankAccount(userID.(uint), &req)
 	if err != nil {
-		if err.Error() == "bank account with this number mask already exists" {
-			c.JSON(http.StatusConflict, dto.ErrorResponse{
-				Error:   "Conflict",
-				Message: err.Error(),
-			})
+		// Verificar si es un AppError
+		if appErr, ok := apperrors.IsAppError(err); ok {
+			AbortWithError(c, appErr)
 			return
 		}
-		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
-			Error:   "Internal server error",
-			Message: err.Error(),
-		})
+
+		// Manejar errores específicos del dominio
+		if err.Error() == "bank account with this number mask already exists" {
+			AbortWithAppError(c, apperrors.ErrConflict.WithDetails("Ya existe una cuenta con estos últimos dígitos"))
+			return
+		}
+
+		// Error genérico
+		AbortWithAppError(c, apperrors.ErrInternal.WithInternal(err))
 		return
 	}
 

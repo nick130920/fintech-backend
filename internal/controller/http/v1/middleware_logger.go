@@ -3,122 +3,259 @@ package v1
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
-	"log"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	log "github.com/sirupsen/logrus"
 )
 
-// ErrorLoggerMiddleware middleware para logging detallado de errores
-func ErrorLoggerMiddleware() gin.HandlerFunc {
-	return gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string {
-		// Log detallado para errores 4xx y 5xx
-		if param.StatusCode >= 400 {
-			log.Printf(
-				"❌ ERROR [%d] %s %s | IP: %s | Latencia: %v | User-Agent: %s | Error: %s",
-				param.StatusCode,
-				param.Method,
-				param.Path,
-				param.ClientIP,
-				param.Latency,
-				param.Request.UserAgent(),
-				param.ErrorMessage,
-			)
-		}
-
-		// Log normal para requests exitosos
-		return ""
-	})
+// RequestMetrics contiene métricas de request
+type RequestMetrics struct {
+	RequestID    string
+	Method       string
+	Path         string
+	Status       int
+	Latency      time.Duration
+	RequestSize  int64
+	ResponseSize int64
+	UserAgent    string
+	IP           string
+	UserID       string
+	HasAuth      bool
+	Errors       []string
 }
 
-// RequestLoggerMiddleware middleware para logging de requests detallados
-func RequestLoggerMiddleware() gin.HandlerFunc {
+// EnhancedLoggerMiddleware proporciona logging avanzado con métricas
+func EnhancedLoggerMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
 
-		// Capturar el body del request para debugging
-		var body []byte
+		// Generar request ID único
+		requestID := uuid.New().String()
+		c.Set("request_id", requestID)
+
+		// Capturar body del request (solo para debugging en desarrollo)
+		var requestBody []byte
+		var requestSize int64
+
 		if c.Request.Body != nil {
-			body, _ = io.ReadAll(c.Request.Body)
-			c.Request.Body = io.NopCloser(bytes.NewBuffer(body))
+			requestBody, _ = io.ReadAll(c.Request.Body)
+			c.Request.Body = io.NopCloser(bytes.NewBuffer(requestBody))
+			requestSize = int64(len(requestBody))
 		}
 
-		// Log del request entrante
+		// Extraer información de autenticación
 		authHeader := c.Request.Header.Get("Authorization")
-		authPreview := "N/A"
-		if len(authHeader) > 20 {
-			authPreview = authHeader[:20] + "..."
-		} else if len(authHeader) > 0 {
-			authPreview = authHeader
-		}
+		hasAuth := authHeader != ""
+		userID := extractUserIDFromContext(c)
 
-		log.Printf(
-			"[DEBUG] 📤 REQUEST: %s %s | IP: %s | Auth: %s",
-			c.Request.Method,
-			c.Request.URL.Path,
-			c.ClientIP(),
-			authPreview,
-		)
+		// Log de request entrante
+		logRequestStart(c, requestID, requestBody, hasAuth)
 
-		// Log del body si es POST/PUT/PATCH
-		if c.Request.Method == "POST" || c.Request.Method == "PUT" || c.Request.Method == "PATCH" {
-			if len(body) > 0 {
-				var prettyJSON bytes.Buffer
-				if err := json.Indent(&prettyJSON, body, "", "  "); err == nil {
-					log.Printf("[DEBUG] 📦 REQUEST BODY:\n%s", prettyJSON.String())
-				} else {
-					log.Printf("📦 REQUEST BODY (raw): %s", string(body))
-				}
-			}
+		// Response writer wrapper para capturar métricas
+		wrapper := &responseWriterWrapper{
+			ResponseWriter: c.Writer,
+			size:           0,
 		}
+		c.Writer = wrapper
 
 		// Procesar request
 		c.Next()
 
-		// Log de la respuesta
-		latency := time.Since(start)
-		status := c.Writer.Status()
-
-		if status >= 500 {
-			log.Printf(
-				"[ERROR] 📥 RESPONSE ERROR [%d] | Latencia: %v | Errors: %v",
-				status,
-				latency,
-				c.Errors,
-			)
-		} else if status >= 400 {
-			log.Printf(
-				"[WARN] 📥 RESPONSE ERROR [%d] | Latencia: %v | Errors: %v",
-				status,
-				latency,
-				c.Errors,
-			)
-		} else {
-			log.Printf(
-				"[INFO] 📥 RESPONSE SUCCESS [%d] | Latencia: %v",
-				status,
-				latency,
-			)
+		// Calcular métricas
+		metrics := RequestMetrics{
+			RequestID:    requestID,
+			Method:       c.Request.Method,
+			Path:         c.Request.URL.Path,
+			Status:       c.Writer.Status(),
+			Latency:      time.Since(start),
+			RequestSize:  requestSize,
+			ResponseSize: int64(wrapper.size),
+			UserAgent:    c.Request.UserAgent(),
+			IP:           c.ClientIP(),
+			UserID:       userID,
+			HasAuth:      hasAuth,
+			Errors:       extractErrors(c),
 		}
+
+		// Log de respuesta con métricas completas
+		logRequestComplete(metrics)
 	}
 }
 
-// RecoveryMiddleware middleware personalizado para recovery con logging
-func RecoveryMiddleware() gin.HandlerFunc {
-	return gin.CustomRecovery(func(c *gin.Context, recovered interface{}) {
-		log.Printf(
-			"[ERROR] 🚨 PANIC RECOVERED: %v | Method: %s | Path: %s | IP: %s",
-			recovered,
-			c.Request.Method,
-			c.Request.URL.Path,
-			c.ClientIP(),
-		)
+// logRequestStart registra el inicio del request
+func logRequestStart(c *gin.Context, requestID string, body []byte, hasAuth bool) {
+	fields := log.Fields{
+		"request_id": requestID,
+		"method":     c.Request.Method,
+		"path":       c.Request.URL.Path,
+		"query":      c.Request.URL.RawQuery,
+		"ip":         c.ClientIP(),
+		"user_agent": c.Request.UserAgent(),
+		"has_auth":   hasAuth,
+		"headers":    sanitizeHeaders(c.Request.Header),
+	}
 
-		c.JSON(500, gin.H{
-			"code":    "INTERNAL_PANIC",
-			"message": "Error interno del servidor",
-			"details": "Se ha producido un error inesperado",
-		})
-	})
+	// Solo loggear body en desarrollo y para métodos que modifican datos
+	if gin.Mode() == gin.DebugMode && shouldLogBody(c.Request.Method) && len(body) > 0 {
+		fields["request_body"] = sanitizeRequestBody(body)
+	}
+
+	log.WithFields(fields).Info("📤 REQUEST START")
+}
+
+// logRequestComplete registra la finalización del request con métricas
+func logRequestComplete(metrics RequestMetrics) {
+	fields := log.Fields{
+		"request_id":    metrics.RequestID,
+		"method":        metrics.Method,
+		"path":          metrics.Path,
+		"status":        metrics.Status,
+		"latency_ms":    metrics.Latency.Milliseconds(),
+		"latency_str":   metrics.Latency.String(),
+		"request_size":  metrics.RequestSize,
+		"response_size": metrics.ResponseSize,
+		"ip":            metrics.IP,
+		"user_agent":    metrics.UserAgent,
+		"has_auth":      metrics.HasAuth,
+	}
+
+	if metrics.UserID != "" {
+		fields["user_id"] = metrics.UserID
+	}
+
+	if len(metrics.Errors) > 0 {
+		fields["errors"] = metrics.Errors
+	}
+
+	// Determinar nivel de log y emoji según status
+	emoji, level := getLogLevelAndEmoji(metrics.Status)
+
+	switch level {
+	case "error":
+		log.WithFields(fields).Error(fmt.Sprintf("%s REQUEST COMPLETE [%d]", emoji, metrics.Status))
+	case "warn":
+		log.WithFields(fields).Warn(fmt.Sprintf("%s REQUEST COMPLETE [%d]", emoji, metrics.Status))
+	default:
+		log.WithFields(fields).Info(fmt.Sprintf("%s REQUEST COMPLETE [%d]", emoji, metrics.Status))
+	}
+
+	// Log de métricas adicionales para requests lentos
+	if metrics.Latency > 1*time.Second {
+		log.WithFields(fields).Warn("🐌 SLOW REQUEST DETECTED")
+	}
+
+	// Log de requests grandes
+	if metrics.RequestSize > 1024*1024 { // > 1MB
+		log.WithFields(fields).Warn("📦 LARGE REQUEST DETECTED")
+	}
+}
+
+// responseWriterWrapper envuelve el ResponseWriter para capturar métricas
+type responseWriterWrapper struct {
+	gin.ResponseWriter
+	size int
+}
+
+func (w *responseWriterWrapper) Write(data []byte) (int, error) {
+	size, err := w.ResponseWriter.Write(data)
+	w.size += size
+	return size, err
+}
+
+// Funciones de utilidad
+func extractUserIDFromContext(c *gin.Context) string {
+	if userID, exists := c.Get("user_id"); exists {
+		return fmt.Sprintf("%v", userID)
+	}
+	return ""
+}
+
+func extractErrors(c *gin.Context) []string {
+	var errors []string
+	for _, err := range c.Errors {
+		errors = append(errors, err.Error())
+	}
+	return errors
+}
+
+func getLogLevelAndEmoji(status int) (string, string) {
+	switch {
+	case status >= 500:
+		return "❌", "error"
+	case status >= 400:
+		return "⚠️", "warn"
+	case status >= 300:
+		return "🔄", "info"
+	default:
+		return "✅", "info"
+	}
+}
+
+func shouldLogBody(method string) bool {
+	return method == "POST" || method == "PUT" || method == "PATCH"
+}
+
+func sanitizeHeaders(headers map[string][]string) map[string]interface{} {
+	sanitized := make(map[string]interface{})
+
+	for key, values := range headers {
+		lowerKey := strings.ToLower(key)
+
+		// Ocultar headers sensibles
+		if lowerKey == "authorization" || lowerKey == "cookie" || lowerKey == "x-api-key" {
+			if len(values) > 0 && len(values[0]) > 10 {
+				sanitized[key] = values[0][:10] + "..."
+			} else {
+				sanitized[key] = "[HIDDEN]"
+			}
+		} else {
+			sanitized[key] = values
+		}
+	}
+
+	return sanitized
+}
+
+func sanitizeRequestBody(body []byte) interface{} {
+	// Limitar tamaño del body en logs
+	const maxBodySize = 1024 // 1KB
+	if len(body) > maxBodySize {
+		return fmt.Sprintf("%s... [TRUNCATED %d bytes]", string(body[:maxBodySize]), len(body))
+	}
+
+	// Intentar parsear como JSON para mejor formato
+	var jsonData interface{}
+	if err := json.Unmarshal(body, &jsonData); err == nil {
+		// Sanitizar campos sensibles en JSON
+		if jsonMap, ok := jsonData.(map[string]interface{}); ok {
+			sanitizeJSONFields(jsonMap)
+		}
+		return jsonData
+	}
+
+	return string(body)
+}
+
+func sanitizeJSONFields(data map[string]interface{}) {
+	sensitiveFields := []string{"password", "token", "secret", "key", "authorization"}
+
+	for key, value := range data {
+		lowerKey := strings.ToLower(key)
+
+		for _, sensitive := range sensitiveFields {
+			if strings.Contains(lowerKey, sensitive) {
+				if str, ok := value.(string); ok && len(str) > 4 {
+					data[key] = str[:4] + "***"
+				} else {
+					data[key] = "[HIDDEN]"
+				}
+				break
+			}
+		}
+	}
 }

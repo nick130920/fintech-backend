@@ -149,8 +149,13 @@ func NewRouter(
 		// Rutas de cuentas bancarias
 		bankAccountsGroup := protectedGroup.Group("/bank-accounts")
 		{
+			// Rutas principales (con y sin trailing slash para evitar redirects)
 			bankAccountsGroup.GET("/", bankAccountHandler.GetUserBankAccounts)
+			bankAccountsGroup.GET("", bankAccountHandler.GetUserBankAccounts)
 			bankAccountsGroup.POST("/", bankAccountHandler.CreateBankAccount)
+			bankAccountsGroup.POST("", bankAccountHandler.CreateBankAccount)
+
+			// Otras rutas
 			bankAccountsGroup.GET("/summary", bankAccountHandler.GetBankAccountSummary)
 			bankAccountsGroup.GET("/type/:type", bankAccountHandler.GetBankAccountsByType)
 			bankAccountsGroup.GET("/:id", bankAccountHandler.GetBankAccount)
@@ -163,8 +168,13 @@ func NewRouter(
 		// Rutas de patrones de notificación
 		notificationPatternsGroup := protectedGroup.Group("/notification-patterns")
 		{
+			// Rutas principales (con y sin trailing slash para evitar redirects)
 			notificationPatternsGroup.GET("/", bankNotificationPatternHandler.GetUserPatterns)
+			notificationPatternsGroup.GET("", bankNotificationPatternHandler.GetUserPatterns)
 			notificationPatternsGroup.POST("/", bankNotificationPatternHandler.CreatePattern)
+			notificationPatternsGroup.POST("", bankNotificationPatternHandler.CreatePattern)
+
+			// Otras rutas
 			notificationPatternsGroup.GET("/statistics", bankNotificationPatternHandler.GetPatternStatistics)
 			notificationPatternsGroup.POST("/process", bankNotificationPatternHandler.ProcessNotification)
 			notificationPatternsGroup.GET("/:id", bankNotificationPatternHandler.GetPattern)
@@ -182,9 +192,6 @@ func NewRouter(
 func setupGlobalMiddlewares(router *gin.Engine) {
 	// Recovery mejorado (debe ir primero)
 	router.Use(RecoveryMiddleware())
-
-	// Middleware para manejar trailing slashes automáticamente
-	router.Use(TrailingSlashMiddleware())
 
 	// Headers de seguridad
 	router.Use(SecurityHeadersMiddleware())
@@ -231,21 +238,4 @@ func setupAPIMiddlewares(group *gin.RouterGroup) {
 	// Validador personalizado
 	customValidator := NewCustomValidator()
 	group.Use(ValidationMiddleware(customValidator))
-}
-
-// TrailingSlashMiddleware maneja automáticamente trailing slashes
-func TrailingSlashMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		path := c.Request.URL.Path
-
-		// Si la ruta termina en slash y no es solo "/", quitar el slash
-		if len(path) > 1 && path[len(path)-1] == '/' {
-			newPath := path[:len(path)-1]
-
-			// Redirigir internamente sin generar log de redirect
-			c.Request.URL.Path = newPath
-		}
-
-		c.Next()
-	}
 }

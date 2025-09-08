@@ -183,6 +183,9 @@ func setupGlobalMiddlewares(router *gin.Engine) {
 	// Recovery mejorado (debe ir primero)
 	router.Use(RecoveryMiddleware())
 
+	// Middleware para manejar trailing slashes automáticamente
+	router.Use(TrailingSlashMiddleware())
+
 	// Headers de seguridad
 	router.Use(SecurityHeadersMiddleware())
 
@@ -228,4 +231,21 @@ func setupAPIMiddlewares(group *gin.RouterGroup) {
 	// Validador personalizado
 	customValidator := NewCustomValidator()
 	group.Use(ValidationMiddleware(customValidator))
+}
+
+// TrailingSlashMiddleware maneja automáticamente trailing slashes
+func TrailingSlashMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		path := c.Request.URL.Path
+
+		// Si la ruta termina en slash y no es solo "/", quitar el slash
+		if len(path) > 1 && path[len(path)-1] == '/' {
+			newPath := path[:len(path)-1]
+
+			// Redirigir internamente sin generar log de redirect
+			c.Request.URL.Path = newPath
+		}
+
+		c.Next()
+	}
 }

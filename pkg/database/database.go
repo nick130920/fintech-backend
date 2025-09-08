@@ -83,6 +83,9 @@ func runMigrations(db *gorm.DB) error {
 		// Opcional: mantener Account y Transaction para compatibilidad
 		&entity.Account{},
 		&entity.Transaction{},
+		// Nuevas entidades para notificaciones bancarias
+		&entity.BankAccount{},
+		&entity.BankNotificationPattern{},
 	)
 }
 
@@ -101,10 +104,12 @@ func CreateTables(db *gorm.DB) error {
 func DropTables(db *gorm.DB) error {
 	return db.Migrator().DropTable(
 		// Eliminar en orden inverso por dependencias
+		&entity.BankNotificationPattern{}, // Depende de BankAccount
 		&entity.Expense{},
 		&entity.BudgetAllocation{},
 		&entity.Budget{},
-		&entity.Transaction{},
+		&entity.Transaction{}, // Actualizada con referencia a BankAccount
+		&entity.BankAccount{}, // Depende de User
 		&entity.Account{},
 		&entity.Category{},
 		&entity.User{},

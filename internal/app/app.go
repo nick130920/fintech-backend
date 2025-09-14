@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	logrus "github.com/sirupsen/logrus"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 	"gorm.io/gorm"
@@ -26,6 +27,9 @@ import (
 func Run() {
 	// Cargar configuración
 	cfg := configs.Load()
+
+	// Configurar logging para Railway
+	setupLogging()
 
 	// Validar configuración
 	if err := cfg.Validate(); err != nil {
@@ -245,4 +249,40 @@ func setupSwagger(router *gin.Engine) {
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	log.Printf("Swagger UI available at: http://%s/swagger/index.html", docs.SwaggerInfo.Host)
+}
+
+// setupLogging configura logrus para diferentes entornos
+func setupLogging() {
+	// Configurar formato según entorno
+	if gin.Mode() == gin.ReleaseMode {
+		// Producción (Railway): formato JSON compacto
+		logrus.SetFormatter(&logrus.JSONFormatter{
+			TimestampFormat: "2006-01-02T15:04:05Z",
+			DisableHTMLEscape: true,
+			FieldMap: logrus.FieldMap{
+				logrus.FieldKeyTime:  "time",
+				logrus.FieldKeyLevel: "level",
+				logrus.FieldKeyMsg:   "msg",
+			},
+		})
+		logrus.SetLevel(logrus.InfoLevel)
+	} else {
+		// Desarrollo: formato texto con colores
+		logrus.SetFormatter(&logrus.TextFormatter{
+			ForceColors:     true,
+			TimestampFormat: "15:04:05",
+			FullTimestamp:   true,
+		})
+		logrus.SetLevel(logrus.DebugLevel)
+	}
+
+	// Siempre usar stdout
+	logrus.SetOutput(os.Stdout)
+	
+	// Log de configuración
+	if gin.Mode() == gin.ReleaseMode {
+		logrus.Info("🚀 Logging configured for Railway (JSON format)")
+	} else {
+		logrus.Info("🛠️  Logging configured for development (Text format)")
+	}
 }

@@ -190,9 +190,15 @@ func NewRouter(
 
 // setupGlobalMiddlewares configura middlewares globales
 func setupGlobalMiddlewares(router *gin.Engine) {
-	// Recovery mejorado (debe ir primero)
-	router.Use(RecoveryMiddleware())
-
+	// Recovery optimizado según entorno
+	if gin.Mode() == gin.ReleaseMode {
+		// Para producción (Railway): recovery simple
+		router.Use(SimpleRecoveryMiddleware())
+	} else {
+		// Para desarrollo: recovery detallado
+		router.Use(RecoveryMiddleware())
+	}
+	
 	// Headers de seguridad
 	router.Use(SecurityHeadersMiddleware())
 
@@ -213,9 +219,15 @@ func setupGlobalMiddlewares(router *gin.Engine) {
 
 // setupAPIMiddlewares configura middlewares específicos de la API
 func setupAPIMiddlewares(group *gin.RouterGroup) {
-	// Logging avanzado con métricas
-	group.Use(EnhancedLoggerMiddleware())
-
+	// Logging optimizado según entorno
+	if gin.Mode() == gin.ReleaseMode {
+		// Para producción (Railway): logging compacto
+		group.Use(RailwayLoggerMiddleware())
+	} else {
+		// Para desarrollo: logging detallado
+		group.Use(EnhancedLoggerMiddleware())
+	}
+	
 	// Manejo de errores centralizado
 	group.Use(ErrorHandlerMiddleware())
 

@@ -257,7 +257,7 @@ func setupLogging() {
 	if gin.Mode() == gin.ReleaseMode {
 		// Producción (Railway): formato JSON compacto
 		logrus.SetFormatter(&logrus.JSONFormatter{
-			TimestampFormat: "2006-01-02T15:04:05Z",
+			TimestampFormat:   "2006-01-02T15:04:05Z",
 			DisableHTMLEscape: true,
 			FieldMap: logrus.FieldMap{
 				logrus.FieldKeyTime:  "time",
@@ -278,7 +278,7 @@ func setupLogging() {
 
 	// Siempre usar stdout
 	logrus.SetOutput(os.Stdout)
-	
+
 	// Log de configuración
 	if gin.Mode() == gin.ReleaseMode {
 		logrus.Info("🚀 Logging configured for Railway (JSON format)")

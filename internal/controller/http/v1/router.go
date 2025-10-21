@@ -198,7 +198,7 @@ func setupGlobalMiddlewares(router *gin.Engine) {
 		// Para desarrollo: recovery detallado
 		router.Use(RecoveryMiddleware())
 	}
-	
+
 	// Headers de seguridad
 	router.Use(SecurityHeadersMiddleware())
 
@@ -227,7 +227,7 @@ func setupAPIMiddlewares(group *gin.RouterGroup) {
 		// Para desarrollo: logging detallado
 		group.Use(EnhancedLoggerMiddleware())
 	}
-	
+
 	// Manejo de errores centralizado
 	group.Use(ErrorHandlerMiddleware())
 

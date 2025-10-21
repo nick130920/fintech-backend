@@ -17,7 +17,7 @@ import (
 func RailwayLoggerMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
-		
+
 		// Generar request ID corto para Railway
 		requestID := generateShortID()
 		c.Set("request_id", requestID)
@@ -25,7 +25,7 @@ func RailwayLoggerMiddleware() gin.HandlerFunc {
 		// Capturar método y path
 		method := c.Request.Method
 		path := c.Request.URL.Path
-		
+
 		// Solo capturar body para métodos que modifican datos y en debug
 		var bodyPreview string
 		if gin.Mode() == gin.DebugMode && shouldLogBody(method) {
@@ -42,9 +42,9 @@ func RailwayLoggerMiddleware() gin.HandlerFunc {
 			if hasAuth {
 				authStatus = "✅"
 			}
-			log.Infof("🚀 [%s] %s %s %s | IP: %s", 
+			log.Infof("🚀 [%s] %s %s %s | IP: %s",
 				requestID, method, path, authStatus, c.ClientIP())
-			
+
 			if bodyPreview != "" {
 				log.Infof("📦 [%s] Body: %s", requestID, bodyPreview)
 			}
@@ -66,21 +66,21 @@ func RailwayLoggerMiddleware() gin.HandlerFunc {
 		responseSize := wrapper.size
 
 		// Log compacto de finalización
-		logRequestResult(requestID, method, path, status, latency, 
+		logRequestResult(requestID, method, path, status, latency,
 			c.ClientIP(), userID, hasAuth, responseSize, c.Errors)
 	}
 }
 
 // logRequestResult registra el resultado del request de forma compacta
-func logRequestResult(requestID, method, path string, status int, latency time.Duration, 
+func logRequestResult(requestID, method, path string, status int, latency time.Duration,
 	ip, userID string, hasAuth bool, responseSize int, errors []error) {
-	
+
 	// Emoji y color según status
 	emoji, level := getStatusEmoji(status)
-	
+
 	// Formatear latencia
 	latencyStr := formatLatency(latency)
-	
+
 	// Info de usuario
 	userInfo := "anon"
 	if userID != "" {
@@ -88,14 +88,14 @@ func logRequestResult(requestID, method, path string, status int, latency time.D
 	} else if hasAuth {
 		userInfo = "auth"
 	}
-	
+
 	// Tamaño de respuesta
 	sizeStr := formatSize(responseSize)
-	
+
 	// Mensaje base compacto
 	message := fmt.Sprintf("%s [%s] %s %s → %d | %s | %s | %s | IP: %s",
 		emoji, requestID, method, path, status, latencyStr, sizeStr, userInfo, ip)
-	
+
 	// Añadir errores si existen
 	if len(errors) > 0 {
 		message += fmt.Sprintf(" | Errors: %d", len(errors))
@@ -114,12 +114,12 @@ func logRequestResult(requestID, method, path string, status int, latency time.D
 	default:
 		log.Info(message)
 	}
-	
+
 	// Log especial para requests lentos
 	if latency > 2*time.Second {
 		log.Warnf("🐌 [%s] SLOW REQUEST: %s %s took %s", requestID, method, path, latency)
 	}
-	
+
 	// Log especial para responses grandes
 	if responseSize > 1024*1024 { // > 1MB
 		log.Warnf("📦 [%s] LARGE RESPONSE: %s", requestID, formatSize(responseSize))
@@ -138,19 +138,19 @@ func captureBodyPreview(c *gin.Context) string {
 	if c.Request.Body == nil {
 		return ""
 	}
-	
+
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
 		return ""
 	}
-	
+
 	// Restaurar el body
 	c.Request.Body = io.NopCloser(bytes.NewBuffer(body))
-	
+
 	if len(body) == 0 {
 		return ""
 	}
-	
+
 	// Intentar parsear como JSON para vista previa más limpia
 	var jsonData map[string]interface{}
 	if err := json.Unmarshal(body, &jsonData); err == nil {
@@ -162,7 +162,7 @@ func captureBodyPreview(c *gin.Context) string {
 				preview["..."] = fmt.Sprintf("and %d more fields", len(jsonData)-3)
 				break
 			}
-			
+
 			// Sanitizar campos sensibles
 			if isSensitiveField(key) {
 				preview[key] = "***"
@@ -176,13 +176,13 @@ func captureBodyPreview(c *gin.Context) string {
 			}
 			count++
 		}
-		
+
 		// Convertir a string compacto
 		if previewBytes, err := json.Marshal(preview); err == nil {
 			return string(previewBytes)
 		}
 	}
-	
+
 	// Fallback: mostrar primeros 50 caracteres
 	bodyStr := string(body)
 	if len(bodyStr) > 50 {
@@ -233,7 +233,7 @@ func formatSize(size int) string {
 func isSensitiveField(field string) bool {
 	sensitive := []string{"password", "token", "secret", "key", "authorization", "auth"}
 	fieldLower := strings.ToLower(field)
-	
+
 	for _, s := range sensitive {
 		if strings.Contains(fieldLower, s) {
 			return true
@@ -248,11 +248,11 @@ func SimpleRecoveryMiddleware() gin.HandlerFunc {
 		defer func() {
 			if err := recover(); err != nil {
 				requestID := getRequestID(c)
-				
+
 				// Log compacto del panic
-				log.Errorf("💥 [%s] PANIC: %s %s | %v", 
+				log.Errorf("💥 [%s] PANIC: %s %s | %v",
 					requestID, c.Request.Method, c.Request.URL.Path, err)
-				
+
 				// Respuesta de error
 				c.JSON(500, gin.H{
 					"error":      "internal_error",
@@ -265,4 +265,3 @@ func SimpleRecoveryMiddleware() gin.HandlerFunc {
 		c.Next()
 	}
 }
-

@@ -67,13 +67,13 @@ func RailwayLoggerMiddleware() gin.HandlerFunc {
 
 		// Log compacto de finalización
 		logRequestResult(requestID, method, path, status, latency,
-			c.ClientIP(), userID, hasAuth, responseSize, c.Errors)
+			c.ClientIP(), userID, hasAuth, responseSize, len(c.Errors) > 0)
 	}
 }
 
 // logRequestResult registra el resultado del request de forma compacta
 func logRequestResult(requestID, method, path string, status int, latency time.Duration,
-	ip, userID string, hasAuth bool, responseSize int, errors []error) {
+	ip, userID string, hasAuth bool, responseSize int, hasErrors bool) {
 
 	// Emoji y color según status
 	emoji, level := getStatusEmoji(status)
@@ -97,18 +97,14 @@ func logRequestResult(requestID, method, path string, status int, latency time.D
 		emoji, requestID, method, path, status, latencyStr, sizeStr, userInfo, ip)
 
 	// Añadir errores si existen
-	if len(errors) > 0 {
-		message += fmt.Sprintf(" | Errors: %d", len(errors))
+	if hasErrors {
+		message += " | Has Errors"
 	}
 
 	// Log según nivel
 	switch level {
 	case "error":
 		log.Error(message)
-		// Log detalles de errores en líneas separadas
-		for _, err := range errors {
-			log.Errorf("   ❌ [%s] Error: %s", requestID, err.Error())
-		}
 	case "warn":
 		log.Warn(message)
 	default:

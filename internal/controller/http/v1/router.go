@@ -282,4 +282,8 @@ func setupPublicRoutes(router *gin.Engine) {
 	router.GET("/privacy-policy", privacyHandler.GetPrivacyPolicy)
 	router.GET("/terms", privacyHandler.GetTermsOfService)
 	router.GET("/terms-of-service", privacyHandler.GetTermsOfService)
+
+	// Ruta de eliminación de cuenta
+	router.GET("/delete-account", privacyHandler.GetAccountDeletion)
+	router.GET("/account-deletion", privacyHandler.GetAccountDeletion)
 }

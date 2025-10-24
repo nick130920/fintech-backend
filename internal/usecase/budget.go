@@ -1,8 +1,11 @@
 package usecase
 
 import (
+	"errors"
 	"fmt"
 	"time"
+
+	"gorm.io/gorm"
 
 	"github.com/nick130920/fintech-backend/internal/controller/http/v1/dto"
 	"github.com/nick130920/fintech-backend/internal/entity"
@@ -123,7 +126,7 @@ func (uc *BudgetUseCase) CreateBudget(userID uint, req *dto.CreateBudgetRequest)
 // GetCurrentBudget obtiene el presupuesto del mes actual
 func (uc *BudgetUseCase) GetCurrentBudget(userID uint) (*dto.BudgetSummaryResponse, error) {
 	now := time.Now()
-	budget, err := uc.budgetRepo.GetByUserAndMonth(userID, now.Year(), int(now.Month()))
+	budget, err := uc.getOrCreateBudgetByMonth(userID, now.Year(), int(now.Month()))
 	if err != nil {
 		return nil, apperrors.ErrBudgetNotFound
 	}
@@ -138,12 +141,79 @@ func (uc *BudgetUseCase) GetCurrentBudget(userID uint) (*dto.BudgetSummaryRespon
 
 // GetBudgetByMonth obtiene un presupuesto específico por mes
 func (uc *BudgetUseCase) GetBudgetByMonth(userID uint, year, month int) (*dto.BudgetSummaryResponse, error) {
-	budget, err := uc.budgetRepo.GetByUserAndMonth(userID, year, month)
+	budget, err := uc.getOrCreateBudgetByMonth(userID, year, month)
 	if err != nil {
 		return nil, apperrors.ErrBudgetNotFound
 	}
 
 	return uc.mapBudgetToSummaryResponse(budget), nil
+}
+
+// getOrCreateBudgetByMonth retrieves a budget for a given month, creating it from the latest available if it doesn't exist.
+func (uc *BudgetUseCase) getOrCreateBudgetByMonth(userID uint, year, month int) (*entity.Budget, error) {
+	// 1. Try to get the budget for the specified month
+	budget, err := uc.budgetRepo.GetByUserAndMonth(userID, year, month)
+	if err == nil {
+		// Budget found, return it
+		return budget, nil
+	}
+
+	// 2. If not found, try to create it from the latest one
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		budgets, err := uc.budgetRepo.GetByUserID(userID)
+		if err != nil || len(budgets) == 0 {
+			return nil, apperrors.ErrBudgetNotFound
+		}
+
+		latestBudget := budgets[0] // It's sorted DESC by date
+
+		if !latestBudget.AutoCreateNext {
+			return nil, apperrors.ErrBudgetNotFound
+		}
+
+		latestBudgetWithAllocations, err := uc.budgetRepo.GetByIDWithAllocations(latestBudget.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		// 3. Create a new budget by copying the latest one
+		newBudget := &entity.Budget{
+			UserID:          userID,
+			Year:            year,
+			Month:           month,
+			TotalAmount:     latestBudgetWithAllocations.TotalAmount,
+			SpentAmount:     0,
+			RemainingAmount: latestBudgetWithAllocations.TotalAmount,
+			IsActive:        true,
+			AutoCreateNext:  true,
+		}
+
+		if err := uc.budgetRepo.Create(newBudget); err != nil {
+			return nil, err
+		}
+
+		// 4. Copy allocations
+		for _, oldAllocation := range latestBudgetWithAllocations.Allocations {
+			newAllocation := &entity.BudgetAllocation{
+				BudgetID:        newBudget.ID,
+				CategoryID:      oldAllocation.CategoryID,
+				AllocatedAmount: oldAllocation.AllocatedAmount,
+				SpentAmount:     0,
+				RemainingAmount: oldAllocation.AllocatedAmount,
+				AlertThreshold:  oldAllocation.AlertThreshold,
+			}
+			if err := uc.budgetRepo.CreateAllocation(newAllocation); err != nil {
+				// TODO: Add transaction for budget creation
+				return nil, err
+			}
+		}
+
+		// 5. Return the newly created budget with its allocations
+		return uc.budgetRepo.GetByIDWithAllocations(newBudget.ID)
+	}
+
+	// 6. For any other error, just return it
+	return nil, err
 }
 
 // UpdateBudget actualiza un presupuesto existente

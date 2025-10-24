@@ -27,6 +27,9 @@ func NewRouter(
 	// Configurar middlewares globales de seguridad
 	setupGlobalMiddlewares(router)
 
+	// Rutas públicas (sin autenticación)
+	setupPublicRoutes(router)
+
 	// Grupo principal de API v1
 	v1 := router.Group("/api/v1")
 
@@ -42,6 +45,7 @@ func NewRouter(
 	incomeHandler := NewIncomeHandler(incomeUC)
 	bankAccountHandler := NewBankAccountHandler(bankAccountUC)
 	bankNotificationPatternHandler := NewBankNotificationPatternHandler(bankNotificationPatternUC)
+	webhookHandler := NewWebhookHandler(bankNotificationPatternUC, transactionUC)
 	categoryHandler := NewCategoryHandler(categoryRepo)
 
 	// Middleware de autenticación
@@ -186,6 +190,23 @@ func NewRouter(
 			notificationPatternsGroup.GET("/bank-account/:bank_account_id", bankNotificationPatternHandler.GetBankAccountPatterns)
 		}
 	}
+
+	// Rutas de webhooks (públicas - sin autenticación)
+	{
+		webhooksGroup := v1.Group("/webhooks")
+
+		// Webhook principal para notificaciones bancarias
+		webhooksGroup.POST("/bank-notification", webhookHandler.ReceiveBankNotification)
+
+		// Webhook específico para SMS
+		webhooksGroup.POST("/sms", webhookHandler.ReceiveSMSNotification)
+
+		// Procesamiento de notificaciones pendientes
+		webhooksGroup.POST("/process-pending", webhookHandler.ProcessPendingNotifications)
+
+		// Estadísticas de notificaciones
+		webhooksGroup.GET("/stats", webhookHandler.GetNotificationStats)
+	}
 }
 
 // setupGlobalMiddlewares configura middlewares globales
@@ -250,4 +271,15 @@ func setupAPIMiddlewares(group *gin.RouterGroup) {
 	// Validador personalizado
 	customValidator := NewCustomValidator()
 	group.Use(ValidationMiddleware(customValidator))
+}
+
+// setupPublicRoutes configura rutas públicas que no requieren autenticación
+func setupPublicRoutes(router *gin.Engine) {
+	privacyHandler := NewPrivacyHandler()
+
+	// Rutas de políticas y términos
+	router.GET("/privacy", privacyHandler.GetPrivacyPolicy)
+	router.GET("/privacy-policy", privacyHandler.GetPrivacyPolicy)
+	router.GET("/terms", privacyHandler.GetTermsOfService)
+	router.GET("/terms-of-service", privacyHandler.GetTermsOfService)
 }

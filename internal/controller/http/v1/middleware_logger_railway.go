@@ -81,7 +81,7 @@ func logRequestResult(requestID, method, path string, status int, latency time.D
 	// Formatear latencia
 	latencyStr := formatLatency(latency)
 
-	// Info de usuario
+	// Info de usuarion
 	userInfo := "anon"
 	if userID != "" {
 		userInfo = fmt.Sprintf("user:%s", userID)

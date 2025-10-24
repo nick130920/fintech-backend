@@ -18,6 +18,7 @@ type BankAccountRepo interface {
 	// Operaciones de búsqueda
 	GetByBankName(userID uint, bankName string) ([]*entity.BankAccount, error)
 	GetByAccountNumberMask(userID uint, mask string) (*entity.BankAccount, error)
+	GetByNotificationPhone(phone string) ([]*entity.BankAccount, error)
 	SearchByAlias(userID uint, alias string) ([]*entity.BankAccount, error)
 	GetWithFilters(userID uint, filter entity.BankAccountFilter) ([]*entity.BankAccount, int64, error)
 

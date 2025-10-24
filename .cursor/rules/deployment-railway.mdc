@@ -1,0 +1,41 @@
+---
+globs: railway.toml,Dockerfile,configs/*.go
+description: Railway deployment configuration and environment setup
+---
+
+# Railway Deployment Rules
+
+## Configuration Files
+- [railway.toml](mdc:railway.toml) configures Railway deployment
+- Set `GIN_MODE=release` for production logging
+- Use Dockerfile builder for containerized deployment
+
+## Environment Variables
+- `GIN_MODE=release` enables production optimizations
+- Database connection via Railway's PostgreSQL service
+- JWT secrets and other sensitive data via Railway environment
+
+## Logging Configuration
+- Production mode uses JSON logging format
+- Compact request/response logging for Railway console
+- Structured error reporting with request IDs
+
+## Database Migrations
+- GORM AutoMigrate handles schema changes automatically
+- No manual migration scripts needed for Railway
+- Database initialization in [database.go](mdc:pkg/database/database.go)
+
+## Build Process
+```dockerfile
+RUN CGO_ENABLED=0 GOOS=linux go build -tags netgo -ldflags '-s -w' -o app ./cmd/server
+```
+
+## Health Checks
+- Implement health check endpoints for Railway monitoring
+- Database connectivity verification
+- Service status reporting
+
+## Security Headers
+- CORS configuration for frontend integration
+- Security headers middleware for production
+- Rate limiting for API protection

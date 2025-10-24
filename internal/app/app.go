@@ -112,7 +112,7 @@ func initDependencies(db *gorm.DB, jwtManager *auth.JWTManager) *Dependencies {
 	expenseUC := usecase.NewExpenseUseCase(expenseRepo, budgetRepo, categoryRepo, userRepo)
 	incomeUC := usecase.NewIncomeUseCase(incomeRepo, userRepo)
 	bankAccountUC := usecase.NewBankAccountUseCase(bankAccountRepo, userRepo)
-	bankNotificationPatternUC := usecase.NewBankNotificationPatternUseCase(bankNotificationPatternRepo, bankAccountRepo, userRepo)
+	bankNotificationPatternUC := usecase.NewBankNotificationPatternUseCase(bankNotificationPatternRepo, bankAccountRepo, userRepo, transactionRepo)
 
 	return &Dependencies{
 		UserUC:                    userUC,

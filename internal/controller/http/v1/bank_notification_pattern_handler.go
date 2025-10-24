@@ -452,7 +452,9 @@ func (h *BankNotificationPatternHandler) ProcessNotification(c *gin.Context) {
 		return
 	}
 
-	response, err := h.patternUC.ProcessNotification(userID.(uint), req.BankAccountID, req.Channel, req.Message)
+	// Añadir UserID al request
+	req.UserID = userID.(uint)
+	response, err := h.patternUC.ProcessNotificationWebhook(req)
 	if err != nil {
 		if err.Error() == "unauthorized access to bank account" {
 			c.JSON(http.StatusNotFound, dto.ErrorResponse{

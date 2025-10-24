@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -327,6 +328,61 @@ func (uc *BankNotificationPatternUseCase) SetPatternStatus(userID, patternID uin
 	return nil
 }
 
+// extractDataFromMessage extrae datos de un mensaje usando un patrón específico
+	// Verificar que la cuenta bancaria pertenece al usuario
+	bankAccount, err := uc.bankAccountRepo.GetByID(bankAccountID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get bank account: %w", err)
+	}
+	if bankAccount == nil || bankAccount.UserID != userID {
+		return nil, errors.New("unauthorized access to bank account")
+	}
+
+	// Obtener patrones que podrían coincidir
+	matchingPatterns, err := uc.patternRepo.GetMatchingPatterns(bankAccountID, channel, message)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get matching patterns: %w", err)
+	}
+
+	// Si no hay patrones coincidentes, usar el patrón por defecto
+	if len(matchingPatterns) == 0 {
+		defaultPattern, err := uc.patternRepo.GetDefaultPattern(bankAccountID, channel)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get default pattern: %w", err)
+		}
+		if defaultPattern != nil {
+			matchingPatterns = []*entity.BankNotificationPattern{defaultPattern}
+		}
+	}
+
+	// Procesar con el primer patrón coincidente (mayor prioridad)
+	var bestPattern *entity.BankNotificationPattern
+	var confidence float64
+	var extractedData map[string]interface{}
+
+	if len(matchingPatterns) > 0 {
+		bestPattern = matchingPatterns[0]
+		extractedData, confidence = uc.extractDataFromMessage(bestPattern, message)
+	}
+
+	response := &dto.ProcessedNotificationResponse{
+		BankAccountID: bankAccountID,
+		Channel:       channel,
+		Message:       message,
+		Processed:     bestPattern != nil,
+		Confidence:    confidence,
+		ExtractedData: extractedData,
+	}
+
+	if bestPattern != nil {
+		response.PatternID = &bestPattern.ID
+		response.PatternName = bestPattern.Name
+		response.RequiresValidation = bestPattern.RequiresValidation || confidence < bestPattern.ConfidenceThreshold
+	}
+
+	return response, nil
+}
+
 // GetPatternStatistics obtiene estadísticas de patrones de un usuario
 func (uc *BankNotificationPatternUseCase) GetPatternStatistics(userID uint) (*dto.PatternStatisticsResponse, error) {
 	patterns, err := uc.patternRepo.GetByUserID(userID)
@@ -497,8 +553,8 @@ func (uc *BankNotificationPatternUseCase) toDTO(pattern *entity.BankNotification
 	}
 }
 
-// ProcessNotificationWebhook procesa una notificación bancaria desde webhook
-func (uc *BankNotificationPatternUseCase) ProcessNotificationWebhook(req dto.ProcessNotificationRequest) (*dto.ProcessedNotificationResponse, error) {
+// ProcessNotification procesa una notificación bancaria y crea transacciones automáticamente
+func (uc *BankNotificationPatternUseCase) ProcessNotification(req dto.ProcessNotificationRequest) (*dto.ProcessedNotificationResponse, error) {
 	// Buscar usuario por teléfono si no se proporciona UserID
 	var userID uint
 	if req.UserID > 0 {
@@ -521,7 +577,7 @@ func (uc *BankNotificationPatternUseCase) ProcessNotificationWebhook(req dto.Pro
 	// Filtrar patrones por canal
 	var activePatterns []*entity.BankNotificationPattern
 	for _, pattern := range patterns {
-		if pattern.Status == "active" && (string(pattern.Channel) == req.Channel || string(pattern.Channel) == "all") {
+		if pattern.Status == "active" && (pattern.Channel == req.Channel || pattern.Channel == "all") {
 			activePatterns = append(activePatterns, pattern)
 		}
 	}
@@ -541,8 +597,8 @@ func (uc *BankNotificationPatternUseCase) ProcessNotificationWebhook(req dto.Pro
 	var bestConfidence float64
 
 	for _, pattern := range activePatterns {
-		data, confidence := uc.extractDataFromMessage(pattern, req.Message)
-
+		data, confidence := uc.extractDataFromMessage(req.Message, pattern)
+		
 		if confidence > bestConfidence {
 			bestMatch = pattern
 			bestData = data
@@ -581,7 +637,7 @@ func (uc *BankNotificationPatternUseCase) ProcessNotificationWebhook(req dto.Pro
 			response.TransactionID = transaction.ID
 			response.Amount = transaction.Amount
 			response.Description = transaction.Description
-
+			
 			// Actualizar estadísticas de éxito
 			bestMatch.SuccessCount++
 			bestMatch.SuccessRate = float64(bestMatch.SuccessCount) / float64(bestMatch.MatchCount)
@@ -611,7 +667,7 @@ func (uc *BankNotificationPatternUseCase) createTransactionFromNotification(
 	// Extraer monto
 	amount, ok := data["amount"].(float64)
 	if !ok {
-		return nil, apperrors.ErrInvalidRequest.WithDetails("No se pudo extraer el monto de la notificación")
+		return nil, apperrors.ErrBadRequest.WithDetails("No se pudo extraer el monto de la notificación")
 	}
 
 	// Extraer descripción
@@ -623,19 +679,18 @@ func (uc *BankNotificationPatternUseCase) createTransactionFromNotification(
 		description = merchant
 	}
 
-	// Obtener cuenta bancaria (para validación)
-	_, err := uc.bankAccountRepo.GetByID(pattern.BankAccountID)
+	// Obtener cuenta bancaria
+	bankAccount, err := uc.bankAccountRepo.GetByID(pattern.BankAccountID)
 	if err != nil {
 		return nil, apperrors.ErrInternal.WithInternal(err).WithDetails("Error al obtener cuenta bancaria")
 	}
 
 	// Determinar tipo de transacción (por defecto gasto)
-	transactionType := entity.TransactionTypeExpense
-
+	transactionType := "expense"
+	
 	// Crear transacción
 	transaction := &entity.Transaction{
 		UserID:           userID,
-		AccountID:        1, // TODO: Obtener cuenta por defecto del usuario
 		BankAccountID:    &pattern.BankAccountID,
 		Type:             transactionType,
 		Amount:           amount,
@@ -645,13 +700,13 @@ func (uc *BankNotificationPatternUseCase) createTransactionFromNotification(
 		RawNotification:  req.Message,
 		AIConfidence:     uc.calculateConfidence(data),
 		PatternID:        &pattern.ID,
-		TransactionDate:  time.Now(),
+		Date:             time.Now(),
 	}
 
 	// Extraer fecha si está disponible
 	if dateStr, ok := data["date"].(string); ok {
 		if parsedDate, err := uc.parseDate(dateStr); err == nil {
-			transaction.TransactionDate = parsedDate
+			transaction.Date = parsedDate
 		}
 	}
 

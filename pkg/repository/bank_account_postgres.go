@@ -112,6 +112,15 @@ func (r *BankAccountPostgres) SearchByAlias(userID uint, alias string) ([]*entit
 	return bankAccounts, nil
 }
 
+// GetByNotificationPhone obtiene cuentas bancarias por teléfono de notificación
+func (r *BankAccountPostgres) GetByNotificationPhone(phone string) ([]*entity.BankAccount, error) {
+	var bankAccounts []*entity.BankAccount
+	if err := r.db.Where("notification_phone = ? AND is_notification_enabled = ?", phone, true).Find(&bankAccounts).Error; err != nil {
+		return nil, fmt.Errorf("failed to get bank accounts by notification phone: %w", err)
+	}
+	return bankAccounts, nil
+}
+
 // GetWithFilters obtiene cuentas bancarias con filtros
 func (r *BankAccountPostgres) GetWithFilters(userID uint, filter entity.BankAccountFilter) ([]*entity.BankAccount, int64, error) {
 	query := r.db.Where("user_id = ?", userID)

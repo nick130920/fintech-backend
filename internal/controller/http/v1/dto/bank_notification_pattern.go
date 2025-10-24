@@ -57,9 +57,12 @@ type SetPatternStatusRequest struct {
 
 // ProcessNotificationRequest representa la estructura para procesar una notificación
 type ProcessNotificationRequest struct {
-	BankAccountID uint                       `json:"bank_account_id" validate:"required"`
-	Channel       entity.NotificationChannel `json:"channel" validate:"required,oneof=sms push email app"`
-	Message       string                     `json:"message" validate:"required,min=1"`
+	Message    string    `json:"message" validate:"required,min=1"`
+	Channel    string    `json:"channel" validate:"required"`
+	Phone      string    `json:"phone,omitempty"`
+	ReceivedAt time.Time `json:"received_at"`
+	BankCode   string    `json:"bank_code,omitempty"`
+	UserID     uint      `json:"user_id,omitempty"`
 }
 
 // BankNotificationPatternResponse representa la respuesta de un patrón de notificación
@@ -95,15 +98,20 @@ type BankNotificationPatternResponse struct {
 
 // ProcessedNotificationResponse representa la respuesta de procesamiento de una notificación
 type ProcessedNotificationResponse struct {
-	BankAccountID      uint                       `json:"bank_account_id"`
-	Channel            entity.NotificationChannel `json:"channel"`
-	Message            string                     `json:"message"`
-	Processed          bool                       `json:"processed"`
+	Success            bool                       `json:"success"`
+	TransactionCreated bool                       `json:"transaction_created"`
+	TransactionID      uint                       `json:"transaction_id,omitempty"`
+	Amount             float64                    `json:"amount,omitempty"`
+	Description        string                     `json:"description,omitempty"`
+	BankAccountID      uint                       `json:"bank_account_id,omitempty"`
+	Channel            entity.NotificationChannel `json:"channel,omitempty"`
+	Message            string                     `json:"message,omitempty"`
 	PatternID          *uint                      `json:"pattern_id,omitempty"`
-	PatternName        string                     `json:"pattern_name,omitempty"`
+	PatternUsed        string                     `json:"pattern_used,omitempty"`
 	Confidence         float64                    `json:"confidence"`
 	RequiresValidation bool                       `json:"requires_validation"`
-	ExtractedData      map[string]interface{}     `json:"extracted_data"`
+	Reason             string                     `json:"reason,omitempty"`
+	ExtractedData      map[string]interface{}     `json:"extracted_data,omitempty"`
 }
 
 // PatternStatisticsResponse representa estadísticas de patrones

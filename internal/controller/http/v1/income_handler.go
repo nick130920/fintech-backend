@@ -1,13 +1,13 @@
 package v1
 
 import (
-	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
+	"github.com/rs/zerolog"
 
 	"github.com/nick130920/fintech-backend/internal/controller/http/v1/dto"
 	"github.com/nick130920/fintech-backend/internal/entity"
@@ -17,11 +17,11 @@ import (
 // IncomeHandler maneja las peticiones HTTP relacionadas con ingresos
 type IncomeHandler struct {
 	incomeUC *usecase.IncomeUseCase
-	logger   *zap.Logger
+	logger   zerolog.Logger
 }
 
 // NewIncomeHandler crea un nuevo IncomeHandler
-func NewIncomeHandler(incomeUC *usecase.IncomeUseCase, logger *zap.Logger) *IncomeHandler {
+func NewIncomeHandler(incomeUC *usecase.IncomeUseCase, logger zerolog.Logger) *IncomeHandler {
 	return &IncomeHandler{
 		incomeUC: incomeUC,
 		logger:   logger,
@@ -43,10 +43,11 @@ func NewIncomeHandler(incomeUC *usecase.IncomeUseCase, logger *zap.Logger) *Inco
 // @Router /api/v1/incomes [post]
 func (h *IncomeHandler) CreateIncome(c *gin.Context) {
 	userID := getUserID(c)
+	requestID, _ := c.Get("request_id")
 
 	var req dto.CreateIncomeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		log.Printf("[WARN] ❌ Error al parsear request CreateIncome: %v | UserID: %d", err, userID)
+		h.logger.Warn().Err(err).Uint("user_id", userID).Str("request_id", requestID.(string)).Msg("Error parsing CreateIncome request")
 		c.JSON(http.StatusBadRequest, dto.ErrorResponse{
 			Code:    "INVALID_REQUEST",
 			Message: "Datos de ingreso inválidos: " + err.Error(),
@@ -54,40 +55,28 @@ func (h *IncomeHandler) CreateIncome(c *gin.Context) {
 		return
 	}
 
-	log.Printf("[DEBUG] 📥 CreateIncome Request: UserID=%d, Monto=%.2f, Fuente=%s", userID, req.Amount, req.Source)
+	h.logger.Debug().Uint("user_id", userID).Str("request_id", requestID.(string)).Interface("request", req).Msg("CreateIncome request received")
 
 	income, err := h.incomeUC.CreateIncome(userID, &req)
 	if err != nil {
-		log.Printf("[WARN] ❌ Error al crear ingreso: %v | Usuario: %d | Request: %+v", err, userID, req)
+		h.logger.Warn().Err(err).Uint("user_id", userID).Str("request_id", requestID.(string)).Interface("request", req).Msg("Error creating income")
 
 		switch err.Error() {
 		case "user not found":
-			c.JSON(http.StatusNotFound, dto.ErrorResponse{
-				Code:    "USER_NOT_FOUND",
-				Message: "Usuario no encontrado",
-			})
+			c.JSON(http.StatusNotFound, dto.ErrorResponse{Code: "USER_NOT_FOUND", Message: "Usuario no encontrado"})
 		case "user account is not active":
-			c.JSON(http.StatusForbidden, dto.ErrorResponse{
-				Code:    "ACCOUNT_INACTIVE",
-				Message: "Cuenta de usuario inactiva",
-			})
+			c.JSON(http.StatusForbidden, dto.ErrorResponse{Code: "ACCOUNT_INACTIVE", Message: "Cuenta de usuario inactiva"})
 		default:
-			if contains(err.Error(), "invalid date format") {
-				c.JSON(http.StatusBadRequest, dto.ErrorResponse{
-					Code:    "INVALID_DATE",
-					Message: "Formato de fecha inválido",
-				})
+			if strings.Contains(err.Error(), "invalid date format") {
+				c.JSON(http.StatusBadRequest, dto.ErrorResponse{Code: "INVALID_DATE", Message: "Formato de fecha inválido"})
 			} else {
-				c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
-					Code:    "INTERNAL_ERROR",
-					Message: "Error interno del servidor",
-				})
+				c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Code: "INTERNAL_ERROR", Message: "Error interno del servidor"})
 			}
 		}
 		return
 	}
 
-	log.Printf("[INFO] ✅ Ingreso creado exitosamente: ID=%d, UserID=%d, Monto=%.2f", income.ID, userID, income.Amount)
+	h.logger.Info().Uint("user_id", userID).Uint("income_id", income.ID).Float64("amount", income.Amount).Str("request_id", requestID.(string)).Msg("Income created successfully")
 
 	c.JSON(http.StatusCreated, dto.Response{
 		Code:    "SUCCESS",
@@ -115,6 +104,7 @@ func (h *IncomeHandler) CreateIncome(c *gin.Context) {
 // @Router /api/v1/incomes [get]
 func (h *IncomeHandler) GetIncomes(c *gin.Context) {
 	userID := getUserID(c)
+	requestID, _ := c.Get("request_id")
 
 	// Parsear parámetros de consulta
 	var startDate, endDate *time.Time
@@ -153,7 +143,7 @@ func (h *IncomeHandler) GetIncomes(c *gin.Context) {
 
 	incomes, err := h.incomeUC.GetIncomes(userID, startDate, endDate, source, limit, offset)
 	if err != nil {
-		log.Printf("❌ Error al obtener ingresos: %v | UserID: %d", err, userID)
+		h.logger.Error().Err(err).Uint("user_id", userID).Str("request_id", requestID.(string)).Msg("Error getting incomes")
 		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
 			Code:    "INTERNAL_ERROR",
 			Message: "Error interno del servidor",
@@ -161,7 +151,7 @@ func (h *IncomeHandler) GetIncomes(c *gin.Context) {
 		return
 	}
 
-	log.Printf("✅ Ingresos obtenidos: %d resultados | UserID: %d", len(incomes), userID)
+	h.logger.Info().Int("count", len(incomes)).Uint("user_id", userID).Str("request_id", requestID.(string)).Msg("Incomes retrieved successfully")
 
 	c.JSON(http.StatusOK, dto.Response{
 		Code:    "SUCCESS",
@@ -186,6 +176,7 @@ func (h *IncomeHandler) GetIncomes(c *gin.Context) {
 // @Router /api/v1/incomes/{id} [get]
 func (h *IncomeHandler) GetIncome(c *gin.Context) {
 	userID := getUserID(c)
+	requestID, _ := c.Get("request_id")
 
 	incomeID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
@@ -198,18 +189,11 @@ func (h *IncomeHandler) GetIncome(c *gin.Context) {
 
 	income, err := h.incomeUC.GetIncomeByID(userID, uint(incomeID))
 	if err != nil {
-		log.Printf("❌ Error al obtener ingreso: %v | UserID: %d | IncomeID: %d", err, userID, incomeID)
-
+		h.logger.Warn().Err(err).Uint("user_id", userID).Uint64("income_id", incomeID).Str("request_id", requestID.(string)).Msg("Error getting income")
 		if err.Error() == "income not found" {
-			c.JSON(http.StatusNotFound, dto.ErrorResponse{
-				Code:    "INCOME_NOT_FOUND",
-				Message: "Ingreso no encontrado",
-			})
+			c.JSON(http.StatusNotFound, dto.ErrorResponse{Code: "INCOME_NOT_FOUND", Message: "Ingreso no encontrado"})
 		} else {
-			c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
-				Code:    "INTERNAL_ERROR",
-				Message: "Error interno del servidor",
-			})
+			c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Code: "INTERNAL_ERROR", Message: "Error interno del servidor"})
 		}
 		return
 	}
@@ -239,6 +223,7 @@ func (h *IncomeHandler) GetIncome(c *gin.Context) {
 // @Router /api/v1/incomes/{id} [put]
 func (h *IncomeHandler) UpdateIncome(c *gin.Context) {
 	userID := getUserID(c)
+	requestID, _ := c.Get("request_id")
 
 	incomeID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
@@ -251,7 +236,7 @@ func (h *IncomeHandler) UpdateIncome(c *gin.Context) {
 
 	var req dto.UpdateIncomeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		log.Printf("❌ Error al parsear request UpdateIncome: %v | UserID: %d", err, userID)
+		h.logger.Warn().Err(err).Uint("user_id", userID).Str("request_id", requestID.(string)).Msg("Error parsing UpdateIncome request")
 		c.JSON(http.StatusBadRequest, dto.ErrorResponse{
 			Code:    "INVALID_REQUEST",
 			Message: "Datos de actualización inválidos: " + err.Error(),
@@ -261,36 +246,23 @@ func (h *IncomeHandler) UpdateIncome(c *gin.Context) {
 
 	income, err := h.incomeUC.UpdateIncome(userID, uint(incomeID), &req)
 	if err != nil {
-		log.Printf("❌ Error al actualizar ingreso: %v | UserID: %d | IncomeID: %d", err, userID, incomeID)
-
+		h.logger.Warn().Err(err).Uint("user_id", userID).Uint64("income_id", incomeID).Str("request_id", requestID.(string)).Msg("Error updating income")
 		switch err.Error() {
 		case "income not found":
-			c.JSON(http.StatusNotFound, dto.ErrorResponse{
-				Code:    "INCOME_NOT_FOUND",
-				Message: "Ingreso no encontrado",
-			})
+			c.JSON(http.StatusNotFound, dto.ErrorResponse{Code: "INCOME_NOT_FOUND", Message: "Ingreso no encontrado"})
 		case "income cannot be modified":
-			c.JSON(http.StatusForbidden, dto.ErrorResponse{
-				Code:    "CANNOT_MODIFY",
-				Message: "El ingreso no puede ser modificado",
-			})
+			c.JSON(http.StatusForbidden, dto.ErrorResponse{Code: "CANNOT_MODIFY", Message: "El ingreso no puede ser modificado"})
 		default:
-			if contains(err.Error(), "invalid date format") {
-				c.JSON(http.StatusBadRequest, dto.ErrorResponse{
-					Code:    "INVALID_DATE",
-					Message: "Formato de fecha inválido",
-				})
+			if strings.Contains(err.Error(), "invalid date format") {
+				c.JSON(http.StatusBadRequest, dto.ErrorResponse{Code: "INVALID_DATE", Message: "Formato de fecha inválido"})
 			} else {
-				c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
-					Code:    "INTERNAL_ERROR",
-					Message: "Error interno del servidor",
-				})
+				c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Code: "INTERNAL_ERROR", Message: "Error interno del servidor"})
 			}
 		}
 		return
 	}
 
-	log.Printf("✅ Ingreso actualizado exitosamente: ID=%d, UserID=%d", incomeID, userID)
+	h.logger.Info().Uint("user_id", userID).Uint64("income_id", incomeID).Str("request_id", requestID.(string)).Msg("Income updated successfully")
 
 	c.JSON(http.StatusOK, dto.Response{
 		Code:    "SUCCESS",
@@ -316,6 +288,7 @@ func (h *IncomeHandler) UpdateIncome(c *gin.Context) {
 // @Router /api/v1/incomes/{id} [delete]
 func (h *IncomeHandler) DeleteIncome(c *gin.Context) {
 	userID := getUserID(c)
+	requestID, _ := c.Get("request_id")
 
 	incomeID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
@@ -328,29 +301,19 @@ func (h *IncomeHandler) DeleteIncome(c *gin.Context) {
 
 	err = h.incomeUC.DeleteIncome(userID, uint(incomeID))
 	if err != nil {
-		log.Printf("❌ Error al eliminar ingreso: %v | UserID: %d | IncomeID: %d", err, userID, incomeID)
-
+		h.logger.Warn().Err(err).Uint("user_id", userID).Uint64("income_id", incomeID).Str("request_id", requestID.(string)).Msg("Error deleting income")
 		switch err.Error() {
 		case "income not found":
-			c.JSON(http.StatusNotFound, dto.ErrorResponse{
-				Code:    "INCOME_NOT_FOUND",
-				Message: "Ingreso no encontrado",
-			})
+			c.JSON(http.StatusNotFound, dto.ErrorResponse{Code: "INCOME_NOT_FOUND", Message: "Ingreso no encontrado"})
 		case "income cannot be deleted":
-			c.JSON(http.StatusForbidden, dto.ErrorResponse{
-				Code:    "CANNOT_DELETE",
-				Message: "El ingreso no puede ser eliminado",
-			})
+			c.JSON(http.StatusForbidden, dto.ErrorResponse{Code: "CANNOT_DELETE", Message: "El ingreso no puede ser eliminado"})
 		default:
-			c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
-				Code:    "INTERNAL_ERROR",
-				Message: "Error interno del servidor",
-			})
+			c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Code: "INTERNAL_ERROR", Message: "Error interno del servidor"})
 		}
 		return
 	}
 
-	log.Printf("✅ Ingreso eliminado exitosamente: ID=%d, UserID=%d", incomeID, userID)
+	h.logger.Info().Uint("user_id", userID).Uint64("income_id", incomeID).Str("request_id", requestID.(string)).Msg("Income deleted successfully")
 
 	c.JSON(http.StatusOK, dto.Response{
 		Code:    "SUCCESS",
@@ -372,6 +335,7 @@ func (h *IncomeHandler) DeleteIncome(c *gin.Context) {
 // @Router /api/v1/incomes/stats [get]
 func (h *IncomeHandler) GetIncomeStats(c *gin.Context) {
 	userID := getUserID(c)
+	requestID, _ := c.Get("request_id")
 
 	var year *int
 	if yearStr := c.Query("year"); yearStr != "" {
@@ -382,7 +346,7 @@ func (h *IncomeHandler) GetIncomeStats(c *gin.Context) {
 
 	stats, err := h.incomeUC.GetIncomeStats(userID, year)
 	if err != nil {
-		log.Printf("❌ Error al obtener estadísticas de ingresos: %v | UserID: %d", err, userID)
+		h.logger.Error().Err(err).Uint("user_id", userID).Str("request_id", requestID.(string)).Msg("Error getting income stats")
 		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
 			Code:    "INTERNAL_ERROR",
 			Message: "Error interno del servidor",
@@ -411,6 +375,7 @@ func (h *IncomeHandler) GetIncomeStats(c *gin.Context) {
 // @Router /api/v1/incomes/recent [get]
 func (h *IncomeHandler) GetRecentIncomes(c *gin.Context) {
 	userID := getUserID(c)
+	requestID, _ := c.Get("request_id")
 
 	limit := 10
 	if limitStr := c.Query("limit"); limitStr != "" {
@@ -421,7 +386,7 @@ func (h *IncomeHandler) GetRecentIncomes(c *gin.Context) {
 
 	incomes, err := h.incomeUC.GetRecentIncomes(userID, limit)
 	if err != nil {
-		log.Printf("❌ Error al obtener ingresos recientes: %v | UserID: %d", err, userID)
+		h.logger.Error().Err(err).Uint("user_id", userID).Int("limit", limit).Str("request_id", requestID.(string)).Msg("Error getting recent incomes")
 		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
 			Code:    "INTERNAL_ERROR",
 			Message: "Error interno del servidor",
@@ -449,10 +414,11 @@ func (h *IncomeHandler) GetRecentIncomes(c *gin.Context) {
 // @Router /api/v1/incomes/process-recurring [post]
 func (h *IncomeHandler) ProcessRecurringIncomes(c *gin.Context) {
 	userID := getUserID(c)
+	requestID, _ := c.Get("request_id")
 
 	result, err := h.incomeUC.ProcessRecurringIncomes(userID)
 	if err != nil {
-		log.Printf("❌ Error al procesar ingresos recurrentes: %v | UserID: %d", err, userID)
+		h.logger.Error().Err(err).Uint("user_id", userID).Str("request_id", requestID.(string)).Msg("Error processing recurring incomes")
 		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
 			Code:    "INTERNAL_ERROR",
 			Message: "Error interno del servidor",
@@ -460,7 +426,7 @@ func (h *IncomeHandler) ProcessRecurringIncomes(c *gin.Context) {
 		return
 	}
 
-	log.Printf("✅ Ingresos recurrentes procesados: %d | UserID: %d", result.ProcessedCount, userID)
+	h.logger.Info().Int("processed_count", result.ProcessedCount).Uint("user_id", userID).Str("request_id", requestID.(string)).Msg("Recurring incomes processed successfully")
 
 	c.JSON(http.StatusOK, dto.Response{
 		Code:    "SUCCESS",

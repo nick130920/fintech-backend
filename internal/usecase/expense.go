@@ -3,12 +3,13 @@ package usecase
 import (
 	"errors"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/nick130920/fintech-backend/internal/controller/http/v1/dto"
 	"github.com/nick130920/fintech-backend/internal/entity"
 	"github.com/nick130920/fintech-backend/internal/usecase/repo"
+	"github.com/nick130920/fintech-backend/pkg/logger"
+	"github.com/rs/zerolog"
 )
 
 // ExpenseUseCase contiene la lógica de negocio para gastos
@@ -17,6 +18,7 @@ type ExpenseUseCase struct {
 	budgetRepo   repo.BudgetRepo
 	categoryRepo repo.CategoryRepo
 	userRepo     repo.UserRepo
+	logger       zerolog.Logger
 }
 
 // NewExpenseUseCase crea una nueva instancia de ExpenseUseCase
@@ -31,44 +33,47 @@ func NewExpenseUseCase(
 		budgetRepo:   budgetRepo,
 		categoryRepo: categoryRepo,
 		userRepo:     userRepo,
+		logger:       logger.Get().With().Str("usecase", "Expense").Logger(),
 	}
 }
 
 // CreateExpense crea un nuevo gasto
 func (uc *ExpenseUseCase) CreateExpense(userID uint, req *dto.CreateExpenseRequest) (*dto.ExpenseSummaryResponse, error) {
-	log.Printf("🔍 ExpenseUseCase.CreateExpense iniciado - UserID: %d", userID)
+	log := uc.logger.With().Uint("user_id", userID).Logger()
+	log.Debug().Msg("CreateExpense started")
 
 	// Verificar que el usuario existe
 	user, err := uc.userRepo.GetByID(userID)
 	if err != nil {
-		log.Printf("❌ Usuario no encontrado: %d | Error: %v", userID, err)
+		log.Warn().Err(err).Msg("User not found")
 		return nil, errors.New("user not found")
 	}
 
-	log.Printf("✅ Usuario encontrado: %s %s (ID: %d)", user.FirstName, user.LastName, user.ID)
+	log.Debug().Msgf("User found: %s %s", user.FirstName, user.LastName)
 
 	if !user.IsAccountActive() {
-		log.Printf("❌ Cuenta de usuario inactiva: %d", userID)
+		log.Warn().Msg("User account is not active")
 		return nil, errors.New("user account is not active")
 	}
 
 	// Verificar que la categoría existe
-	log.Printf("🔍 Buscando categoría: %d", req.CategoryID)
+	log.Debug().Uint("category_id", req.CategoryID).Msg("Searching for category")
 	category, err := uc.categoryRepo.GetByID(req.CategoryID)
 	if err != nil {
-		log.Printf("❌ Categoría no encontrada: %d | Error: %v", req.CategoryID, err)
+		log.Warn().Err(err).Uint("category_id", req.CategoryID).Msg("Category not found")
 		return nil, errors.New("category not found")
 	}
 
-	log.Printf("✅ Categoría encontrada: %s (ID: %d)", category.Name, category.ID)
+	log.Debug().Str("category_name", category.Name).Msg("Category found")
 
 	// Verificar que la categoría pertenece al usuario o es del sistema
 	if !category.IsSystemCategory() && category.UserID != nil && *category.UserID != userID {
+		log.Warn().Uint("category_id", category.ID).Msg("Category does not belong to user")
 		return nil, errors.New("category not found")
 	}
 
 	// Parsear fecha con múltiples formatos soportados
-	log.Printf("🔍 Parseando fecha: %s", req.Date)
+	log.Debug().Str("date_string", req.Date).Msg("Parsing date")
 	var expenseDate time.Time
 
 	// Intentar diferentes formatos de fecha
@@ -87,39 +92,43 @@ func (uc *ExpenseUseCase) CreateExpense(userID uint, req *dto.CreateExpenseReque
 	}
 
 	if err != nil {
-		log.Printf("❌ No se pudo parsear fecha con ningún formato: %s | Error: %v", req.Date, err)
+		log.Warn().Err(err).Str("date_string", req.Date).Msg("Could not parse date with any format")
 		return nil, fmt.Errorf("invalid date format: %s", req.Date)
 	}
 
-	log.Printf("✅ Fecha parseada: %v", expenseDate)
+	log.Debug().Time("expense_date", expenseDate).Msg("Date parsed successfully")
 
 	// Intentar obtener el presupuesto del mes del gasto, si no existe usar el actual
-	log.Printf("🔍 Buscando presupuesto para: %d/%d, Usuario: %d", expenseDate.Year(), int(expenseDate.Month()), userID)
+	log.Debug().Int("year", expenseDate.Year()).Int("month", int(expenseDate.Month())).Msg("Searching for budget")
 	budget, err := uc.budgetRepo.GetByUserAndMonth(userID, expenseDate.Year(), int(expenseDate.Month()))
 
 	// Si no existe presupuesto para ese mes, intentar usar el presupuesto actual
 	if err != nil {
-		log.Printf("⚠️ Presupuesto no encontrado para %d/%d, intentando usar presupuesto actual", expenseDate.Year(), int(expenseDate.Month()))
+		log.Warn().Err(err).Int("year", expenseDate.Year()).Int("month", int(expenseDate.Month())).Msg("Budget for expense month not found, trying current budget")
 		currentBudget, currentErr := uc.budgetRepo.GetCurrentBudget(userID)
 		if currentErr != nil {
-			log.Printf("❌ Tampoco se encontró presupuesto actual | Error: %v", currentErr)
+			log.Error().Err(currentErr).Msg("Current budget also not found")
 			return nil, fmt.Errorf("no budget found for date %d/%d and no current budget exists: %v", expenseDate.Year(), int(expenseDate.Month()), err)
 		}
 		budget = currentBudget
-		log.Printf("✅ Usando presupuesto actual: ID=%d, Período=%d/%d", budget.ID, budget.Year, budget.Month)
+		log.Info().Uint("budget_id", budget.ID).Msg("Using current budget")
 	} else {
-		log.Printf("✅ Presupuesto encontrado: ID=%d, Total=%.2f", budget.ID, budget.TotalAmount)
+		log.Debug().Uint("budget_id", budget.ID).Float64("total_amount", budget.TotalAmount).Msg("Budget found")
 	}
 
 	// Obtener la asignación de la categoría en el presupuesto
-	log.Printf("🔍 Buscando asignación: Budget=%d, Category=%d", budget.ID, category.ID)
+	log.Debug().Uint("budget_id", budget.ID).Uint("category_id", category.ID).Msg("Searching for allocation")
 	allocation, err := uc.budgetRepo.GetAllocationByBudgetAndCategory(budget.ID, category.ID)
 	if err != nil {
-		log.Printf("❌ Asignación no encontrada: Budget=%d, Category=%d | Error: %v", budget.ID, category.ID, err)
+		log.Warn().Err(err).Uint("budget_id", budget.ID).Uint("category_id", category.ID).Msg("Allocation not found")
 		return nil, fmt.Errorf("category not allocated in budget: %v", err)
 	}
 
-	log.Printf("✅ Asignación encontrada: ID=%d, Asignado=%.2f, Gastado=%.2f", allocation.ID, allocation.AllocatedAmount, allocation.SpentAmount)
+	log.Debug().
+		Uint("allocation_id", allocation.ID).
+		Float64("allocated", allocation.AllocatedAmount).
+		Float64("spent", allocation.SpentAmount).
+		Msg("Allocation found")
 
 	// Crear el gasto
 	expense := &entity.Expense{
@@ -144,13 +153,13 @@ func (uc *ExpenseUseCase) CreateExpense(userID uint, req *dto.CreateExpenseReque
 		expense.Source = entity.ExpenseSourceManual
 	}
 
-	log.Printf("🔍 Creando gasto en base de datos: %+v", expense)
+	log.Debug().Interface("expense", expense).Msg("Creating expense in database")
 	if err := uc.expenseRepo.Create(expense); err != nil {
-		log.Printf("❌ Error al crear gasto en DB: %v", err)
+		log.Error().Err(err).Msg("Error creating expense in DB")
 		return nil, fmt.Errorf("error creating expense: %v", err)
 	}
 
-	log.Printf("✅ Gasto creado en DB con ID: %d", expense.ID)
+	log.Info().Uint("expense_id", expense.ID).Msg("Expense created in DB successfully")
 
 	// Actualizar montos gastados
 	if err := uc.budgetRepo.UpdateAllocationSpentAmount(allocation.ID); err != nil {

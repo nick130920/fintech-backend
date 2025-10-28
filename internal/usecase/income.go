@@ -3,18 +3,20 @@ package usecase
 import (
 	"errors"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/nick130920/fintech-backend/internal/controller/http/v1/dto"
 	"github.com/nick130920/fintech-backend/internal/entity"
 	"github.com/nick130920/fintech-backend/internal/usecase/repo"
+	"github.com/nick130920/fintech-backend/pkg/logger"
+	"github.com/rs/zerolog"
 )
 
 // IncomeUseCase contiene la lógica de negocio para ingresos
 type IncomeUseCase struct {
 	incomeRepo repo.IncomeRepo
 	userRepo   repo.UserRepo
+	logger     zerolog.Logger
 }
 
 // NewIncomeUseCase crea una nueva instancia de IncomeUseCase
@@ -22,29 +24,31 @@ func NewIncomeUseCase(incomeRepo repo.IncomeRepo, userRepo repo.UserRepo) *Incom
 	return &IncomeUseCase{
 		incomeRepo: incomeRepo,
 		userRepo:   userRepo,
+		logger:     logger.Get().With().Str("usecase", "Income").Logger(),
 	}
 }
 
 // CreateIncome crea un nuevo ingreso
 func (uc *IncomeUseCase) CreateIncome(userID uint, req *dto.CreateIncomeRequest) (*dto.IncomeResponse, error) {
-	log.Printf("[DEBUG] 🔍 IncomeUseCase.CreateIncome iniciado - UserID: %d", userID)
+	log := uc.logger.With().Uint("user_id", userID).Logger()
+	log.Debug().Msg("CreateIncome started")
 
 	// Verificar que el usuario existe
 	user, err := uc.userRepo.GetByID(userID)
 	if err != nil {
-		log.Printf("[ERROR] ❌ Usuario no encontrado: %d | Error: %v", userID, err)
+		log.Warn().Err(err).Msg("User not found")
 		return nil, errors.New("user not found")
 	}
 
 	if !user.IsAccountActive() {
-		log.Printf("[WARN] ❌ Cuenta de usuario inactiva: %d", userID)
+		log.Warn().Msg("User account is not active")
 		return nil, errors.New("user account is not active")
 	}
 
 	// Parsear fecha
 	incomeDate, err := uc.parseDate(req.Date)
 	if err != nil {
-		log.Printf("[WARN] ❌ Fecha inválida: %s | Error: %v", req.Date, err)
+		log.Warn().Err(err).Str("date", req.Date).Msg("Invalid date")
 		return nil, fmt.Errorf("invalid date format: %s", req.Date)
 	}
 
@@ -77,13 +81,13 @@ func (uc *IncomeUseCase) CreateIncome(userID uint, req *dto.CreateIncomeRequest)
 		income.RecurringUntil = &endDate
 	}
 
-	log.Printf("[DEBUG] 🔍 Creando ingreso en base de datos: %+v", income)
+	log.Debug().Interface("income", income).Msg("Creating income in database")
 	if err := uc.incomeRepo.Create(income); err != nil {
-		log.Printf("[ERROR] ❌ Error al crear ingreso en DB: %v", err)
+		log.Error().Err(err).Msg("Error creating income in DB")
 		return nil, fmt.Errorf("error creating income: %v", err)
 	}
 
-	log.Printf("[INFO] ✅ Ingreso creado en DB con ID: %d", income.ID)
+	log.Info().Uint("income_id", income.ID).Msg("Income created in DB successfully")
 	return uc.mapIncomeToResponse(income), nil
 }
 
@@ -315,6 +319,8 @@ func (uc *IncomeUseCase) GetRecentIncomes(userID uint, limit int) ([]*dto.Income
 
 // ProcessRecurringIncomes procesa ingresos recurrentes pendientes
 func (uc *IncomeUseCase) ProcessRecurringIncomes(userID uint) (*dto.RecurringIncomeProcessResponse, error) {
+	log := uc.logger.With().Uint("user_id", userID).Logger()
+
 	pendingIncomes, err := uc.incomeRepo.GetPendingRecurringIncomes(userID)
 	if err != nil {
 		return nil, err
@@ -338,14 +344,14 @@ func (uc *IncomeUseCase) ProcessRecurringIncomes(userID uint) (*dto.RecurringInc
 		}
 
 		if err := uc.incomeRepo.Create(newIncome); err != nil {
-			log.Printf("❌ Error creando ingreso recurrente: %v", err)
+			log.Error().Err(err).Uint("recurring_income_id", income.ID).Msg("Error creating recurring income")
 			continue
 		}
 
 		// Actualizar la próxima fecha del ingreso recurrente
 		nextDate := income.CalculateNextDate()
 		if err := uc.incomeRepo.UpdateNextRecurringDate(income.ID, nextDate); err != nil {
-			log.Printf("❌ Error actualizando próxima fecha: %v", err)
+			log.Error().Err(err).Uint("recurring_income_id", income.ID).Msg("Error updating next recurring date")
 		}
 
 		processedIncomes = append(processedIncomes, *uc.mapIncomeToSummaryResponse(newIncome))

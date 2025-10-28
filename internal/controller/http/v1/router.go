@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
+	"github.com/rs/zerolog"
 
 	"github.com/nick130920/fintech-backend/internal/usecase"
 	"github.com/nick130920/fintech-backend/internal/usecase/repo"
@@ -24,7 +24,7 @@ func NewRouter(
 	bankNotificationPatternUC *usecase.BankNotificationPatternUseCase,
 	categoryRepo repo.CategoryRepo,
 	jwtManager *auth.JWTManager,
-	logger *zap.Logger,
+	logger zerolog.Logger,
 ) {
 	// Configurar middlewares globales de seguridad
 	setupGlobalMiddlewares(router)
@@ -243,14 +243,8 @@ func setupGlobalMiddlewares(router *gin.Engine) {
 
 // setupAPIMiddlewares configura middlewares específicos de la API
 func setupAPIMiddlewares(group *gin.RouterGroup) {
-	// Logging optimizado según entorno
-	if gin.Mode() == gin.ReleaseMode {
-		// Para producción (Railway): logging compacto
-		group.Use(RailwayLoggerMiddleware())
-	} else {
-		// Para desarrollo: logging detallado
-		group.Use(EnhancedLoggerMiddleware())
-	}
+	// Logging unificado
+	group.Use(LoggerMiddleware())
 
 	// Manejo de errores centralizado
 	group.Use(ErrorHandlerMiddleware())

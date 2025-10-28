@@ -7,12 +7,14 @@ import (
 	"os"
 	"strings"
 
+	"go.uber.org/zap"
 	"google.golang.org/genai"
 )
 
 // GeminiService handles interactions with the Google Gemini API.
 type GeminiService struct {
 	client *genai.Client
+	logger *zap.Logger
 }
 
 // NewGeminiService creates a new GeminiService.
@@ -29,7 +31,12 @@ func NewGeminiService(ctx context.Context) (*GeminiService, error) {
 		return nil, fmt.Errorf("error al crear el cliente de Gemini: %w", err)
 	}
 
-	return &GeminiService{client: client}, nil
+	logger, err := zap.NewProduction()
+	if err != nil {
+		return nil, fmt.Errorf("error al crear el logger: %w", err)
+	}
+
+	return &GeminiService{client: client, logger: logger}, nil
 }
 
 // TransactionInfo holds the structured data extracted from an SMS.
@@ -160,5 +167,6 @@ func (s *GeminiService) GeneratePatternFromMessage(ctx context.Context, messageC
 		return nil, fmt.Errorf("error al decodificar el JSON de Gemini para el patrón: %w (JSON recibido: %s)", err, jsonStr)
 	}
 
+	s.logger.Info("Successfully parsed pattern generation result from Gemini API")
 	return &result, nil
 }

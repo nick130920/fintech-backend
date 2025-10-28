@@ -6,7 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/nick130920/fintech-backend/pkg/apperrors"
-	log "github.com/sirupsen/logrus"
+	"github.com/nick130920/fintech-backend/pkg/logger"
 )
 
 // RateLimiter implementa rate limiting por IP
@@ -45,12 +45,13 @@ func (rl *RateLimiter) RateLimitMiddleware() gin.HandlerFunc {
 
 		if !rl.allow(ip) {
 			// Log de rate limit violation
-			log.WithFields(log.Fields{
-				"ip":         ip,
-				"method":     c.Request.Method,
-				"path":       c.Request.URL.Path,
-				"user_agent": c.Request.UserAgent(),
-			}).Warn("🚨 RATE LIMIT EXCEEDED")
+			log := logger.Get()
+			log.Warn().
+				Str("ip", ip).
+				Str("method", c.Request.Method).
+				Str("path", c.Request.URL.Path).
+				Str("user_agent", c.Request.UserAgent()).
+				Msg("🚨 RATE LIMIT EXCEEDED")
 
 			AbortWithAppError(c, apperrors.ErrRateLimit.WithDetails("Demasiadas solicitudes, intenta más tarde"))
 			return
@@ -186,11 +187,12 @@ func IPWhitelistMiddleware(allowedIPs []string) gin.HandlerFunc {
 
 		clientIP := c.ClientIP()
 		if !allowedMap[clientIP] {
-			log.WithFields(log.Fields{
-				"ip":     clientIP,
-				"method": c.Request.Method,
-				"path":   c.Request.URL.Path,
-			}).Warn("🚫 IP NOT WHITELISTED")
+			log := logger.Get()
+			log.Warn().
+				Str("ip", clientIP).
+				Str("method", c.Request.Method).
+				Str("path", c.Request.URL.Path).
+				Msg("🚫 IP NOT WHITELISTED")
 
 			AbortWithAppError(c, apperrors.ErrForbidden.WithDetails("IP no autorizada"))
 			return
@@ -204,12 +206,13 @@ func IPWhitelistMiddleware(allowedIPs []string) gin.HandlerFunc {
 func RequestSizeLimitMiddleware(maxSize int64) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if c.Request.ContentLength > maxSize {
-			log.WithFields(log.Fields{
-				"ip":             c.ClientIP(),
-				"content_length": c.Request.ContentLength,
-				"max_size":       maxSize,
-				"path":           c.Request.URL.Path,
-			}).Warn("📦 REQUEST TOO LARGE")
+			log := logger.Get()
+			log.Warn().
+				Str("ip", c.ClientIP()).
+				Int64("content_length", c.Request.ContentLength).
+				Int64("max_size", maxSize).
+				Str("path", c.Request.URL.Path).
+				Msg("📦 REQUEST TOO LARGE")
 
 			AbortWithAppError(c, apperrors.ErrInvalidRequest.WithDetails("Request demasiado grande"))
 			return
@@ -241,12 +244,13 @@ func SuspiciousActivityMiddleware() gin.HandlerFunc {
 		path := c.Request.URL.Path
 		for _, pattern := range suspiciousPatterns {
 			if containsIgnoreCase(path, pattern) {
-				log.WithFields(log.Fields{
-					"ip":      c.ClientIP(),
-					"path":    path,
-					"pattern": pattern,
-					"type":    "suspicious_path",
-				}).Warn("🚨 SUSPICIOUS ACTIVITY DETECTED")
+				log := logger.Get()
+				log.Warn().
+					Str("ip", c.ClientIP()).
+					Str("path", path).
+					Str("pattern", pattern).
+					Str("type", "suspicious_path").
+					Msg("🚨 SUSPICIOUS ACTIVITY DETECTED")
 
 				AbortWithAppError(c, apperrors.ErrForbidden.WithDetails("Actividad sospechosa detectada"))
 				return
@@ -258,13 +262,14 @@ func SuspiciousActivityMiddleware() gin.HandlerFunc {
 			for _, value := range values {
 				for _, pattern := range suspiciousPatterns {
 					if containsIgnoreCase(value, pattern) {
-						log.WithFields(log.Fields{
-							"ip":        c.ClientIP(),
-							"parameter": key,
-							"value":     value,
-							"pattern":   pattern,
-							"type":      "suspicious_query",
-						}).Warn("🚨 SUSPICIOUS ACTIVITY DETECTED")
+						log := logger.Get()
+						log.Warn().
+							Str("ip", c.ClientIP()).
+							Str("parameter", key).
+							Str("value", value).
+							Str("pattern", pattern).
+							Str("type", "suspicious_query").
+							Msg("🚨 SUSPICIOUS ACTIVITY DETECTED")
 
 						AbortWithAppError(c, apperrors.ErrForbidden.WithDetails("Actividad sospechosa detectada"))
 						return

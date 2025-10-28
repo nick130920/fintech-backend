@@ -8,7 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/nick130920/fintech-backend/pkg/apperrors"
-	log "github.com/sirupsen/logrus"
+	"github.com/nick130920/fintech-backend/pkg/logger"
 )
 
 // ErrorResponse representa la estructura de respuesta de error estándar
@@ -46,15 +46,16 @@ func RecoveryMiddleware() gin.HandlerFunc {
 
 				// Log del panic con detalles completos
 				requestID := getRequestID(c)
-				log.WithFields(log.Fields{
-					"request_id": requestID,
-					"method":     c.Request.Method,
-					"uri":        c.Request.RequestURI,
-					"user_agent": c.Request.UserAgent(),
-					"ip":         c.ClientIP(),
-					"panic":      err,
-					"stack":      string(stack[:length]),
-				}).Error("🚨 PANIC RECOVERED")
+				log := logger.Get()
+				log.Error().
+					Str("request_id", requestID).
+					Str("method", c.Request.Method).
+					Str("uri", c.Request.RequestURI).
+					Str("user_agent", c.Request.UserAgent()).
+					Str("ip", c.ClientIP()).
+					Interface("panic", err).
+					Bytes("stack", stack[:length]).
+					Msg("🚨 PANIC RECOVERED")
 
 				// Responder al cliente
 				appErr := apperrors.ErrInternal.WithDetails("Se produjo un error inesperado")
@@ -68,29 +69,33 @@ func RecoveryMiddleware() gin.HandlerFunc {
 // handleError procesa y responde errores de forma consistente
 func handleError(c *gin.Context, err error) {
 	requestID := getRequestID(c)
+	log := logger.Get()
 
 	// Verificar si es un AppError
 	if appErr, ok := apperrors.IsAppError(err); ok {
 		// Log estructurado del error
-		logFields := log.Fields{
-			"request_id": requestID,
-			"method":     c.Request.Method,
-			"uri":        c.Request.RequestURI,
-			"error_code": appErr.Code,
-			"status":     appErr.StatusCode,
+		logEvent := log.Warn()
+		if appErr.StatusCode >= 500 {
+			logEvent = log.Error()
 		}
+
+		event := logEvent.
+			Str("request_id", requestID).
+			Str("method", c.Request.Method).
+			Str("uri", c.Request.RequestURI).
+			Str("error_code", string(appErr.Code)).
+			Int("status", appErr.StatusCode)
 
 		// Añadir error interno si existe
 		if appErr.Internal != nil {
-			logFields["internal_error"] = appErr.Internal.Error()
+			event.Err(appErr.Internal)
 		}
 
-		// Log apropiado según severidad
+		msg := "Client Error"
 		if appErr.StatusCode >= 500 {
-			log.WithFields(logFields).Error("❌ SERVER ERROR")
-		} else if appErr.StatusCode >= 400 {
-			log.WithFields(logFields).Warn("⚠️  CLIENT ERROR")
+			msg = "Server Error"
 		}
+		event.Msg(msg)
 
 		// Respuesta estructurada
 		response := ErrorResponse{
@@ -108,12 +113,12 @@ func handleError(c *gin.Context, err error) {
 	}
 
 	// Error genérico no estructurado
-	log.WithFields(log.Fields{
-		"request_id": requestID,
-		"method":     c.Request.Method,
-		"uri":        c.Request.RequestURI,
-		"error":      err.Error(),
-	}).Error("❌ UNHANDLED ERROR")
+	log.Error().
+		Str("request_id", requestID).
+		Str("method", c.Request.Method).
+		Str("uri", c.Request.RequestURI).
+		Err(err).
+		Msg("❌ UNHANDLED ERROR")
 
 	// Respuesta genérica para errores no estructurados
 	response := ErrorResponse{

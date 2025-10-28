@@ -2,15 +2,15 @@ package database
 
 import (
 	"fmt"
-	"log"
 	"time"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
+	gormlogger "gorm.io/gorm/logger"
 
 	"github.com/nick130920/fintech-backend/configs"
 	"github.com/nick130920/fintech-backend/internal/entity"
+	"github.com/nick130920/fintech-backend/pkg/logger"
 )
 
 // Database representa una conexión a la base de datos
@@ -23,23 +23,24 @@ func Initialize() (*gorm.DB, error) {
 	// Obtener configuración centralizada
 	cfg := configs.Load()
 	dbConfig := cfg.Database
+	log := logger.Get()
 
 	// Construir DSN (Data Source Name)
 	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s TimeZone=%s",
 		dbConfig.Host, dbConfig.User, dbConfig.Password, dbConfig.DBName, dbConfig.Port, dbConfig.SSLMode, dbConfig.TimeZone)
 
 	// Configurar logger
-	logLevel := logger.Silent
+	logLevel := gormlogger.Silent
 	switch dbConfig.LogLevel {
 	case "info":
-		logLevel = logger.Info
+		logLevel = gormlogger.Info
 	case "warn":
-		logLevel = logger.Warn
+		logLevel = gormlogger.Warn
 	case "error":
-		logLevel = logger.Error
+		logLevel = gormlogger.Error
 	}
 
-	gormLogger := logger.Default.LogMode(logLevel)
+	gormLogger := gormlogger.Default.LogMode(logLevel)
 
 	// Abrir conexión
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
@@ -64,10 +65,15 @@ func Initialize() (*gorm.DB, error) {
 		if err := runMigrations(db); err != nil {
 			return nil, fmt.Errorf("error al ejecutar migraciones: %v", err)
 		}
-		log.Println("Migraciones ejecutadas exitosamente")
+		log.Info().Msg("Migrations executed successfully")
 	}
 
-	log.Printf("Conectado a la base de datos: %s@%s:%s/%s", dbConfig.User, dbConfig.Host, dbConfig.Port, dbConfig.DBName)
+	log.Info().
+		Str("user", dbConfig.User).
+		Str("host", dbConfig.Host).
+		Str("port", dbConfig.Port).
+		Str("dbname", dbConfig.DBName).
+		Msg("Connected to database")
 	return db, nil
 }
 
@@ -91,9 +97,10 @@ func runMigrations(db *gorm.DB) error {
 
 // CreateTables crea las tablas manualmente (alternativa a AutoMigrate)
 func CreateTables(db *gorm.DB) error {
+	log := logger.Get()
 	// Crear extensiones de PostgreSQL si es necesario
 	if err := db.Exec("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"").Error; err != nil {
-		log.Printf("Advertencia: No se pudo crear extensión uuid-ossp: %v", err)
+		log.Warn().Err(err).Msg("Could not create uuid-ossp extension")
 	}
 
 	// Ejecutar migraciones
@@ -118,9 +125,10 @@ func DropTables(db *gorm.DB) error {
 
 // Seed llena la base de datos con datos de prueba
 func Seed(db *gorm.DB) error {
+	log := logger.Get()
 	// Crear categorías por defecto siempre
 	if err := createDefaultCategories(db); err != nil {
-		log.Printf("Warning: Failed to create default categories: %v", err)
+		log.Warn().Err(err).Msg("Failed to create default categories")
 	}
 
 	// Solo para desarrollo - crear usuario de prueba
@@ -159,7 +167,7 @@ func Seed(db *gorm.DB) error {
 				return err
 			}
 
-			log.Println("Datos de prueba creados exitosamente")
+			log.Info().Msg("Test data created successfully")
 		}
 	}
 
@@ -168,6 +176,7 @@ func Seed(db *gorm.DB) error {
 
 // createDefaultCategories crea las categorías predefinidas del sistema
 func createDefaultCategories(db *gorm.DB) error {
+	log := logger.Get()
 	// Verificar si ya existen categorías por defecto
 	var count int64
 	db.Model(&entity.Category{}).Where("is_default = ?", true).Count(&count)
@@ -180,10 +189,10 @@ func createDefaultCategories(db *gorm.DB) error {
 	defaultCategories := entity.DefaultCategories()
 	for _, category := range defaultCategories {
 		if err := db.Create(&category).Error; err != nil {
-			log.Printf("Warning: Failed to create category %s: %v", category.Name, err)
+			log.Warn().Err(err).Str("category_name", category.Name).Msg("Failed to create category")
 		}
 	}
 
-	log.Printf("Created %d default categories", len(defaultCategories))
+	log.Info().Int("count", len(defaultCategories)).Msg("Created default categories")
 	return nil
 }

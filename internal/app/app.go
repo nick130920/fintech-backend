@@ -2,17 +2,16 @@ package app
 
 import (
 	"context"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	logrus "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog"
+	"github.com/sirupsen/logrus"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
-	"go.uber.org/zap"
 	"gorm.io/gorm"
 
 	docs "github.com/nick130920/fintech-backend/api/swagger"
@@ -23,6 +22,7 @@ import (
 	"github.com/nick130920/fintech-backend/internal/usecase/webapi"
 	"github.com/nick130920/fintech-backend/pkg/auth"
 	"github.com/nick130920/fintech-backend/pkg/database"
+	"github.com/nick130920/fintech-backend/pkg/logger"
 	"github.com/nick130920/fintech-backend/pkg/repository"
 )
 
@@ -31,25 +31,13 @@ func Run() {
 	// Cargar configuración
 	cfg := configs.Load()
 
-	// Configurar logging para Railway
-	setupLogging()
-
-	// Initialize zap logger
-	var logger *zap.Logger
-	var errLogger error
-	if gin.Mode() == gin.ReleaseMode {
-		logger, errLogger = zap.NewProduction()
-	} else {
-		logger, errLogger = zap.NewDevelopment()
-	}
-	if errLogger != nil {
-		log.Fatalf("can't initialize zap logger: %v", errLogger)
-	}
-	defer logger.Sync()
+	// Configurar logging
+	logger.InitLogger(cfg.Logger.Level, cfg.Server.Mode)
+	log := logger.Get()
 
 	// Validar configuración
 	if err := cfg.Validate(); err != nil {
-		log.Fatalf("Configuration validation failed: %v", err)
+		log.Fatal().Err(err).Msg("Configuration validation failed")
 	}
 
 	// Configurar modo de Gin
@@ -58,13 +46,13 @@ func Run() {
 	// Inicializar base de datos
 	db, err := database.Initialize()
 	if err != nil {
-		log.Fatalf("Failed to initialize database: %v", err)
+		log.Fatal().Err(err).Msg("Failed to initialize database")
 	}
 
 	// Crear datos de prueba si es necesario
 	if cfg.IsDevelopment() {
 		if err := database.Seed(db); err != nil {
-			log.Printf("Warning: Failed to seed database: %v", err)
+			log.Warn().Err(err).Msg("Failed to seed database")
 		}
 	}
 
@@ -75,7 +63,7 @@ func Run() {
 	deps := initDependencies(db, jwtManager)
 
 	// Inicializar servidor HTTP
-	httpServer := initHTTPServer(cfg, deps, logger)
+	httpServer := initHTTPServer(cfg, deps, logger.Get())
 
 	// Ejecutar servidor
 	runServer(httpServer, cfg.Server.Port)
@@ -105,6 +93,8 @@ type Dependencies struct {
 
 // initDependencies inicializa todas las dependencias usando inyección de dependencias
 func initDependencies(db *gorm.DB, jwtManager *auth.JWTManager) *Dependencies {
+	log := logger.Get()
+
 	// Inicializar repositorios
 	userRepo := repository.NewUserPostgres(db)
 	accountRepo := repository.NewAccountPostgres(db)
@@ -117,12 +107,12 @@ func initDependencies(db *gorm.DB, jwtManager *auth.JWTManager) *Dependencies {
 	// Inicializar servicios externos
 	geminiService, err := webapi.NewGeminiService(context.Background())
 	if err != nil {
-		log.Fatalf("Error al inicializar Gemini Service: %v", err)
+		log.Fatal().Err(err).Msg("Error al inicializar Gemini Service")
 	}
 
 	// Asegurar que existan las categorías por defecto
 	if err := categoryRepo.EnsureDefaultCategoriesExist(); err != nil {
-		log.Printf("Warning: Failed to ensure default categories exist: %v", err)
+		log.Warn().Err(err).Msg("Failed to ensure default categories exist")
 	}
 
 	// Crear interfaces necesarias para el caso de uso de presupuesto
@@ -155,7 +145,7 @@ func initDependencies(db *gorm.DB, jwtManager *auth.JWTManager) *Dependencies {
 }
 
 // initHTTPServer inicializa el servidor HTTP con todas las rutas
-func initHTTPServer(cfg *configs.Config, deps *Dependencies, logger *zap.Logger) *gin.Engine {
+func initHTTPServer(cfg *configs.Config, deps *Dependencies, log zerolog.Logger) *gin.Engine {
 	// Crear router
 	router := gin.New()
 
@@ -176,7 +166,7 @@ func initHTTPServer(cfg *configs.Config, deps *Dependencies, logger *zap.Logger)
 	})
 
 	// Inicializar rutas API v1
-	v1.NewRouter(router, deps.UserUC, deps.AccountUC, deps.TransactionUC, deps.BudgetUC, deps.ExpenseUC, deps.IncomeUC, deps.BankAccountUC, deps.BankNotificationPatternUC, deps.CategoryRepo, deps.JWTManager, logger)
+	v1.NewRouter(router, deps.UserUC, deps.AccountUC, deps.TransactionUC, deps.BudgetUC, deps.ExpenseUC, deps.IncomeUC, deps.BankAccountUC, deps.BankNotificationPatternUC, deps.CategoryRepo, deps.JWTManager, log)
 
 	// Documentación Swagger (solo en desarrollo)
 	if cfg.Features.EnableSwagger {
@@ -188,6 +178,7 @@ func initHTTPServer(cfg *configs.Config, deps *Dependencies, logger *zap.Logger)
 
 // runServer ejecuta el servidor con graceful shutdown
 func runServer(router *gin.Engine, port string) {
+	log := logger.Get()
 	server := router
 
 	// Canal para señales del sistema
@@ -196,20 +187,20 @@ func runServer(router *gin.Engine, port string) {
 
 	// Ejecutar servidor en goroutine
 	go func() {
-		log.Printf("Server starting on port %s", port)
-		log.Printf("Environment: %s", gin.Mode())
+		log.Info().Msgf("Server starting on port %s", port)
+		log.Info().Msgf("Environment: %s", gin.Mode())
 
 		if err := server.Run(":" + port); err != nil {
-			log.Fatalf("Failed to start server: %v", err)
+			log.Fatal().Err(err).Msg("Failed to start server")
 		}
 	}()
 
 	// Esperar señal de shutdown
 	<-quit
-	log.Println("Shutting down server...")
+	log.Info().Msg("Shutting down server...")
 
 	// TODO: Implementar graceful shutdown cuando sea necesario
-	log.Println("Server stopped")
+	log.Info().Msg("Server stopped")
 }
 
 // corsMiddleware configura CORS
@@ -255,6 +246,7 @@ func healthCheckHandler(c *gin.Context) {
 
 // setupSwagger configura la documentación Swagger
 func setupSwagger(router *gin.Engine) {
+	log := logger.Get()
 	// Configurar host dinámicamente
 	cfg := configs.Load()
 	if cfg.Server.Host != "localhost" && cfg.Server.Host != "" {
@@ -274,7 +266,7 @@ func setupSwagger(router *gin.Engine) {
 	// Configurar ruta de Swagger
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
-	log.Printf("Swagger UI available at: http://%s/swagger/index.html", docs.SwaggerInfo.Host)
+	log.Info().Msgf("Swagger UI available at: http://%s/swagger/index.html", docs.SwaggerInfo.Host)
 }
 
 // setupLogging configura logrus para diferentes entornos

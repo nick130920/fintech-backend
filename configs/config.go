@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/nick130920/fintech-backend/pkg/logger"
 )
 
 // Config representa toda la configuración de la aplicación
@@ -19,6 +21,7 @@ type Config struct {
 	Email    EmailConfig    `json:"email"`
 	External ExternalConfig `json:"external"`
 	Features FeatureConfig  `json:"features"`
+	Logger   LoggerConfig   `json:"logger"`
 }
 
 // ServerConfig representa la configuración del servidor
@@ -93,6 +96,11 @@ type FeatureConfig struct {
 	EnableNotifications bool `json:"enable_notifications"`
 }
 
+// LoggerConfig representa la configuración del logger
+type LoggerConfig struct {
+	Level string `json:"level"`
+}
+
 // globalConfig almacena la configuración global
 var globalConfig *Config
 
@@ -146,6 +154,9 @@ func Load() *Config {
 			EnableDebugRoutes:   getEnvAsBool("ENABLE_DEBUG_ROUTES", true),
 			EnableNotifications: getEnvAsBool("ENABLE_NOTIFICATIONS", false),
 		},
+		Logger: LoggerConfig{
+			Level: getEnv("LOG_LEVEL", "info"),
+		},
 	}
 
 	globalConfig = config
@@ -172,12 +183,13 @@ func (c *Config) IsDevelopment() bool {
 
 // Validate valida la configuración
 func (c *Config) Validate() error {
+	log := logger.Get()
 	if c.JWT.SecretKey == "default-secret-key-change-in-production" && c.IsProduction() {
-		log.Println("ADVERTENCIA: Usando clave JWT por defecto en producción")
+		log.Warn().Msg("Using default JWT secret key in production")
 	}
 
 	if c.Database.Password == "postgres" && c.IsProduction() {
-		log.Println("ADVERTENCIA: Usando contraseña de base de datos por defecto en producción")
+		log.Warn().Msg("Using default database password in production")
 	}
 
 	return nil
@@ -191,6 +203,7 @@ func loadDatabaseConfig() DatabaseConfig {
 		if config, err := parseDatabaseURL(databaseURL); err == nil {
 			return config
 		} else {
+			// No usar el logger aquí porque aún no está inicializado
 			log.Printf("Warning: Failed to parse DATABASE_URL, falling back to individual variables: %v", err)
 		}
 	}

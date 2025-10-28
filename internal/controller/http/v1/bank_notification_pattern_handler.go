@@ -7,17 +7,17 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/nick130920/fintech-backend/internal/controller/http/v1/dto"
 	"github.com/nick130920/fintech-backend/internal/usecase"
-	"go.uber.org/zap"
+	"github.com/rs/zerolog"
 )
 
 // bankNotificationPatternHandler handles HTTP requests related to bank notification patterns.
 type BankNotificationPatternHandler struct {
 	uc     *usecase.BankNotificationPatternUseCase
-	logger *zap.Logger
+	logger zerolog.Logger
 }
 
 // NewBankNotificationPatternHandler creates a new bankNotificationPatternHandler.
-func NewBankNotificationPatternHandler(uc *usecase.BankNotificationPatternUseCase, logger *zap.Logger) *BankNotificationPatternHandler {
+func NewBankNotificationPatternHandler(uc *usecase.BankNotificationPatternUseCase, logger zerolog.Logger) *BankNotificationPatternHandler {
 	return &BankNotificationPatternHandler{uc: uc, logger: logger}
 }
 
@@ -34,14 +34,15 @@ func NewBankNotificationPatternHandler(uc *usecase.BankNotificationPatternUseCas
 func (h *BankNotificationPatternHandler) GeneratePatternFromMessage(c *gin.Context) {
 	var req dto.GeneratePatternRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		h.logger.Error("bad request on generate pattern", zap.Error(err))
+		h.logger.Error().Err(err).Msg("bad request on generate pattern")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
+	h.logger.Info().Uint("bank_account_id", req.BankAccountID).Msg("Received request to generate pattern with AI")
 
 	result, err := h.uc.GeneratePatternFromMessage(c.Request.Context(), req.Message)
 	if err != nil {
-		h.logger.Error("failed to generate pattern with AI", zap.Error(err))
+		h.logger.Error().Err(err).Msg("failed to generate pattern with AI")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate pattern"})
 		return
 	}
@@ -66,7 +67,7 @@ func (h *BankNotificationPatternHandler) GetUserPatterns(c *gin.Context) {
 
 	patterns, err := h.uc.GetUserPatterns(userID.(uint))
 	if err != nil {
-		h.logger.Error("failed to get user patterns", zap.Error(err))
+		h.logger.Error().Err(err).Msg("failed to get user patterns")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get user patterns"})
 		return
 	}
@@ -83,14 +84,15 @@ func (h *BankNotificationPatternHandler) CreatePattern(c *gin.Context) {
 
 	var req dto.CreateBankNotificationPatternRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		h.logger.Error("bad request on create pattern", zap.Error(err))
+		h.logger.Error().Err(err).Msg("bad request on create pattern")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
+	h.logger.Info().Str("pattern_name", req.Name).Msg("Received request to create a new pattern")
 
 	pattern, err := h.uc.CreatePattern(userID.(uint), &req)
 	if err != nil {
-		h.logger.Error("failed to create pattern", zap.Error(err))
+		h.logger.Error().Err(err).Msg("failed to create pattern")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create pattern"})
 		return
 	}
@@ -107,7 +109,7 @@ func (h *BankNotificationPatternHandler) GetPatternStatistics(c *gin.Context) {
 
 	stats, err := h.uc.GetPatternStatistics(userID.(uint))
 	if err != nil {
-		h.logger.Error("failed to get pattern statistics", zap.Error(err))
+		h.logger.Error().Err(err).Msg("failed to get pattern statistics")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get pattern statistics"})
 		return
 	}
@@ -117,7 +119,7 @@ func (h *BankNotificationPatternHandler) GetPatternStatistics(c *gin.Context) {
 func (h *BankNotificationPatternHandler) ProcessNotification(c *gin.Context) {
 	var req dto.ProcessNotificationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		h.logger.Error("bad request on process notification", zap.Error(err))
+		h.logger.Error().Err(err).Msg("bad request on process notification")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
@@ -134,7 +136,7 @@ func (h *BankNotificationPatternHandler) ProcessNotification(c *gin.Context) {
 
 	result, err := h.uc.ProcessNotificationWebhook(req)
 	if err != nil {
-		h.logger.Error("failed to process notification", zap.Error(err))
+		h.logger.Error().Err(err).Msg("failed to process notification")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to process notification"})
 		return
 	}
@@ -156,7 +158,7 @@ func (h *BankNotificationPatternHandler) GetPattern(c *gin.Context) {
 
 	pattern, err := h.uc.GetPattern(userID.(uint), uint(patternID))
 	if err != nil {
-		h.logger.Error("failed to get pattern", zap.Error(err), zap.Uint64("pattern_id", patternID))
+		h.logger.Error().Err(err).Uint64("pattern_id", patternID).Msg("failed to get pattern")
 		c.JSON(http.StatusNotFound, gin.H{"error": "pattern not found"})
 		return
 	}
@@ -178,14 +180,14 @@ func (h *BankNotificationPatternHandler) UpdatePattern(c *gin.Context) {
 
 	var req dto.UpdateBankNotificationPatternRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		h.logger.Error("bad request on update pattern", zap.Error(err))
+		h.logger.Error().Err(err).Msg("bad request on update pattern")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
 
 	pattern, err := h.uc.UpdatePattern(userID.(uint), uint(patternID), &req)
 	if err != nil {
-		h.logger.Error("failed to update pattern", zap.Error(err), zap.Uint64("pattern_id", patternID))
+		h.logger.Error().Err(err).Uint64("pattern_id", patternID).Msg("failed to update pattern")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update pattern"})
 		return
 	}
@@ -206,7 +208,7 @@ func (h *BankNotificationPatternHandler) DeletePattern(c *gin.Context) {
 	}
 
 	if err := h.uc.DeletePattern(userID.(uint), uint(patternID)); err != nil {
-		h.logger.Error("failed to delete pattern", zap.Error(err), zap.Uint64("pattern_id", patternID))
+		h.logger.Error().Err(err).Uint64("pattern_id", patternID).Msg("failed to delete pattern")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete pattern"})
 		return
 	}
@@ -228,13 +230,13 @@ func (h *BankNotificationPatternHandler) SetPatternStatus(c *gin.Context) {
 
 	var req dto.SetPatternStatusRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		h.logger.Error("bad request on set pattern status", zap.Error(err))
+		h.logger.Error().Err(err).Msg("bad request on set pattern status")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
 
 	if err := h.uc.SetPatternStatus(userID.(uint), uint(patternID), req.Status); err != nil {
-		h.logger.Error("failed to set pattern status", zap.Error(err), zap.Uint64("pattern_id", patternID))
+		h.logger.Error().Err(err).Uint64("pattern_id", patternID).Msg("failed to set pattern status")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to set pattern status"})
 		return
 	}
@@ -258,7 +260,7 @@ func (h *BankNotificationPatternHandler) GetBankAccountPatterns(c *gin.Context) 
 
 	patterns, err := h.uc.GetBankAccountPatterns(userID.(uint), uint(bankAccountID), activeOnly)
 	if err != nil {
-		h.logger.Error("failed to get bank account patterns", zap.Error(err), zap.Uint64("bank_account_id", bankAccountID))
+		h.logger.Error().Err(err).Uint64("bank_account_id", bankAccountID).Msg("failed to get bank account patterns")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get bank account patterns"})
 		return
 	}

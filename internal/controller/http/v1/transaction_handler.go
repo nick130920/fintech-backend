@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
+	"github.com/rs/zerolog"
 
 	"github.com/nick130920/fintech-backend/internal/controller/http/v1/dto"
 	"github.com/nick130920/fintech-backend/internal/entity"
@@ -18,11 +18,11 @@ import (
 type TransactionHandler struct {
 	transactionUC *usecase.TransactionUseCase
 	validator     *validator.Validator
-	logger        *zap.Logger
+	logger        zerolog.Logger
 }
 
 // NewTransactionHandler crea una nueva instancia de TransactionHandler
-func NewTransactionHandler(transactionUC *usecase.TransactionUseCase, logger *zap.Logger) *TransactionHandler {
+func NewTransactionHandler(transactionUC *usecase.TransactionUseCase, logger zerolog.Logger) *TransactionHandler {
 	return &TransactionHandler{
 		transactionUC: transactionUC,
 		validator:     validator.New(),

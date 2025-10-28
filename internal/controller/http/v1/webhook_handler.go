@@ -5,26 +5,26 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	log "github.com/sirupsen/logrus"
-	"go.uber.org/zap"
+	"github.com/rs/zerolog"
 
 	"github.com/nick130920/fintech-backend/internal/controller/http/v1/dto"
 	"github.com/nick130920/fintech-backend/internal/usecase"
 	"github.com/nick130920/fintech-backend/pkg/apperrors"
+	"github.com/nick130920/fintech-backend/pkg/logger"
 )
 
 // WebhookHandler maneja webhooks de notificaciones bancarias
 type WebhookHandler struct {
 	bankNotificationUC *usecase.BankNotificationPatternUseCase
 	transactionUC      *usecase.TransactionUseCase
-	logger             *zap.Logger
+	logger             zerolog.Logger
 }
 
 // NewWebhookHandler crea una nueva instancia del handler
 func NewWebhookHandler(
 	bankNotificationUC *usecase.BankNotificationPatternUseCase,
 	transactionUC *usecase.TransactionUseCase,
-	logger *zap.Logger,
+	logger zerolog.Logger,
 ) *WebhookHandler {
 	return &WebhookHandler{
 		bankNotificationUC: bankNotificationUC,
@@ -46,13 +46,11 @@ func NewWebhookHandler(
 // @Router /webhooks/bank-notification [post]
 func (h *WebhookHandler) ReceiveBankNotification(c *gin.Context) {
 	requestID := getRequestID(c)
+	log := h.logger.With().Str("request_id", requestID).Logger()
 
 	var req dto.BankNotificationWebhook
 	if err := c.ShouldBindJSON(&req); err != nil {
-		log.WithFields(log.Fields{
-			"request_id": requestID,
-			"error":      err.Error(),
-		}).Error("Failed to bind bank notification webhook")
+		log.Error().Err(err).Msg("Failed to bind bank notification webhook")
 
 		c.JSON(http.StatusBadRequest, dto.ErrorResponse{
 			Error:   "invalid_request",
@@ -61,12 +59,11 @@ func (h *WebhookHandler) ReceiveBankNotification(c *gin.Context) {
 		return
 	}
 
-	log.WithFields(log.Fields{
-		"request_id": requestID,
-		"phone":      req.Phone,
-		"channel":    req.Channel,
-		"message":    req.Message[:min(100, len(req.Message))], // Solo primeros 100 chars
-	}).Info("Received bank notification webhook")
+	log.Info().
+		Str("phone", req.Phone).
+		Str("channel", req.Channel).
+		Str("message_preview", req.Message[:min(100, len(req.Message))]).
+		Msg("Received bank notification webhook")
 
 	// Procesar la notificación
 	processReq := dto.ProcessNotificationRequest{
@@ -80,10 +77,7 @@ func (h *WebhookHandler) ReceiveBankNotification(c *gin.Context) {
 
 	result, err := h.bankNotificationUC.ProcessNotificationWebhook(processReq)
 	if err != nil {
-		log.WithFields(log.Fields{
-			"request_id": requestID,
-			"error":      err.Error(),
-		}).Error("Failed to process bank notification")
+		log.Error().Err(err).Msg("Failed to process bank notification")
 
 		if appErr, ok := err.(*apperrors.AppError); ok {
 			c.JSON(appErr.StatusCode, dto.ErrorResponse{
@@ -102,12 +96,11 @@ func (h *WebhookHandler) ReceiveBankNotification(c *gin.Context) {
 
 	// Si se creó una transacción automáticamente, registrarla
 	if result.TransactionCreated && result.TransactionID > 0 {
-		log.WithFields(log.Fields{
-			"request_id":     requestID,
-			"transaction_id": result.TransactionID,
-			"amount":         result.Amount,
-			"confidence":     result.Confidence,
-		}).Info("Transaction created automatically from bank notification")
+		log.Info().
+			Uint("transaction_id", result.TransactionID).
+			Float64("amount", result.Amount).
+			Float64("confidence", result.Confidence).
+			Msg("Transaction created automatically from bank notification")
 	}
 
 	c.JSON(http.StatusOK, result)
@@ -160,6 +153,7 @@ func (h *WebhookHandler) ReceiveSMSNotification(c *gin.Context) {
 // @Router /webhooks/process-pending [post]
 func (h *WebhookHandler) ProcessPendingNotifications(c *gin.Context) {
 	requestID := getRequestID(c)
+	log := h.logger.With().Str("request_id", requestID).Logger()
 
 	var req dto.ProcessPendingNotificationsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -170,11 +164,10 @@ func (h *WebhookHandler) ProcessPendingNotifications(c *gin.Context) {
 		return
 	}
 
-	log.WithFields(log.Fields{
-		"request_id": requestID,
-		"user_id":    req.UserID,
-		"limit":      req.Limit,
-	}).Info("Processing pending notifications")
+	log.Info().
+		Uint("user_id", req.UserID).
+		Int("limit", req.Limit).
+		Msg("Processing pending notifications")
 
 	// Obtener notificaciones pendientes
 	pendingNotifications, err := h.bankNotificationUC.GetPendingNotifications(req.UserID, req.Limit)
@@ -201,11 +194,10 @@ func (h *WebhookHandler) ProcessPendingNotifications(c *gin.Context) {
 		_, err := h.bankNotificationUC.ProcessNotificationWebhook(processReq)
 		if err != nil {
 			failed++
-			log.WithFields(log.Fields{
-				"request_id":      requestID,
-				"notification_id": notification.ID,
-				"error":           err.Error(),
-			}).Error("Failed to process pending notification")
+			log.Error().
+				Err(err).
+				Uint("notification_id", notification.ID).
+				Msg("Failed to process pending notification")
 		} else {
 			processed++
 		}
@@ -301,6 +293,28 @@ func (h *WebhookHandler) findUserByPhone(phone string) uint {
 	// Por ahora retornamos 0, pero debería buscar en la base de datos
 	// o tener un mapeo de teléfonos a usuarios
 	return 0
+}
+
+// SimpleRecoveryMiddleware provides a simple panic recovery middleware for production.
+func SimpleRecoveryMiddleware() gin.HandlerFunc {
+	log := logger.Get()
+	return func(c *gin.Context) {
+		defer func() {
+			if err := recover(); err != nil {
+				requestID := getRequestID(c)
+				log.Error().
+					Str("request_id", requestID).
+					Interface("panic", err).
+					Msg("🚨 PANIC RECOVERED (SIMPLE)")
+
+				c.AbortWithStatusJSON(http.StatusInternalServerError, dto.ErrorResponse{
+					Error:   "internal_server_error",
+					Message: "Ocurrió un error inesperado en el servidor.",
+				})
+			}
+		}()
+		c.Next()
+	}
 }
 
 // min función helper para obtener el mínimo entre dos enteros

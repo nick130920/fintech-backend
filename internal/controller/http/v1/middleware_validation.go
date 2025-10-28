@@ -8,7 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 	"github.com/nick130920/fintech-backend/pkg/apperrors"
-	log "github.com/sirupsen/logrus"
+	"github.com/nick130920/fintech-backend/pkg/logger"
 )
 
 // ValidationErrorDetail representa un error de validación específico
@@ -69,10 +69,11 @@ func (cv *CustomValidator) Validate(s interface{}) error {
 	}
 
 	// Log de errores de validación
-	log.WithFields(log.Fields{
-		"validation_errors": validationErrors,
-		"struct_type":       reflect.TypeOf(s).Name(),
-	}).Debug("🔍 VALIDATION ERRORS")
+	log := logger.Get()
+	log.Debug().
+		Interface("validation_errors", validationErrors).
+		Str("struct_type", reflect.TypeOf(s).Name()).
+		Msg("🔍 VALIDATION ERRORS")
 
 	return apperrors.ErrValidation.
 		WithDetails("Los datos proporcionados no son válidos").
@@ -91,10 +92,11 @@ func ValidationMiddleware(cv *CustomValidator) gin.HandlerFunc {
 func BindAndValidate(c *gin.Context, obj interface{}) error {
 	// Bind del JSON
 	if err := c.ShouldBindJSON(obj); err != nil {
-		log.WithFields(log.Fields{
-			"error": err.Error(),
-			"path":  c.Request.URL.Path,
-		}).Debug("🚫 JSON BIND ERROR")
+		log := logger.Get()
+		log.Debug().
+			Err(err).
+			Str("path", c.Request.URL.Path).
+			Msg("🚫 JSON BIND ERROR")
 
 		return apperrors.ErrInvalidRequest.
 			WithDetails("Formato JSON inválido").

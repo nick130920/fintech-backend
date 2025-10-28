@@ -2,11 +2,11 @@ package main
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/nick130920/fintech-backend/configs"
 	"github.com/nick130920/fintech-backend/internal/entity"
 	"github.com/nick130920/fintech-backend/pkg/database"
+	"github.com/nick130920/fintech-backend/pkg/logger"
 	"github.com/nick130920/fintech-backend/pkg/repository"
 )
 
@@ -94,42 +94,46 @@ var defaultPatterns = []entity.BankNotificationPattern{
 }
 
 func main() {
+	// Configurar logger
+	logger.InitLogger("info", "debug") // Usar formato de consola para el script
+	log := logger.Get()
+
 	// Cargar configuración
 	cfg := configs.Load()
 	if err := cfg.Validate(); err != nil {
-		log.Fatalf("Configuration validation failed: %v", err)
+		log.Fatal().Err(err).Msg("Configuration validation failed")
 	}
 
 	// Conectar a la base de datos
 	db, err := database.Initialize()
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		log.Fatal().Err(err).Msg("Failed to connect to database")
 	}
 
 	// Crear repositorio
 	patternRepo := repository.NewBankNotificationPatternPostgres(db)
 
-	fmt.Println("🚀 Creando patrones de notificación por defecto...")
+	log.Info().Msg("🚀 Creando patrones de notificación por defecto...")
 
 	for i, pattern := range defaultPatterns {
 		// Verificar si ya existe un patrón similar (por ahora saltamos esta verificación)
 		// TODO: Implementar método GetByName en el repositorio
 		// existing, err := patternRepo.GetByName(pattern.Name)
 		// if err == nil && existing != nil {
-		//	fmt.Printf("⚠️  Patrón '%s' ya existe, saltando...\n", pattern.Name)
+		//	log.Warn().Str("pattern_name", pattern.Name).Msg("Pattern already exists, skipping...")
 		//	continue
 		// }
 
 		// Crear el patrón
 		if err := patternRepo.Create(&pattern); err != nil {
-			log.Printf("❌ Error creando patrón '%s': %v", pattern.Name, err)
+			log.Error().Err(err).Str("pattern_name", pattern.Name).Msg("Error creating pattern")
 			continue
 		}
 
-		fmt.Printf("✅ Patrón %d/%d creado: %s\n", i+1, len(defaultPatterns), pattern.Name)
+		log.Info().Int("current", i+1).Int("total", len(defaultPatterns)).Str("pattern_name", pattern.Name).Msg("Pattern created")
 	}
 
-	fmt.Println("🎉 ¡Patrones por defecto creados exitosamente!")
+	log.Info().Msg("🎉 ¡Patrones por defecto creados exitosamente!")
 	fmt.Println("\n📋 Patrones disponibles:")
 	fmt.Println("- Bancolombia (Compras y Retiros)")
 	fmt.Println("- Davivienda (Compras)")

@@ -612,6 +612,7 @@ func (uc *BankNotificationPatternUseCase) GeneratePatternFromMessage(ctx context
 		return nil, apperrors.ErrInternal.WithDetails("Servicio de IA no está configurado")
 	}
 
+	fmt.Println("Generating pattern from message using Gemini service...")
 	result, err := uc.geminiService.GeneratePatternFromMessage(ctx, message)
 	if err != nil {
 		return nil, apperrors.ErrInternal.WithInternal(err).WithDetails("Error al generar patrón con Gemini")

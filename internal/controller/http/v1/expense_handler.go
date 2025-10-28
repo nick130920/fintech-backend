@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
+	"github.com/rs/zerolog"
 
 	"github.com/nick130920/fintech-backend/internal/controller/http/v1/dto"
 	"github.com/nick130920/fintech-backend/internal/usecase"
@@ -18,11 +18,11 @@ import (
 type ExpenseHandler struct {
 	expenseUC *usecase.ExpenseUseCase
 	validator *validator.Validator
-	logger    *zap.Logger
+	logger    zerolog.Logger
 }
 
 // NewExpenseHandler crea una nueva instancia de ExpenseHandler
-func NewExpenseHandler(expenseUC *usecase.ExpenseUseCase, logger *zap.Logger) *ExpenseHandler {
+func NewExpenseHandler(expenseUC *usecase.ExpenseUseCase, logger zerolog.Logger) *ExpenseHandler {
 	return &ExpenseHandler{
 		expenseUC: expenseUC,
 		validator: validator.New(),
@@ -69,12 +69,12 @@ func (h *ExpenseHandler) CreateExpense(c *gin.Context) {
 	userID := getUserIDFromContext(c)
 
 	// Crear gasto con logging detallado
-	h.logger.Info("🔍 Creando gasto para usuario", zap.Uint("user_id", userID), zap.Any("request", req))
+	h.logger.Info().Uint("user_id", userID).Interface("request", req).Msg("Creating expense for user")
 
 	expense, err := h.expenseUC.CreateExpense(userID, &req)
 	if err != nil {
 		// Log detallado del error
-		h.logger.Error("❌ Error al crear gasto", zap.Error(err), zap.Uint("user_id", userID), zap.Any("request", req))
+		h.logger.Error().Err(err).Uint("user_id", userID).Interface("request", req).Msg("Error creating expense")
 
 		errorStr := err.Error()
 		switch {
@@ -110,7 +110,7 @@ func (h *ExpenseHandler) CreateExpense(c *gin.Context) {
 			})
 		default:
 			// Log de error desconocido
-			h.logger.Error("🚨 Error no manejado en CreateExpense", zap.Error(err))
+			h.logger.Error().Err(err).Msg("Unhandled error in CreateExpense")
 			c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
 				Code:    "INTERNAL_ERROR",
 				Message: "Error interno del servidor",
@@ -120,7 +120,7 @@ func (h *ExpenseHandler) CreateExpense(c *gin.Context) {
 		return
 	}
 
-	h.logger.Info("✅ Gasto creado exitosamente", zap.Uint("expense_id", expense.ID), zap.Float64("amount", req.Amount))
+	h.logger.Info().Uint("expense_id", expense.ID).Float64("amount", req.Amount).Msg("Expense created successfully")
 
 	c.JSON(http.StatusCreated, dto.Response{
 		Code:    "SUCCESS",

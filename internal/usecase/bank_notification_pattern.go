@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"regexp"
@@ -11,6 +12,7 @@ import (
 	"github.com/nick130920/fintech-backend/internal/entity"
 	"github.com/nick130920/fintech-backend/internal/usecase/repo"
 	"github.com/nick130920/fintech-backend/pkg/apperrors"
+	"github.com/nick130920/fintech-backend/pkg/webapi"
 )
 
 // BankNotificationPatternUseCase contiene la lógica de negocio para patrones de notificación bancaria
@@ -19,6 +21,7 @@ type BankNotificationPatternUseCase struct {
 	bankAccountRepo repo.BankAccountRepo
 	userRepo        repo.UserRepo
 	transactionRepo repo.TransactionRepo
+	geminiService   *webapi.GeminiService
 }
 
 // NewBankNotificationPatternUseCase crea una nueva instancia de BankNotificationPatternUseCase
@@ -27,12 +30,14 @@ func NewBankNotificationPatternUseCase(
 	bankAccountRepo repo.BankAccountRepo,
 	userRepo repo.UserRepo,
 	transactionRepo repo.TransactionRepo,
+	geminiService *webapi.GeminiService,
 ) *BankNotificationPatternUseCase {
 	return &BankNotificationPatternUseCase{
 		patternRepo:     patternRepo,
 		bankAccountRepo: bankAccountRepo,
 		userRepo:        userRepo,
 		transactionRepo: transactionRepo,
+		geminiService:   geminiService,
 	}
 }
 

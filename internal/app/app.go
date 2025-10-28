@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"log"
 	"os"
 	"os/signal"
@@ -18,6 +19,7 @@ import (
 	v1 "github.com/nick130920/fintech-backend/internal/controller/http/v1"
 	"github.com/nick130920/fintech-backend/internal/usecase"
 	"github.com/nick130920/fintech-backend/internal/usecase/repo"
+	"github.com/nick130920/fintech-backend/internal/usecase/webapi"
 	"github.com/nick130920/fintech-backend/pkg/auth"
 	"github.com/nick130920/fintech-backend/pkg/database"
 	"github.com/nick130920/fintech-backend/pkg/repository"
@@ -77,6 +79,9 @@ type Dependencies struct {
 	BankAccountUC             *usecase.BankAccountUseCase
 	BankNotificationPatternUC *usecase.BankNotificationPatternUseCase
 
+	// Servicios externos
+	GeminiService *webapi.GeminiService
+
 	// Repositories (necesarios para algunos handlers)
 	CategoryRepo repo.CategoryRepo
 
@@ -95,6 +100,12 @@ func initDependencies(db *gorm.DB, jwtManager *auth.JWTManager) *Dependencies {
 	bankAccountRepo := repository.NewBankAccountPostgres(db)
 	bankNotificationPatternRepo := repository.NewBankNotificationPatternPostgres(db)
 
+	// Inicializar servicios externos
+	geminiService, err := webapi.NewGeminiService(context.Background())
+	if err != nil {
+		log.Fatalf("Error al inicializar Gemini Service: %v", err)
+	}
+
 	// Asegurar que existan las categorías por defecto
 	if err := categoryRepo.EnsureDefaultCategoriesExist(); err != nil {
 		log.Printf("Warning: Failed to ensure default categories exist: %v", err)
@@ -112,7 +123,7 @@ func initDependencies(db *gorm.DB, jwtManager *auth.JWTManager) *Dependencies {
 	expenseUC := usecase.NewExpenseUseCase(expenseRepo, budgetRepo, categoryRepo, userRepo)
 	incomeUC := usecase.NewIncomeUseCase(incomeRepo, userRepo)
 	bankAccountUC := usecase.NewBankAccountUseCase(bankAccountRepo, userRepo)
-	bankNotificationPatternUC := usecase.NewBankNotificationPatternUseCase(bankNotificationPatternRepo, bankAccountRepo, userRepo, transactionRepo)
+	bankNotificationPatternUC := usecase.NewBankNotificationPatternUseCase(bankNotificationPatternRepo, bankAccountRepo, userRepo, transactionRepo, geminiService)
 
 	return &Dependencies{
 		UserUC:                    userUC,
@@ -123,6 +134,7 @@ func initDependencies(db *gorm.DB, jwtManager *auth.JWTManager) *Dependencies {
 		IncomeUC:                  incomeUC,
 		BankAccountUC:             bankAccountUC,
 		BankNotificationPatternUC: bankNotificationPatternUC,
+		GeminiService:             geminiService,
 		CategoryRepo:              categoryRepo,
 		JWTManager:                jwtManager,
 	}

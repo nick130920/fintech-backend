@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 
 	"github.com/nick130920/fintech-backend/internal/controller/http/v1/dto"
 	"github.com/nick130920/fintech-backend/internal/entity"
@@ -16,13 +17,15 @@ import (
 type CategoryHandler struct {
 	categoryRepo repo.CategoryRepo
 	validator    *validator.Validator
+	logger       *zap.Logger
 }
 
 // NewCategoryHandler crea una nueva instancia de CategoryHandler
-func NewCategoryHandler(categoryRepo repo.CategoryRepo) *CategoryHandler {
+func NewCategoryHandler(categoryRepo repo.CategoryRepo, logger *zap.Logger) *CategoryHandler {
 	return &CategoryHandler{
 		categoryRepo: categoryRepo,
 		validator:    validator.New(),
+		logger:       logger,
 	}
 }
 

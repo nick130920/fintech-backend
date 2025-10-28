@@ -1,13 +1,13 @@
 package v1
 
 import (
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 
 	"github.com/nick130920/fintech-backend/internal/controller/http/v1/dto"
 	"github.com/nick130920/fintech-backend/internal/usecase"
@@ -18,13 +18,15 @@ import (
 type ExpenseHandler struct {
 	expenseUC *usecase.ExpenseUseCase
 	validator *validator.Validator
+	logger    *zap.Logger
 }
 
 // NewExpenseHandler crea una nueva instancia de ExpenseHandler
-func NewExpenseHandler(expenseUC *usecase.ExpenseUseCase) *ExpenseHandler {
+func NewExpenseHandler(expenseUC *usecase.ExpenseUseCase, logger *zap.Logger) *ExpenseHandler {
 	return &ExpenseHandler{
 		expenseUC: expenseUC,
 		validator: validator.New(),
+		logger:    logger,
 	}
 }
 
@@ -67,12 +69,12 @@ func (h *ExpenseHandler) CreateExpense(c *gin.Context) {
 	userID := getUserIDFromContext(c)
 
 	// Crear gasto con logging detallado
-	log.Printf("🔍 Creando gasto para usuario %d: %+v", userID, req)
+	h.logger.Info("🔍 Creando gasto para usuario", zap.Uint("user_id", userID), zap.Any("request", req))
 
 	expense, err := h.expenseUC.CreateExpense(userID, &req)
 	if err != nil {
 		// Log detallado del error
-		log.Printf("❌ Error al crear gasto: %v | Usuario: %d | Request: %+v", err, userID, req)
+		h.logger.Error("❌ Error al crear gasto", zap.Error(err), zap.Uint("user_id", userID), zap.Any("request", req))
 
 		errorStr := err.Error()
 		switch {
@@ -108,7 +110,7 @@ func (h *ExpenseHandler) CreateExpense(c *gin.Context) {
 			})
 		default:
 			// Log de error desconocido
-			log.Printf("🚨 Error no manejado en CreateExpense: %v", err)
+			h.logger.Error("🚨 Error no manejado en CreateExpense", zap.Error(err))
 			c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
 				Code:    "INTERNAL_ERROR",
 				Message: "Error interno del servidor",
@@ -118,7 +120,7 @@ func (h *ExpenseHandler) CreateExpense(c *gin.Context) {
 		return
 	}
 
-	log.Printf("✅ Gasto creado exitosamente: ID=%d, Monto=%.2f", expense.ID, req.Amount)
+	h.logger.Info("✅ Gasto creado exitosamente", zap.Uint("expense_id", expense.ID), zap.Float64("amount", req.Amount))
 
 	c.JSON(http.StatusCreated, dto.Response{
 		Code:    "SUCCESS",

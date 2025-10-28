@@ -12,6 +12,7 @@ import (
 	logrus "github.com/sirupsen/logrus"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 
 	docs "github.com/nick130920/fintech-backend/api/swagger"
@@ -32,6 +33,19 @@ func Run() {
 
 	// Configurar logging para Railway
 	setupLogging()
+
+	// Initialize zap logger
+	var logger *zap.Logger
+	var errLogger error
+	if gin.Mode() == gin.ReleaseMode {
+		logger, errLogger = zap.NewProduction()
+	} else {
+		logger, errLogger = zap.NewDevelopment()
+	}
+	if errLogger != nil {
+		log.Fatalf("can't initialize zap logger: %v", errLogger)
+	}
+	defer logger.Sync()
 
 	// Validar configuración
 	if err := cfg.Validate(); err != nil {
@@ -61,7 +75,7 @@ func Run() {
 	deps := initDependencies(db, jwtManager)
 
 	// Inicializar servidor HTTP
-	httpServer := initHTTPServer(cfg, deps)
+	httpServer := initHTTPServer(cfg, deps, logger)
 
 	// Ejecutar servidor
 	runServer(httpServer, cfg.Server.Port)
@@ -141,7 +155,7 @@ func initDependencies(db *gorm.DB, jwtManager *auth.JWTManager) *Dependencies {
 }
 
 // initHTTPServer inicializa el servidor HTTP con todas las rutas
-func initHTTPServer(cfg *configs.Config, deps *Dependencies) *gin.Engine {
+func initHTTPServer(cfg *configs.Config, deps *Dependencies, logger *zap.Logger) *gin.Engine {
 	// Crear router
 	router := gin.New()
 
@@ -162,7 +176,7 @@ func initHTTPServer(cfg *configs.Config, deps *Dependencies) *gin.Engine {
 	})
 
 	// Inicializar rutas API v1
-	v1.NewRouter(router, deps.UserUC, deps.AccountUC, deps.TransactionUC, deps.BudgetUC, deps.ExpenseUC, deps.IncomeUC, deps.BankAccountUC, deps.BankNotificationPatternUC, deps.CategoryRepo, deps.JWTManager)
+	v1.NewRouter(router, deps.UserUC, deps.AccountUC, deps.TransactionUC, deps.BudgetUC, deps.ExpenseUC, deps.IncomeUC, deps.BankAccountUC, deps.BankNotificationPatternUC, deps.CategoryRepo, deps.JWTManager, logger)
 
 	// Documentación Swagger (solo en desarrollo)
 	if cfg.Features.EnableSwagger {

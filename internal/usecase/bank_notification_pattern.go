@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"regexp"
@@ -603,6 +604,20 @@ func (uc *BankNotificationPatternUseCase) ProcessNotificationWebhook(req dto.Pro
 
 	response.PatternUsed = bestMatch.Name
 	return response, nil
+}
+
+// GeneratePatternFromMessage uses the Gemini service to generate a pattern from a given message.
+func (uc *BankNotificationPatternUseCase) GeneratePatternFromMessage(ctx context.Context, message string) (*webapi.PatternGenerationResult, error) {
+	if uc.geminiService == nil {
+		return nil, apperrors.ErrInternal.WithDetails("Servicio de IA no está configurado")
+	}
+
+	result, err := uc.geminiService.GeneratePatternFromMessage(ctx, message)
+	if err != nil {
+		return nil, apperrors.ErrInternal.WithInternal(err).WithDetails("Error al generar patrón con Gemini")
+	}
+
+	return result, nil
 }
 
 // createTransactionFromNotification crea una transacción a partir de los datos extraídos

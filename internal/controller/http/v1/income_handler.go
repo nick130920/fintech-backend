@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 
 	"github.com/nick130920/fintech-backend/internal/controller/http/v1/dto"
 	"github.com/nick130920/fintech-backend/internal/entity"
@@ -16,12 +17,14 @@ import (
 // IncomeHandler maneja las peticiones HTTP relacionadas con ingresos
 type IncomeHandler struct {
 	incomeUC *usecase.IncomeUseCase
+	logger   *zap.Logger
 }
 
 // NewIncomeHandler crea un nuevo IncomeHandler
-func NewIncomeHandler(incomeUC *usecase.IncomeUseCase) *IncomeHandler {
+func NewIncomeHandler(incomeUC *usecase.IncomeUseCase, logger *zap.Logger) *IncomeHandler {
 	return &IncomeHandler{
 		incomeUC: incomeUC,
+		logger:   logger,
 	}
 }
 

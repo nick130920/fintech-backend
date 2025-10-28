@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 
 	"github.com/nick130920/fintech-backend/internal/controller/http/v1/dto"
 	"github.com/nick130920/fintech-backend/internal/entity"
@@ -17,13 +18,15 @@ import (
 type BankAccountHandler struct {
 	bankAccountUC *usecase.BankAccountUseCase
 	validator     *validator.Validator
+	logger        *zap.Logger
 }
 
 // NewBankAccountHandler crea una nueva instancia de BankAccountHandler
-func NewBankAccountHandler(bankAccountUC *usecase.BankAccountUseCase) *BankAccountHandler {
+func NewBankAccountHandler(bankAccountUC *usecase.BankAccountUseCase, logger *zap.Logger) *BankAccountHandler {
 	return &BankAccountHandler{
 		bankAccountUC: bankAccountUC,
 		validator:     validator.New(),
+		logger:        logger,
 	}
 }
 

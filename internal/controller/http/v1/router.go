@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 
 	"github.com/nick130920/fintech-backend/internal/usecase"
 	"github.com/nick130920/fintech-backend/internal/usecase/repo"
@@ -23,6 +24,7 @@ func NewRouter(
 	bankNotificationPatternUC *usecase.BankNotificationPatternUseCase,
 	categoryRepo repo.CategoryRepo,
 	jwtManager *auth.JWTManager,
+	logger *zap.Logger,
 ) {
 	// Configurar middlewares globales de seguridad
 	setupGlobalMiddlewares(router)
@@ -39,14 +41,14 @@ func NewRouter(
 	// Inicializar handlers
 	userHandler := NewUserHandler(userUC)
 	accountHandler := NewAccountHandler(accountUC)
-	transactionHandler := NewTransactionHandler(transactionUC)
-	budgetHandler := NewBudgetHandler(budgetUC)
-	expenseHandler := NewExpenseHandler(expenseUC)
-	incomeHandler := NewIncomeHandler(incomeUC)
-	bankAccountHandler := NewBankAccountHandler(bankAccountUC)
-	bankNotificationPatternHandler := NewBankNotificationPatternHandler(bankNotificationPatternUC)
-	webhookHandler := NewWebhookHandler(bankNotificationPatternUC, transactionUC)
-	categoryHandler := NewCategoryHandler(categoryRepo)
+	transactionHandler := NewTransactionHandler(transactionUC, logger)
+	budgetHandler := NewBudgetHandler(budgetUC, logger)
+	expenseHandler := NewExpenseHandler(expenseUC, logger)
+	incomeHandler := NewIncomeHandler(incomeUC, logger)
+	bankAccountHandler := NewBankAccountHandler(bankAccountUC, logger)
+	bankNotificationPatternHandler := NewBankNotificationPatternHandler(bankNotificationPatternUC, logger)
+	webhookHandler := NewWebhookHandler(bankNotificationPatternUC, transactionUC, logger)
+	categoryHandler := NewCategoryHandler(categoryRepo, logger)
 
 	// Middleware de autenticación
 	authMiddleware := NewAuthMiddleware(jwtManager)
@@ -185,6 +187,7 @@ func NewRouter(
 			notificationPatternsGroup.PUT("/:id", bankNotificationPatternHandler.UpdatePattern)
 			notificationPatternsGroup.DELETE("/:id", bankNotificationPatternHandler.DeletePattern)
 			notificationPatternsGroup.PATCH("/:id/status", bankNotificationPatternHandler.SetPatternStatus)
+			notificationPatternsGroup.POST("/generate-from-message", bankNotificationPatternHandler.GeneratePatternFromMessage)
 
 			// Rutas de patrones por cuenta bancaria (usando ruta alternativa)
 			notificationPatternsGroup.GET("/bank-account/:bank_account_id", bankNotificationPatternHandler.GetBankAccountPatterns)

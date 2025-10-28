@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 
 	"github.com/nick130920/fintech-backend/internal/controller/http/v1/dto"
 	"github.com/nick130920/fintech-backend/internal/usecase"
@@ -15,13 +16,15 @@ import (
 type BudgetHandler struct {
 	budgetUC  *usecase.BudgetUseCase
 	validator *validator.Validator
+	logger    *zap.Logger
 }
 
 // NewBudgetHandler crea una nueva instancia de BudgetHandler
-func NewBudgetHandler(budgetUC *usecase.BudgetUseCase) *BudgetHandler {
+func NewBudgetHandler(budgetUC *usecase.BudgetUseCase, logger *zap.Logger) *BudgetHandler {
 	return &BudgetHandler{
 		budgetUC:  budgetUC,
 		validator: validator.New(),
+		logger:    logger,
 	}
 }
 

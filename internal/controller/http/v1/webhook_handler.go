@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 
 	"github.com/nick130920/fintech-backend/internal/controller/http/v1/dto"
 	"github.com/nick130920/fintech-backend/internal/usecase"
@@ -16,16 +17,19 @@ import (
 type WebhookHandler struct {
 	bankNotificationUC *usecase.BankNotificationPatternUseCase
 	transactionUC      *usecase.TransactionUseCase
+	logger             *zap.Logger
 }
 
 // NewWebhookHandler crea una nueva instancia del handler
 func NewWebhookHandler(
 	bankNotificationUC *usecase.BankNotificationPatternUseCase,
 	transactionUC *usecase.TransactionUseCase,
+	logger *zap.Logger,
 ) *WebhookHandler {
 	return &WebhookHandler{
 		bankNotificationUC: bankNotificationUC,
 		transactionUC:      transactionUC,
+		logger:             logger,
 	}
 }
 

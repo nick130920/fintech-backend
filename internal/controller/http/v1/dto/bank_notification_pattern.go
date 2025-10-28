@@ -65,6 +65,21 @@ type ProcessNotificationRequest struct {
 	UserID     uint      `json:"user_id,omitempty"`
 }
 
+// GeneratePatternRequest is the request DTO for generating a pattern.
+type GeneratePatternRequest struct {
+	Message       string `json:"message" validate:"required"`
+	BankAccountID uint   `json:"bank_account_id" validate:"required"`
+}
+
+// GeneratePatternResponse is the response DTO for a generated pattern.
+type GeneratePatternResponse struct {
+	AmountRegex      string   `json:"amount_regex"`
+	DateRegex        string   `json:"date_regex"`
+	DescriptionRegex string   `json:"description_regex"`
+	MerchantRegex    string   `json:"merchant_regex"`
+	KeywordsTrigger  []string `json:"keywords_trigger"`
+}
+
 // BankNotificationPatternResponse representa la respuesta de un patrón de notificación
 type BankNotificationPatternResponse struct {
 	ID                  uint                             `json:"id"`

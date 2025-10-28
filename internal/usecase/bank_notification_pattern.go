@@ -1,7 +1,6 @@
 package usecase
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"regexp"
@@ -11,8 +10,8 @@ import (
 	"github.com/nick130920/fintech-backend/internal/controller/http/v1/dto"
 	"github.com/nick130920/fintech-backend/internal/entity"
 	"github.com/nick130920/fintech-backend/internal/usecase/repo"
+	"github.com/nick130920/fintech-backend/internal/usecase/webapi"
 	"github.com/nick130920/fintech-backend/pkg/apperrors"
-	"github.com/nick130920/fintech-backend/pkg/webapi"
 )
 
 // BankNotificationPatternUseCase contiene la lógica de negocio para patrones de notificación bancaria

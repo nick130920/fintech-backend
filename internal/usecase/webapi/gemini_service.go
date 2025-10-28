@@ -7,7 +7,6 @@ import (
 	"os"
 	"strings"
 
-	"google.golang.org/api/option"
 	"google.golang.org/genai"
 )
 
@@ -24,17 +23,14 @@ func NewGeminiService(ctx context.Context) (*GeminiService, error) {
 		return nil, fmt.Errorf("la variable de entorno GEMINI_API_KEY no está configurada")
 	}
 
-	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
+	client, err := genai.NewClient(ctx, &genai.ClientConfig{
+		APIKey: apiKey,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("error al crear el cliente de Gemini: %w", err)
 	}
 
 	return &GeminiService{client: client}, nil
-}
-
-// Close cierra el cliente de Gemini.
-func (s *GeminiService) Close() {
-	s.client.Close()
 }
 
 // TransactionInfo contiene la información extraída de un SMS.
@@ -47,9 +43,6 @@ type TransactionInfo struct {
 
 // ExtractTransactionInfoFromSMS analiza un texto de SMS y extrae la información de la transacción.
 func (s *GeminiService) ExtractTransactionInfoFromSMS(ctx context.Context, smsContent string) (*TransactionInfo, error) {
-	model := s.client.GenerativeModel("gemini-1.5-flash")
-	model.SetTemperature(0.0) // Queremos respuestas consistentes
-
 	prompt := fmt.Sprintf(`
 		Analiza el siguiente SMS de una notificación bancaria y extrae la información en formato JSON.
 		El SMS es: "%s"
@@ -71,23 +64,28 @@ func (s *GeminiService) ExtractTransactionInfoFromSMS(ctx context.Context, smsCo
 		}
 	`, smsContent)
 
-	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
+	config := &genai.GenerateContentConfig{
+		Temperature:      genai.Ptr[float32](0.0), // Queremos respuestas consistentes
+		ResponseMIMEType: "application/json",
+	}
+
+	resp, err := s.client.Models.GenerateContent(ctx, "gemini-1.5-flash", genai.Text(prompt), config)
 	if err != nil {
 		return nil, fmt.Errorf("error al generar contenido con Gemini: %w", err)
 	}
 
-	if len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {
+	if len(resp.Candidates) == 0 {
 		return nil, fmt.Errorf("la respuesta de Gemini está vacía")
 	}
 
 	// Extraer y limpiar la respuesta JSON
-	rawJSON, ok := resp.Candidates[0].Content.Parts[0].(genai.Text)
-	if !ok {
-		return nil, fmt.Errorf("tipo de respuesta inesperado de Gemini")
+	jsonStr := resp.Text()
+	if jsonStr == "" {
+		return nil, fmt.Errorf("el contenido de la respuesta de Gemini está vacío")
 	}
 
 	// Limpiar el string de cualquier caracter no deseado (como ```json)
-	jsonStr := strings.TrimSpace(string(rawJSON))
+	jsonStr = strings.TrimSpace(jsonStr)
 	jsonStr = strings.TrimPrefix(jsonStr, "```json")
 	jsonStr = strings.TrimSuffix(jsonStr, "```")
 	jsonStr = strings.TrimSpace(jsonStr)

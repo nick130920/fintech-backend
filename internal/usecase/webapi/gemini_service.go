@@ -84,7 +84,7 @@ func (s *GeminiService) ExtractTransactionInfoFromSMS(ctx context.Context, smsCo
 		ResponseMIMEType: "application/json",
 	}
 
-	resp, err := s.client.Models.GenerateContent(ctx, "gemini-1.5-flash", prompt, config)
+	resp, err := s.client.Models.GenerateContent(ctx, "gemini-2.5-flash", prompt, config)
 	if err != nil {
 		return nil, fmt.Errorf("error al generar contenido con Gemini: %w", err)
 	}
@@ -143,7 +143,7 @@ func (s *GeminiService) GeneratePatternFromMessage(ctx context.Context, messageC
 		ResponseMIMEType: "application/json",
 	}
 
-	resp, err := s.client.Models.GenerateContent(ctx, "gemini-1.5-flash", prompt, config)
+	resp, err := s.client.Models.GenerateContent(ctx, "gemini-2.5-flash", prompt, config)
 	if err != nil {
 		return nil, fmt.Errorf("error al generar patrón con Gemini: %w", err)
 	}

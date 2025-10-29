@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -603,6 +604,7 @@ func (uc *BankNotificationPatternUseCase) ProcessNotificationWebhook(req dto.Pro
 	}
 
 	response.PatternUsed = bestMatch.Name
+	response.ExtractedData = uc.parseExtractedData(bestData) // Adjuntar siempre los datos extraídos y parseados
 	return response, nil
 }
 
@@ -649,6 +651,37 @@ func (uc *BankNotificationPatternUseCase) CreatePatternFromMessage(ctx context.C
 
 	// 3. Call the existing CreatePattern method to save it
 	return uc.CreatePattern(userID, createReq)
+}
+
+// parseExtractedData convierte los valores extraídos a sus tipos correctos
+func (uc *BankNotificationPatternUseCase) parseExtractedData(data map[string]interface{}) map[string]interface{} {
+	if data == nil {
+		return nil
+	}
+	cleanedData := make(map[string]interface{})
+
+	// Parse Amount (string to float64)
+	if amountStr, ok := data["amount"].(string); ok {
+		// Limpiar el string: quitar comas y espacios
+		amountStr = strings.ReplaceAll(amountStr, ",", "")
+		amountStr = strings.TrimSpace(amountStr)
+		if amount, err := strconv.ParseFloat(amountStr, 64); err == nil {
+			cleanedData["amount"] = amount
+		}
+	}
+
+	// Copiar otros campos que ya son strings
+	if dateStr, ok := data["date"].(string); ok {
+		cleanedData["date"] = dateStr
+	}
+	if descStr, ok := data["description"].(string); ok {
+		cleanedData["description"] = descStr
+	}
+	if merchStr, ok := data["merchant"].(string); ok {
+		cleanedData["merchant"] = merchStr
+	}
+
+	return cleanedData
 }
 
 // createTransactionFromNotification crea una transacción a partir de los datos extraídos

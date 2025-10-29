@@ -621,6 +621,36 @@ func (uc *BankNotificationPatternUseCase) GeneratePatternFromMessage(ctx context
 	return result, nil
 }
 
+// CreatePatternFromMessage creates a new pattern by analyzing a message with AI.
+func (uc *BankNotificationPatternUseCase) CreatePatternFromMessage(ctx context.Context, userID uint, req *dto.CreatePatternFromMessageRequest) (*dto.BankNotificationPatternResponse, error) {
+	// 1. Generate pattern details from the message using Gemini
+	aiResult, err := uc.GeneratePatternFromMessage(ctx, req.Message)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate pattern details from message: %w", err)
+	}
+
+	// 2. Prepare a request to create a new pattern
+	createReq := &dto.CreateBankNotificationPatternRequest{
+		BankAccountID:       req.BankAccountID,
+		Name:                aiResult.Name,
+		Description:         aiResult.Description,
+		Channel:             "sms", // Defaulting to SMS, can be changed later
+		ExampleMessage:      req.Message,
+		KeywordsTrigger:     aiResult.KeywordsTrigger,
+		AmountRegex:         aiResult.AmountRegex,
+		DateRegex:           aiResult.DateRegex,
+		DescriptionRegex:    aiResult.DescriptionRegex,
+		MerchantRegex:       aiResult.MerchantRegex,
+		RequiresValidation:  true,  // Default value
+		ConfidenceThreshold: 0.8,   // Default value
+		AutoApprove:         false, // Default value
+		Priority:            100,   // Default value
+	}
+
+	// 3. Call the existing CreatePattern method to save it
+	return uc.CreatePattern(userID, createReq)
+}
+
 // createTransactionFromNotification crea una transacción a partir de los datos extraídos
 func (uc *BankNotificationPatternUseCase) createTransactionFromNotification(
 	userID uint,

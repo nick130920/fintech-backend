@@ -188,6 +188,7 @@ func NewRouter(
 			notificationPatternsGroup.DELETE("/:id", bankNotificationPatternHandler.DeletePattern)
 			notificationPatternsGroup.PATCH("/:id/status", bankNotificationPatternHandler.SetPatternStatus)
 			notificationPatternsGroup.POST("/generate-from-message", bankNotificationPatternHandler.GeneratePatternFromMessage)
+			notificationPatternsGroup.POST("/create-from-message", bankNotificationPatternHandler.CreatePatternFromMessage)
 
 			// Rutas de patrones por cuenta bancaria (usando ruta alternativa)
 			notificationPatternsGroup.GET("/bank-account/:bank_account_id", bankNotificationPatternHandler.GetBankAccountPatterns)

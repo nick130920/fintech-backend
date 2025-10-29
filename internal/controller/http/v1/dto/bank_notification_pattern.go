@@ -80,6 +80,12 @@ type GeneratePatternResponse struct {
 	KeywordsTrigger  []string `json:"keywords_trigger"`
 }
 
+// CreatePatternFromMessageRequest is the DTO for creating a pattern directly from a message.
+type CreatePatternFromMessageRequest struct {
+	Message       string `json:"message" validate:"required"`
+	BankAccountID uint   `json:"bank_account_id" validate:"required"`
+}
+
 // BankNotificationPatternResponse representa la respuesta de un patrón de notificación
 type BankNotificationPatternResponse struct {
 	ID                  uint                             `json:"id"`

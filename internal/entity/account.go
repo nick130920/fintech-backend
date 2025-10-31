@@ -43,7 +43,7 @@ type Account struct {
 
 	// Estado y configuración
 	IsActive bool   `json:"is_active" gorm:"default:true"`
-	Currency string `json:"currency" gorm:"default:'MXN'" validate:"len=3"`
+	Currency string `json:"currency" gorm:"type:varchar(3);default:'MXN'" validate:"len=3"`
 	Color    string `json:"color" gorm:"default:'#007bff'" validate:"hexcolor"`
 	Icon     string `json:"icon" validate:"max=50"`
 

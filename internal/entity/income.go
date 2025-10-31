@@ -41,7 +41,7 @@ type Income struct {
 	Source      IncomeSource `json:"source" gorm:"not null" validate:"required"`
 	Date        time.Time    `json:"date" gorm:"not null"`
 	Notes       string       `json:"notes,omitempty" gorm:"type:text"`
-	Currency    string       `json:"currency" gorm:"size:3;default:'USD'" validate:"len=3"`
+	Currency    string       `json:"currency" gorm:"type:varchar(3);default:'USD'" validate:"len=3"`
 
 	// Campos para ingresos recurrentes
 	IsRecurring    bool             `json:"is_recurring" gorm:"default:false"`

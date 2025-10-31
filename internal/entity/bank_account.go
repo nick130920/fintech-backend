@@ -48,7 +48,7 @@ type BankAccount struct {
 	IsNotificationEnabled bool `json:"is_notification_enabled" gorm:"default:true"` // Si acepta notificaciones de esta cuenta
 
 	// Información adicional
-	Currency          string    `json:"currency" gorm:"default:'MXN'" validate:"len=3"`
+	Currency          string    `json:"currency" gorm:"type:varchar(3);default:'MXN'" validate:"len=3"`
 	LastBalance       float64   `json:"last_balance" gorm:"type:decimal(15,2)"` // Último balance conocido
 	LastBalanceUpdate time.Time `json:"last_balance_update"`                    // Fecha de última actualización de balance
 

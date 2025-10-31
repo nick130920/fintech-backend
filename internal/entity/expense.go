@@ -62,7 +62,7 @@ type Expense struct {
 	Notes        string  `json:"notes" validate:"max=1000"`
 	ReceiptURL   string  `json:"receipt_url" validate:"url"` // URL del comprobante
 	ExchangeRate float64 `json:"exchange_rate" gorm:"default:1;type:decimal(10,6)"`
-	Currency     string  `json:"currency" gorm:"default:'MXN'" validate:"len=3"`
+	Currency     string  `json:"currency" gorm:"type:varchar(3);default:'MXN'" validate:"len=3"`
 
 	// Control de alertas
 	TriggeredAlert bool `json:"triggered_alert" gorm:"default:false"` // Si disparó una alerta

@@ -26,6 +26,12 @@ func NewAuthMiddleware(jwtManager *auth.JWTManager) *AuthMiddleware {
 // RequireAuth middleware que requiere autenticación válida
 func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Permitir peticiones OPTIONS (preflight) sin autenticación para CORS
+		if c.Request.Method == "OPTIONS" {
+			c.Next()
+			return
+		}
+
 		// Obtener token del header Authorization
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {

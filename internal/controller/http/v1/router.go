@@ -227,19 +227,7 @@ func setupGlobalMiddlewares(router *gin.Engine) {
 	// Headers de seguridad
 	router.Use(SecurityHeadersMiddleware())
 
-	// CORS (si es necesario)
-	router.Use(func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
-		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Authorization")
-
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(204)
-			return
-		}
-
-		c.Next()
-	})
+	// CORS se configura en app.go - no duplicar aquí
 }
 
 // setupAPIMiddlewares configura middlewares específicos de la API

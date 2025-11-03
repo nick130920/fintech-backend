@@ -210,15 +210,26 @@ func corsMiddleware(corsConfig configs.CORSConfig) gin.HandlerFunc {
 
 		// Verificar si el origen está permitido
 		allowed := false
+		wildcardAllowed := false
+		
 		for _, allowedOrigin := range corsConfig.AllowedOrigins {
-			if allowedOrigin == "*" || allowedOrigin == origin {
+			if allowedOrigin == "*" {
+				allowed = true
+				wildcardAllowed = true
+				break
+			}
+			if allowedOrigin == origin {
 				allowed = true
 				break
 			}
 		}
 
 		if allowed {
-			c.Header("Access-Control-Allow-Origin", origin)
+			// Si es wildcard (*), establecer el origen específico del request
+			// porque no se puede usar "*" con credentials=true
+			if wildcardAllowed || origin != "" {
+				c.Header("Access-Control-Allow-Origin", origin)
+			}
 		}
 
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")

@@ -96,7 +96,9 @@ func NewRouter(
 		transactionsGroup := protectedGroup.Group("/transactions")
 		{
 			transactionsGroup.GET("/", transactionHandler.GetTransactions)
+			transactionsGroup.GET("", transactionHandler.GetTransactions)
 			transactionsGroup.POST("/", transactionHandler.CreateTransaction)
+			transactionsGroup.POST("", transactionHandler.CreateTransaction)
 			transactionsGroup.GET("/:id", transactionHandler.GetTransaction)
 			transactionsGroup.PUT("/:id", transactionHandler.UpdateTransaction)
 			transactionsGroup.DELETE("/:id", transactionHandler.DeleteTransaction)
@@ -123,7 +125,9 @@ func NewRouter(
 		categoriesGroup := protectedGroup.Group("/categories")
 		{
 			categoriesGroup.GET("/", categoryHandler.GetCategories)
+			categoriesGroup.GET("", categoryHandler.GetCategories)
 			categoriesGroup.POST("/", categoryHandler.CreateCategory)
+			categoriesGroup.POST("", categoryHandler.CreateCategory)
 			categoriesGroup.PUT("/:id", categoryHandler.UpdateCategory)
 			categoriesGroup.DELETE("/:id", categoryHandler.DeleteCategory)
 		}

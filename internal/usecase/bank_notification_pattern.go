@@ -18,11 +18,11 @@ import (
 
 // BankNotificationPatternUseCase contiene la lógica de negocio para patrones de notificación bancaria
 type BankNotificationPatternUseCase struct {
-	patternRepo     repo.BankNotificationPatternRepo
-	bankAccountRepo repo.BankAccountRepo
-	userRepo        repo.UserRepo
-	transactionRepo repo.TransactionRepo
-	geminiService   *webapi.GeminiService
+	patternRepo       repo.BankNotificationPatternRepo
+	bankAccountRepo   repo.BankAccountRepo
+	userRepo          repo.UserRepo
+	transactionRepo   repo.TransactionRepo
+	openRouterService *webapi.OpenRouterService
 }
 
 // NewBankNotificationPatternUseCase crea una nueva instancia de BankNotificationPatternUseCase
@@ -31,14 +31,14 @@ func NewBankNotificationPatternUseCase(
 	bankAccountRepo repo.BankAccountRepo,
 	userRepo repo.UserRepo,
 	transactionRepo repo.TransactionRepo,
-	geminiService *webapi.GeminiService,
+	openRouterService *webapi.OpenRouterService,
 ) *BankNotificationPatternUseCase {
 	return &BankNotificationPatternUseCase{
-		patternRepo:     patternRepo,
-		bankAccountRepo: bankAccountRepo,
-		userRepo:        userRepo,
-		transactionRepo: transactionRepo,
-		geminiService:   geminiService,
+		patternRepo:       patternRepo,
+		bankAccountRepo:   bankAccountRepo,
+		userRepo:          userRepo,
+		transactionRepo:   transactionRepo,
+		openRouterService: openRouterService,
 	}
 }
 
@@ -608,19 +608,127 @@ func (uc *BankNotificationPatternUseCase) ProcessNotificationWebhook(req dto.Pro
 	return response, nil
 }
 
-// GeneratePatternFromMessage uses the Gemini service to generate a pattern from a given message.
+// GeneratePatternFromMessage uses the OpenRouter service to generate a pattern from a given message.
 func (uc *BankNotificationPatternUseCase) GeneratePatternFromMessage(ctx context.Context, message string) (*webapi.PatternGenerationResult, error) {
-	if uc.geminiService == nil {
+	if uc.openRouterService == nil {
 		return nil, apperrors.ErrInternal.WithDetails("Servicio de IA no está configurado")
 	}
 
-	fmt.Println("Generating pattern from message using Gemini service...")
-	result, err := uc.geminiService.GeneratePatternFromMessage(ctx, message)
+	fmt.Println("Generating pattern from message using OpenRouter service...")
+	result, err := uc.openRouterService.GeneratePatternFromMessage(ctx, message)
 	if err != nil {
-		return nil, apperrors.ErrInternal.WithInternal(err).WithDetails("Error al generar patrón con Gemini")
+		return nil, apperrors.ErrInternal.WithInternal(err).WithDetails("Error al generar patrón con OpenRouter")
 	}
 
 	return result, nil
+}
+
+// ProcessSMSWithAI processes an SMS directly using AI without pattern matching.
+// This is the new simplified flow that uses only AI.
+func (uc *BankNotificationPatternUseCase) ProcessSMSWithAI(ctx context.Context, userID uint, message string) (*dto.ProcessedNotificationResponse, error) {
+	if uc.openRouterService == nil {
+		return nil, apperrors.ErrInternal.WithDetails("Servicio de IA no está configurado")
+	}
+
+	// 1. Extract transaction data using AI
+	extraction, err := uc.openRouterService.ExtractTransactionFromSMS(ctx, message)
+	if err != nil {
+		return &dto.ProcessedNotificationResponse{
+			Success:            false,
+			TransactionCreated: false,
+			Confidence:         0.0,
+			Reason:             fmt.Sprintf("Error al procesar SMS con IA: %v", err),
+		}, nil
+	}
+
+	// 2. Build response
+	response := &dto.ProcessedNotificationResponse{
+		Success:            extraction.Success,
+		Confidence:         extraction.Confidence,
+		PatternUsed:        "OpenRouter AI (Mistral 7B)",
+		RequiresValidation: extraction.Confidence < 0.8,
+		ExtractedData: map[string]interface{}{
+			"amount":           extraction.Amount,
+			"description":      extraction.Description,
+			"merchant":         extraction.Merchant,
+			"date":             extraction.Date,
+			"transaction_type": extraction.TransactionType,
+			"currency":         extraction.Currency,
+		},
+	}
+
+	// 3. Determine if we should auto-create transaction
+	if extraction.Success && extraction.Confidence >= 0.8 {
+		// Create transaction automatically
+		transaction, err := uc.createTransactionFromAIExtraction(userID, extraction, message)
+		if err != nil {
+			response.TransactionCreated = false
+			response.RequiresValidation = true
+			response.Reason = fmt.Sprintf("Error al crear transacción: %v", err)
+		} else {
+			response.TransactionCreated = true
+			response.TransactionID = transaction.ID
+			response.Amount = transaction.Amount
+			response.Description = transaction.Description
+		}
+	} else {
+		response.RequiresValidation = true
+		if !extraction.Success {
+			response.Reason = "No se pudo extraer información del SMS"
+		} else {
+			response.Reason = "Confianza insuficiente, requiere validación manual"
+		}
+	}
+
+	return response, nil
+}
+
+// createTransactionFromAIExtraction creates a transaction from AI extraction data
+func (uc *BankNotificationPatternUseCase) createTransactionFromAIExtraction(
+	userID uint,
+	extraction *webapi.TransactionExtraction,
+	rawMessage string,
+) (*entity.Transaction, error) {
+	// Determine transaction type
+	transactionType := entity.TransactionTypeExpense
+	if extraction.TransactionType == "income" {
+		transactionType = entity.TransactionTypeIncome
+	} else if extraction.TransactionType == "transfer" {
+		transactionType = entity.TransactionTypeTransfer
+	}
+
+	// Create transaction
+	transaction := &entity.Transaction{
+		UserID:           userID,
+		AccountID:        1, // TODO: Get default account from user
+		Type:             transactionType,
+		Amount:           extraction.Amount,
+		Description:      extraction.Description,
+		Source:           entity.TransactionSourceNotification,
+		ValidationStatus: entity.ValidationStatusAuto,
+		RawNotification:  rawMessage,
+		AIConfidence:     extraction.Confidence,
+		TransactionDate:  time.Now(),
+	}
+
+	// Parse date if available
+	if extraction.Date != "" {
+		if parsedDate, err := uc.parseDate(extraction.Date); err == nil {
+			transaction.TransactionDate = parsedDate
+		}
+	}
+
+	// Add merchant as description if available
+	if extraction.Merchant != "" && extraction.Description == "" {
+		transaction.Description = extraction.Merchant
+	}
+
+	// Save transaction
+	if err := uc.transactionRepo.Create(transaction); err != nil {
+		return nil, apperrors.ErrInternal.WithInternal(err).WithDetails("Error al crear transacción")
+	}
+
+	return transaction, nil
 }
 
 // CreatePatternFromMessage creates a new pattern by analyzing a message with AI.

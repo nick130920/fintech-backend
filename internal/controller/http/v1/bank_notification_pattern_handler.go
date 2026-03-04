@@ -179,6 +179,53 @@ func (h *BankNotificationPatternHandler) ProcessNotification(c *gin.Context) {
 
 	c.JSON(http.StatusOK, result)
 }
+
+// ProcessSMSWithAI processes an SMS directly using AI (OpenRouter/Mistral)
+// This is the new simplified flow that doesn't require patterns
+// @Summary      Process SMS with AI
+// @Description  Analyzes an SMS notification using AI to extract transaction data
+// @Tags         notification-patterns
+// @Accept       json
+// @Produce      json
+// @Param        request body dto.ProcessSMSWithAIRequest true "SMS message to process"
+// @Success      200 {object} dto.ProcessedNotificationResponse
+// @Failure      400 {object} gin.H
+// @Failure      401 {object} gin.H
+// @Failure      500 {object} gin.H
+// @Router       /notification-patterns/process-sms [post]
+func (h *BankNotificationPatternHandler) ProcessSMSWithAI(c *gin.Context) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	var req dto.ProcessSMSWithAIRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.logger.Error().Err(err).Msg("bad request on process SMS with AI")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	h.logger.Info().Str("message_preview", truncateString(req.Message, 50)).Msg("Processing SMS with AI")
+
+	result, err := h.uc.ProcessSMSWithAI(c.Request.Context(), userID.(uint), req.Message)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("failed to process SMS with AI")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to process SMS with AI"})
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
+// truncateString truncates a string to a maximum length
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
+}
 func (h *BankNotificationPatternHandler) GetPattern(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {

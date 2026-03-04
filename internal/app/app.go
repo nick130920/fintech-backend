@@ -1,7 +1,6 @@
 package app
 
 import (
-	"context"
 	"os"
 	"os/signal"
 	"syscall"
@@ -82,7 +81,7 @@ type Dependencies struct {
 	BankNotificationPatternUC *usecase.BankNotificationPatternUseCase
 
 	// Servicios externos
-	GeminiService *webapi.GeminiService
+	OpenRouterService *webapi.OpenRouterService
 
 	// Repositories (necesarios para algunos handlers)
 	CategoryRepo repo.CategoryRepo
@@ -104,10 +103,10 @@ func initDependencies(db *gorm.DB, jwtManager *auth.JWTManager) *Dependencies {
 	bankAccountRepo := repository.NewBankAccountPostgres(db)
 	bankNotificationPatternRepo := repository.NewBankNotificationPatternPostgres(db)
 
-	// Inicializar servicios externos
-	geminiService, err := webapi.NewGeminiService(context.Background())
+	// Inicializar servicios externos (OpenRouter para IA)
+	openRouterService, err := webapi.NewOpenRouterService()
 	if err != nil {
-		log.Fatal().Err(err).Msg("Error al inicializar Gemini Service")
+		log.Fatal().Err(err).Msg("Error al inicializar OpenRouter Service")
 	}
 
 	// Asegurar que existan las categorías por defecto
@@ -127,7 +126,7 @@ func initDependencies(db *gorm.DB, jwtManager *auth.JWTManager) *Dependencies {
 	expenseUC := usecase.NewExpenseUseCase(expenseRepo, budgetRepo, categoryRepo, userRepo)
 	incomeUC := usecase.NewIncomeUseCase(incomeRepo, userRepo)
 	bankAccountUC := usecase.NewBankAccountUseCase(bankAccountRepo, userRepo)
-	bankNotificationPatternUC := usecase.NewBankNotificationPatternUseCase(bankNotificationPatternRepo, bankAccountRepo, userRepo, transactionRepo, geminiService)
+	bankNotificationPatternUC := usecase.NewBankNotificationPatternUseCase(bankNotificationPatternRepo, bankAccountRepo, userRepo, transactionRepo, openRouterService)
 
 	return &Dependencies{
 		UserUC:                    userUC,
@@ -138,7 +137,7 @@ func initDependencies(db *gorm.DB, jwtManager *auth.JWTManager) *Dependencies {
 		IncomeUC:                  incomeUC,
 		BankAccountUC:             bankAccountUC,
 		BankNotificationPatternUC: bankNotificationPatternUC,
-		GeminiService:             geminiService,
+		OpenRouterService:         openRouterService,
 		CategoryRepo:              categoryRepo,
 		JWTManager:                jwtManager,
 	}
@@ -211,7 +210,7 @@ func corsMiddleware(corsConfig configs.CORSConfig) gin.HandlerFunc {
 		// Verificar si el origen está permitido
 		allowed := false
 		wildcardAllowed := false
-		
+
 		for _, allowedOrigin := range corsConfig.AllowedOrigins {
 			if allowedOrigin == "*" {
 				allowed = true

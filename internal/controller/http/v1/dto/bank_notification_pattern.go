@@ -86,6 +86,12 @@ type CreatePatternFromMessageRequest struct {
 	BankAccountID uint   `json:"bank_account_id" validate:"required"`
 }
 
+// ProcessSMSWithAIRequest is the DTO for processing an SMS directly with AI.
+// This is the new simplified flow that uses OpenRouter/Mistral to analyze SMS.
+type ProcessSMSWithAIRequest struct {
+	Message string `json:"message" validate:"required,min=1" example:"BBVA: Compra por $150.00 en OXXO el 28/01/26"`
+}
+
 // BankNotificationPatternResponse representa la respuesta de un patrón de notificación
 type BankNotificationPatternResponse struct {
 	ID                  uint                             `json:"id"`

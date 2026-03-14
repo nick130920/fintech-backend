@@ -17,7 +17,7 @@ import (
 const (
 	openRouterBaseURL = "https://openrouter.ai/api/v1/chat/completions"
 	// Modelo gratuito de Mistral
-	defaultModel = "mistralai/mistral-7b-instruct:free"
+	defaultModel = "openrouter/free"
 )
 
 // OpenRouterService handles interactions with the OpenRouter API.

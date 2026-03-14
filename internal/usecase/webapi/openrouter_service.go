@@ -134,30 +134,36 @@ func (s *OpenRouterService) ExtractTransactionFromSMS(ctx context.Context, smsCo
 
 // buildExtractionPrompt creates the prompt for transaction extraction.
 func (s *OpenRouterService) buildExtractionPrompt(smsContent string) string {
-	return fmt.Sprintf(`Eres un asistente experto en analizar notificaciones bancarias de SMS.
+	return fmt.Sprintf(`Eres un asistente experto en analizar notificaciones bancarias de SMS de bancos latinoamericanos (Colombia, México, etc.).
 
 Analiza el siguiente SMS bancario y extrae la información de la transacción.
 
 SMS: "%s"
 
-IMPORTANTE:
-- Extrae el monto numérico (sin símbolos de moneda)
-- Determina si es un gasto (expense), ingreso (income) o transferencia (transfer)
-- Si hay un comercio/merchant, extráelo
-- La fecha debe estar en formato YYYY-MM-DD
-- El confidence debe ser entre 0 y 1 (1 = muy seguro)
-- Si no puedes determinar algún campo, usa valores por defecto razonables
+REGLAS DE CLASIFICACIÓN:
+- transaction_type = "expense" cuando: pagaste, compra, débito, retiro, transferiste, enviaste
+- transaction_type = "income" cuando: recibiste, consignación, depósito, abono, ingreso
+- transaction_type = "transfer" cuando: es una transferencia sin dirección clara
+- success = true si el SMS contiene un monto y es claramente una notificación bancaria de movimiento
+- success = false SOLO si el SMS no es una notificación de transacción bancaria
+
+EXTRACCIÓN:
+- Monto: solo el número (sin $, puntos ni comas; 1.000,00 → 1000.00)
+- Moneda: COP para bancos colombianos (Bancolombia, Davivienda, Nequi, etc.), MXN para mexicanos
+- Fecha: formato YYYY-MM-DD
+- Merchant: comercio o persona que recibió/envió el dinero, o null
+- Confidence: 0.9 o superior si ves monto y banco claramente
 
 Responde ÚNICAMENTE con un JSON válido, sin texto adicional ni markdown:
 {
   "success": true,
   "amount": 0.00,
   "description": "descripción corta de la transacción",
-  "merchant": "nombre del comercio o null",
+  "merchant": "nombre del comercio o persona, o null",
   "date": "YYYY-MM-DD",
   "transaction_type": "expense",
   "confidence": 0.95,
-  "currency": "MXN"
+  "currency": "COP"
 }`, smsContent)
 }
 

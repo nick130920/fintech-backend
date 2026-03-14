@@ -402,3 +402,161 @@ func (h *ExpenseHandler) DeleteExpense(c *gin.Context) {
 		Data:    nil,
 	})
 }
+
+// GetAutomaticExpenses godoc
+// @Summary      Obtener gastos automáticos
+// @Description  Obtiene los gastos creados automáticamente por IA/notificaciones pendientes de confirmación
+// @Tags         expenses
+// @Produce      json
+// @Security     BearerAuth
+// @Param        limit query int false "Número máximo de resultados (default: 50)"
+// @Success      200  {object}  dto.Response{data=[]dto.ExpenseSummaryResponse}
+// @Failure      401  {object}  dto.ErrorResponse
+// @Failure      500  {object}  dto.ErrorResponse
+// @Router       /api/v1/expenses/automatic [get]
+func (h *ExpenseHandler) GetAutomaticExpenses(c *gin.Context) {
+	userID := getUserIDFromContext(c)
+
+	limit := 50
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+			limit = l
+		}
+	}
+
+	expenses, err := h.expenseUC.GetAutomaticExpenses(userID, limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
+			Code:    "INTERNAL_ERROR",
+			Message: "Error al obtener gastos automáticos",
+			Details: err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.Response{
+		Code:    "SUCCESS",
+		Message: "Gastos automáticos obtenidos exitosamente",
+		Data:    expenses,
+	})
+}
+
+// ConfirmExpense godoc
+// @Summary      Confirmar gasto automático
+// @Description  Confirma un gasto pendiente creado automáticamente por IA
+// @Tags         expenses
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path uint true "ID del gasto"
+// @Success      200  {object}  dto.Response{data=dto.ExpenseSummaryResponse}
+// @Failure      400  {object}  dto.ErrorResponse
+// @Failure      401  {object}  dto.ErrorResponse
+// @Failure      404  {object}  dto.ErrorResponse
+// @Failure      500  {object}  dto.ErrorResponse
+// @Router       /api/v1/expenses/{id}/confirm [post]
+func (h *ExpenseHandler) ConfirmExpense(c *gin.Context) {
+	userID := getUserIDFromContext(c)
+
+	expenseID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{
+			Code:    "INVALID_ID",
+			Message: "ID de gasto inválido",
+		})
+		return
+	}
+
+	expense, err := h.expenseUC.ConfirmExpense(userID, uint(expenseID))
+	if err != nil {
+		switch err.Error() {
+		case "expense not found":
+			c.JSON(http.StatusNotFound, dto.ErrorResponse{
+				Code:    "EXPENSE_NOT_FOUND",
+				Message: "Gasto no encontrado",
+			})
+		case "unauthorized":
+			c.JSON(http.StatusForbidden, dto.ErrorResponse{
+				Code:    "UNAUTHORIZED",
+				Message: "No tienes permiso para confirmar este gasto",
+			})
+		case "expense is not pending":
+			c.JSON(http.StatusBadRequest, dto.ErrorResponse{
+				Code:    "EXPENSE_NOT_PENDING",
+				Message: "El gasto no está pendiente de confirmación",
+			})
+		default:
+			c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
+				Code:    "INTERNAL_ERROR",
+				Message: "Error al confirmar gasto",
+				Details: err.Error(),
+			})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.Response{
+		Code:    "SUCCESS",
+		Message: "Gasto confirmado exitosamente",
+		Data:    expense,
+	})
+}
+
+// RejectExpense godoc
+// @Summary      Rechazar gasto automático
+// @Description  Rechaza/cancela un gasto pendiente creado automáticamente por IA
+// @Tags         expenses
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id path uint true "ID del gasto"
+// @Success      200  {object}  dto.Response
+// @Failure      400  {object}  dto.ErrorResponse
+// @Failure      401  {object}  dto.ErrorResponse
+// @Failure      404  {object}  dto.ErrorResponse
+// @Failure      500  {object}  dto.ErrorResponse
+// @Router       /api/v1/expenses/{id}/reject [post]
+func (h *ExpenseHandler) RejectExpense(c *gin.Context) {
+	userID := getUserIDFromContext(c)
+
+	expenseID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{
+			Code:    "INVALID_ID",
+			Message: "ID de gasto inválido",
+		})
+		return
+	}
+
+	err = h.expenseUC.RejectExpense(userID, uint(expenseID))
+	if err != nil {
+		switch err.Error() {
+		case "expense not found":
+			c.JSON(http.StatusNotFound, dto.ErrorResponse{
+				Code:    "EXPENSE_NOT_FOUND",
+				Message: "Gasto no encontrado",
+			})
+		case "unauthorized":
+			c.JSON(http.StatusForbidden, dto.ErrorResponse{
+				Code:    "UNAUTHORIZED",
+				Message: "No tienes permiso para rechazar este gasto",
+			})
+		case "expense is not pending":
+			c.JSON(http.StatusBadRequest, dto.ErrorResponse{
+				Code:    "EXPENSE_NOT_PENDING",
+				Message: "El gasto no está pendiente",
+			})
+		default:
+			c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
+				Code:    "INTERNAL_ERROR",
+				Message: "Error al rechazar gasto",
+				Details: err.Error(),
+			})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.Response{
+		Code:    "SUCCESS",
+		Message: "Gasto rechazado exitosamente",
+		Data:    nil,
+	})
+}

@@ -21,6 +21,10 @@ type BankNotificationPatternUseCase struct {
 	bankAccountRepo repo.BankAccountRepo
 	userRepo        repo.UserRepo
 	transactionRepo repo.TransactionRepo
+	expenseRepo     repo.ExpenseRepo
+	incomeRepo      repo.IncomeRepo
+	budgetRepo      repo.BudgetRepo
+	categoryRepo    repo.CategoryRepo
 	aiService       *webapi.AIServiceWithFallback
 }
 
@@ -30,6 +34,10 @@ func NewBankNotificationPatternUseCase(
 	bankAccountRepo repo.BankAccountRepo,
 	userRepo repo.UserRepo,
 	transactionRepo repo.TransactionRepo,
+	expenseRepo repo.ExpenseRepo,
+	incomeRepo repo.IncomeRepo,
+	budgetRepo repo.BudgetRepo,
+	categoryRepo repo.CategoryRepo,
 	aiService *webapi.AIServiceWithFallback,
 ) *BankNotificationPatternUseCase {
 	return &BankNotificationPatternUseCase{
@@ -37,6 +45,10 @@ func NewBankNotificationPatternUseCase(
 		bankAccountRepo: bankAccountRepo,
 		userRepo:        userRepo,
 		transactionRepo: transactionRepo,
+		expenseRepo:     expenseRepo,
+		incomeRepo:      incomeRepo,
+		budgetRepo:      budgetRepo,
+		categoryRepo:    categoryRepo,
 		aiService:       aiService,
 	}
 }
@@ -433,52 +445,139 @@ func (uc *BankNotificationPatternUseCase) ProcessSMSWithAI(ctx context.Context, 
 	return response, nil
 }
 
-// createTransactionFromAIExtraction creates a transaction from AI extraction data
+// createTransactionFromAIExtraction creates an expense or income from AI extraction data
 func (uc *BankNotificationPatternUseCase) createTransactionFromAIExtraction(
 	userID uint,
 	extraction *webapi.TransactionExtraction,
 	rawMessage string,
 ) (*entity.Transaction, error) {
-	// Determine transaction type
-	transactionType := entity.TransactionTypeExpense
-	if extraction.TransactionType == "income" {
-		transactionType = entity.TransactionTypeIncome
-	} else if extraction.TransactionType == "transfer" {
-		transactionType = entity.TransactionTypeTransfer
-	}
-
-	// Create transaction
-	transaction := &entity.Transaction{
-		UserID:           userID,
-		AccountID:        1, // TODO: Get default account from user
-		Type:             transactionType,
-		Amount:           extraction.Amount,
-		Description:      extraction.Description,
-		Source:           entity.TransactionSourceNotification,
-		ValidationStatus: entity.ValidationStatusAuto,
-		RawNotification:  rawMessage,
-		AIConfidence:     extraction.Confidence,
-		TransactionDate:  time.Now(),
-	}
-
-	// Parse date if available
+	// Parse date
+	transactionDate := time.Now()
 	if extraction.Date != "" {
 		if parsedDate, err := uc.parseDate(extraction.Date); err == nil {
-			transaction.TransactionDate = parsedDate
+			transactionDate = parsedDate
 		}
 	}
 
-	// Add merchant as description if available
-	if extraction.Merchant != "" && extraction.Description == "" {
-		transaction.Description = extraction.Merchant
+	// Get description
+	description := extraction.Description
+	if description == "" && extraction.Merchant != "" {
+		description = extraction.Merchant
+	}
+	if description == "" {
+		description = "Transacción automática"
 	}
 
-	// Save transaction
-	if err := uc.transactionRepo.Create(transaction); err != nil {
-		return nil, apperrors.ErrInternal.WithInternal(err).WithDetails("Error al crear transacción")
+	// Handle based on transaction type
+	if extraction.TransactionType == "income" {
+		// Create income
+		income := &entity.Income{
+			UserID:      userID,
+			Amount:      extraction.Amount,
+			Description: description,
+			Source:      entity.IncomeSourceOther,
+			Date:        transactionDate,
+			Notes:       rawMessage,
+			Currency:    extraction.Currency,
+		}
+
+		if income.Currency == "" {
+			income.Currency = "MXN"
+		}
+
+		if err := uc.incomeRepo.Create(income); err != nil {
+			return nil, apperrors.ErrInternal.WithInternal(err).WithDetails("Error al crear ingreso")
+		}
+
+		// Return a transaction object for response compatibility
+		return &entity.Transaction{
+			ID:              income.ID,
+			UserID:          userID,
+			Type:            entity.TransactionTypeIncome,
+			Amount:          income.Amount,
+			Description:     income.Description,
+			TransactionDate: income.Date,
+		}, nil
 	}
 
-	return transaction, nil
+	// For expenses
+	// Get current budget
+	budget, err := uc.budgetRepo.GetCurrentBudget(userID)
+	if err != nil || budget == nil {
+		return nil, apperrors.ErrNotFound.WithDetails("No se encontró un presupuesto activo. Por favor crea un presupuesto primero.")
+	}
+
+	// Get default category (first available or "Otros")
+	categories, err := uc.categoryRepo.GetAllAvailableForUser(userID)
+	if err != nil || len(categories) == 0 {
+		return nil, apperrors.ErrNotFound.WithDetails("No se encontraron categorías disponibles")
+	}
+
+	// Find "Otros" category or use first one
+	var defaultCategory *entity.Category
+	for _, cat := range categories {
+		if cat.Name == "Otros" || cat.Name == "Other" {
+			defaultCategory = cat
+			break
+		}
+	}
+	if defaultCategory == nil {
+		defaultCategory = categories[0]
+	}
+
+	// Get or create allocation for this category
+	allocation, err := uc.budgetRepo.GetAllocationByBudgetAndCategory(budget.ID, defaultCategory.ID)
+	if err != nil || allocation == nil {
+		// Create a default allocation if it doesn't exist
+		allocation = &entity.BudgetAllocation{
+			BudgetID:        budget.ID,
+			CategoryID:      defaultCategory.ID,
+			AllocatedAmount: 0, // No allocated amount for auto-created
+			SpentAmount:     0,
+			AlertThreshold:  0.8,
+		}
+		if err := uc.budgetRepo.CreateAllocation(allocation); err != nil {
+			return nil, apperrors.ErrInternal.WithInternal(err).WithDetails("Error al crear asignación de presupuesto")
+		}
+	}
+
+	// Create expense
+	expense := &entity.Expense{
+		UserID:       userID,
+		BudgetID:     budget.ID,
+		CategoryID:   defaultCategory.ID,
+		AllocationID: allocation.ID,
+		Amount:       extraction.Amount,
+		Description:  description,
+		Date:         transactionDate,
+		Source:       entity.ExpenseSourceNotification,
+		Status:       entity.ExpenseStatusPending, // Pending for user review
+		Merchant:     extraction.Merchant,
+		RawData:      rawMessage,
+		Confidence:   extraction.Confidence,
+		Currency:     extraction.Currency,
+	}
+
+	if expense.Currency == "" {
+		expense.Currency = "MXN"
+	}
+
+	if err := uc.expenseRepo.Create(expense); err != nil {
+		return nil, apperrors.ErrInternal.WithInternal(err).WithDetails("Error al crear gasto")
+	}
+
+	// Update allocation spent amount
+	_ = uc.budgetRepo.UpdateAllocationSpentAmount(allocation.ID)
+
+	// Return a transaction object for response compatibility
+	return &entity.Transaction{
+		ID:              expense.ID,
+		UserID:          userID,
+		Type:            entity.TransactionTypeExpense,
+		Amount:          expense.Amount,
+		Description:     expense.Description,
+		TransactionDate: expense.Date,
+	}, nil
 }
 
 // parseExtractedData convierte los valores extraídos a sus tipos correctos

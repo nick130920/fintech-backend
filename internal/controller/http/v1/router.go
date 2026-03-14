@@ -138,9 +138,12 @@ func NewRouter(
 			expensesGroup.POST("/", expenseHandler.CreateExpense)
 			expensesGroup.GET("/", expenseHandler.GetExpenses)
 			expensesGroup.GET("/recent", expenseHandler.GetRecentExpenses)
+			expensesGroup.GET("/automatic", expenseHandler.GetAutomaticExpenses)
 			expensesGroup.GET("/by-category", expenseHandler.GetExpensesByCategory)
 			expensesGroup.PUT("/:id", expenseHandler.UpdateExpense)
 			expensesGroup.DELETE("/:id", expenseHandler.DeleteExpense)
+			expensesGroup.POST("/:id/confirm", expenseHandler.ConfirmExpense)
+			expensesGroup.POST("/:id/reject", expenseHandler.RejectExpense)
 		}
 
 		// Rutas de ingresos

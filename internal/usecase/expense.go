@@ -452,3 +452,88 @@ func (uc *ExpenseUseCase) calculateTotalAmount(expenses []*entity.Expense) float
 	}
 	return total
 }
+
+// GetAutomaticExpenses obtiene los gastos creados automáticamente por IA/notificaciones
+func (uc *ExpenseUseCase) GetAutomaticExpenses(userID uint, limit int) ([]*dto.ExpenseSummaryResponse, error) {
+	expenses, err := uc.expenseRepo.GetPendingExpenses(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Filtrar solo los gastos automáticos (source = notification o sms)
+	var automaticExpenses []*entity.Expense
+	for _, expense := range expenses {
+		if expense.Source == entity.ExpenseSourceNotification ||
+			expense.Source == entity.ExpenseSourceSMS ||
+			expense.Source == entity.ExpenseSourceBankAPI {
+			automaticExpenses = append(automaticExpenses, expense)
+		}
+	}
+
+	// Limitar resultados
+	if limit > 0 && len(automaticExpenses) > limit {
+		automaticExpenses = automaticExpenses[:limit]
+	}
+
+	// Convertir a DTOs
+	responses := make([]*dto.ExpenseSummaryResponse, len(automaticExpenses))
+	for i, expense := range automaticExpenses {
+		responses[i] = uc.mapExpenseToSummaryResponse(expense)
+	}
+
+	return responses, nil
+}
+
+// ConfirmExpense confirma un gasto pendiente
+func (uc *ExpenseUseCase) ConfirmExpense(userID, expenseID uint) (*dto.ExpenseSummaryResponse, error) {
+	// Obtener el gasto
+	expense, err := uc.expenseRepo.GetByID(expenseID)
+	if err != nil {
+		return nil, err
+	}
+	if expense == nil {
+		return nil, errors.New("expense not found")
+	}
+	if expense.UserID != userID {
+		return nil, errors.New("unauthorized")
+	}
+	if expense.Status != entity.ExpenseStatusPending {
+		return nil, errors.New("expense is not pending")
+	}
+
+	// Confirmar el gasto
+	if err := uc.expenseRepo.ConfirmExpense(expenseID); err != nil {
+		return nil, err
+	}
+
+	// Actualizar el gasto en memoria y obtener la versión actualizada
+	expense.Status = entity.ExpenseStatusConfirmed
+
+	// Actualizar el monto gastado en la asignación
+	if err := uc.budgetRepo.UpdateAllocationSpentAmount(expense.AllocationID); err != nil {
+		// Log pero no fallar
+	}
+
+	return uc.mapExpenseToSummaryResponse(expense), nil
+}
+
+// RejectExpense rechaza/cancela un gasto pendiente
+func (uc *ExpenseUseCase) RejectExpense(userID, expenseID uint) error {
+	// Obtener el gasto
+	expense, err := uc.expenseRepo.GetByID(expenseID)
+	if err != nil {
+		return err
+	}
+	if expense == nil {
+		return errors.New("expense not found")
+	}
+	if expense.UserID != userID {
+		return errors.New("unauthorized")
+	}
+	if expense.Status != entity.ExpenseStatusPending {
+		return errors.New("expense is not pending")
+	}
+
+	// Cancelar el gasto
+	return uc.expenseRepo.CancelExpense(expenseID)
+}

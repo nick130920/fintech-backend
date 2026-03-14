@@ -11,35 +11,21 @@ import (
 	"google.golang.org/genai"
 )
 
-// PatternGenerationResult holds the structured result from the Gemini API.
-type PatternGenerationResult struct {
-	Name             string   `json:"name"`
-	Description      string   `json:"description"`
-	AmountRegex      string   `json:"amount_regex"`
-	DateRegex        string   `json:"date_regex"`
-	DescriptionRegex string   `json:"description_regex"`
-	MerchantRegex    string   `json:"merchant_regex"`
-	KeywordsTrigger  []string `json:"keywords_trigger"`
-}
+const (
+	geminiModel = "gemini-2.0-flash"
+)
 
-// GeminiService handles interactions with the Google Gemini API.
+// GeminiService handles interactions with the Google Gemini API using the official SDK.
 type GeminiService struct {
 	client *genai.Client
 	logger *zap.Logger
 }
 
-// NewGeminiService creates a new GeminiService.
-func NewGeminiService(ctx context.Context) (*GeminiService, error) {
+// NewGeminiService creates a new GeminiService using the official Google genai SDK.
+func NewGeminiService() (*GeminiService, error) {
 	apiKey := os.Getenv("GEMINI_API_KEY")
 	if apiKey == "" {
 		return nil, fmt.Errorf("la variable de entorno GEMINI_API_KEY no está configurada")
-	}
-
-	client, err := genai.NewClient(ctx, &genai.ClientConfig{
-		APIKey: apiKey,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("error al crear el cliente de Gemini: %w", err)
 	}
 
 	logger, err := zap.NewProduction()
@@ -47,126 +33,106 @@ func NewGeminiService(ctx context.Context) (*GeminiService, error) {
 		return nil, fmt.Errorf("error al crear el logger: %w", err)
 	}
 
-	return &GeminiService{client: client, logger: logger}, nil
-}
-
-// TransactionInfo holds the structured data extracted from an SMS.
-type TransactionInfo struct {
-	Amount      float64 `json:"amount"`
-	Description string  `json:"description"`
-	Merchant    string  `json:"merchant"`
-	Date        string  `json:"date"` // Format YYYY-MM-DD
-}
-
-// buildPrompt constructs the prompt to be sent to the Gemini API.
-func (s *GeminiService) buildPrompt(message string) string {
-	return fmt.Sprintf(`
-Analyze the following bank transaction notification message and extract key information.
-Based on your analysis, generate a JSON object with the following fields:
-- "name": A short, descriptive name for this type of transaction (e.g., "Transferencia a Cuenta", "Pago con Tarjeta", "Retiro en Cajero").
-- "description": A brief explanation of what this pattern does (e.g., "Detecta transferencias salientes a otras cuentas.").
-- "amount_regex": A regex to capture the transaction amount (the numeric value).
-- "date_regex": A regex to capture the date (e.g., dd/mm/yyyy). If no date is present, return an empty string.
-- "description_regex": A regex to capture the main description of the transaction.
-- "merchant_regex": A regex to capture the merchant or destination account. If not applicable, return an empty string.
-- "keywords_trigger": An array of keywords that reliably indicate this type of transaction.
-
-The JSON object must be clean, without any markdown formatting like backticks.
-
-Here is the message:
-"%s"
-`, message)
-}
-
-// extractJSON extracts the JSON part from the Gemini API response.
-func (s *GeminiService) extractJSON(resp *genai.GenerateContentResponse) string {
-	if len(resp.Candidates) == 0 || resp.Candidates[0].Content == nil || len(resp.Candidates[0].Content.Parts) == 0 {
-		return ""
-	}
-
-	jsonStr := resp.Text()
-	if jsonStr == "" {
-		return ""
-	}
-
-	jsonStr = strings.TrimSpace(jsonStr)
-	jsonStr = strings.TrimPrefix(jsonStr, "```json")
-	jsonStr = strings.TrimSuffix(jsonStr, "```")
-	jsonStr = strings.TrimSpace(jsonStr)
-
-	return jsonStr
-}
-
-// ExtractTransactionInfoFromSMS analyzes an SMS and extracts transaction details.
-func (s *GeminiService) ExtractTransactionInfoFromSMS(ctx context.Context, smsContent string) (*TransactionInfo, error) {
-	prompt := genai.Text(fmt.Sprintf(`
-        Analiza el siguiente SMS de una notificación bancaria y extrae la información en formato JSON.
-        El SMS es: "%s"
-
-        El JSON de salida debe tener la siguiente estructura y tipos de datos:
-        {
-            "amount": float64,      // El monto de la transacción.
-            "description": "string", // Una descripción corta y limpia de la compra.
-            "merchant": "string",    // El nombre del comercio.
-            "date": "string"         // La fecha en formato YYYY-MM-DD. Si no hay fecha, usa la fecha actual.
-        }
-
-        Ejemplo de salida:
-        {
-            "amount": 150.00,
-            "description": "Compra en OXXO",
-            "merchant": "OXXO",
-            "date": "2024-01-15"
-        }
-    `, smsContent))
-
-	config := &genai.GenerateContentConfig{
-		Temperature:      genai.Ptr[float32](0.0),
-		ResponseMIMEType: "application/json",
-	}
-
-	resp, err := s.client.Models.GenerateContent(ctx, "gemini-2.5-flash", prompt, config)
+	ctx := context.Background()
+	client, err := genai.NewClient(ctx, &genai.ClientConfig{
+		APIKey: apiKey,
+	})
 	if err != nil {
-		return nil, fmt.Errorf("error al generar contenido con Gemini: %w", err)
+		return nil, fmt.Errorf("error al crear cliente de Gemini: %w", err)
 	}
 
-	jsonStr := s.extractJSON(resp)
-	if jsonStr == "" {
-		return nil, fmt.Errorf("el contenido de la respuesta de Gemini está vacío")
-	}
-
-	var info TransactionInfo
-	if err := json.Unmarshal([]byte(jsonStr), &info); err != nil {
-		return nil, fmt.Errorf("error al decodificar el JSON de Gemini: %w (JSON recibido: %s)", err, jsonStr)
-	}
-
-	return &info, nil
+	return &GeminiService{
+		client: client,
+		logger: logger,
+	}, nil
 }
 
-// GeneratePatternFromMessage analyzes a message and generates regex patterns.
-func (s *GeminiService) GeneratePatternFromMessage(ctx context.Context, messageContent string) (*PatternGenerationResult, error) {
-	prompt := genai.Text(s.buildPrompt(messageContent))
+// ExtractTransactionFromSMS analyzes an SMS and extracts transaction details using Gemini.
+func (s *GeminiService) ExtractTransactionFromSMS(ctx context.Context, smsContent string) (*TransactionExtraction, error) {
+	prompt := s.buildExtractionPrompt(smsContent)
 
-	config := &genai.GenerateContentConfig{
-		Temperature:      genai.Ptr[float32](0.0),
-		ResponseMIMEType: "application/json",
-	}
-
-	resp, err := s.client.Models.GenerateContent(ctx, "gemini-2.5-flash", prompt, config)
+	result, err := s.client.Models.GenerateContent(
+		ctx,
+		geminiModel,
+		genai.Text(prompt),
+		&genai.GenerateContentConfig{
+			Temperature:      genai.Ptr(float32(0.0)),
+			MaxOutputTokens:  1024,
+			ResponseMIMEType: "application/json",
+		},
+	)
 	if err != nil {
-		return nil, fmt.Errorf("error al generar patrón con Gemini: %w", err)
+		s.logger.Error("Error calling Gemini API",
+			zap.Error(err),
+		)
+		return nil, fmt.Errorf("error al llamar a Gemini: %w", err)
 	}
 
-	jsonStr := s.extractJSON(resp)
-	if jsonStr == "" {
-		return nil, fmt.Errorf("el contenido de la respuesta de Gemini para generar patrón está vacío")
+	// Extract text from response
+	responseText := result.Text()
+	responseText = s.cleanJSONResponse(responseText)
+
+	// Parse the JSON response
+	var extraction TransactionExtraction
+	if err := json.Unmarshal([]byte(responseText), &extraction); err != nil {
+		s.logger.Error("Error parsing Gemini response",
+			zap.String("response", responseText),
+			zap.Error(err),
+		)
+		return nil, fmt.Errorf("error al parsear respuesta de Gemini: %w (respuesta: %s)", err, responseText)
 	}
 
-	var result PatternGenerationResult
-	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
-		return nil, fmt.Errorf("error al decodificar el JSON de Gemini para el patrón: %w (JSON recibido: %s)", err, jsonStr)
-	}
+	extraction.RawMessage = smsContent
+	s.logger.Info("Transaction extracted successfully via Gemini",
+		zap.Float64("amount", extraction.Amount),
+		zap.String("type", extraction.TransactionType),
+		zap.Float64("confidence", extraction.Confidence),
+	)
 
-	s.logger.Info("Successfully parsed pattern generation result from Gemini API")
-	return &result, nil
+	return &extraction, nil
+}
+
+// buildExtractionPrompt creates the prompt for transaction extraction.
+func (s *GeminiService) buildExtractionPrompt(smsContent string) string {
+	return fmt.Sprintf(`Eres un asistente experto en analizar notificaciones bancarias de SMS de bancos latinoamericanos (Colombia, México, etc.).
+
+Analiza el siguiente SMS bancario y extrae la información de la transacción.
+
+SMS: "%s"
+
+REGLAS DE CLASIFICACIÓN:
+- transaction_type = "expense" cuando: pagaste, compra, débito, retiro, transferiste, enviaste
+- transaction_type = "income" cuando: recibiste, consignación, depósito, abono, ingreso
+- transaction_type = "transfer" cuando: es una transferencia sin dirección clara
+- success = true si el SMS contiene un monto y es claramente una notificación bancaria de movimiento
+- success = false SOLO si el SMS no es una notificación de transacción bancaria
+
+EXTRACCIÓN:
+- Monto: solo el número (sin $, puntos ni comas; 1.000,00 → 1000.00)
+- Moneda: COP para bancos colombianos (Bancolombia, Davivienda, Nequi, etc.), MXN para mexicanos
+- Fecha: formato YYYY-MM-DD
+- Merchant: comercio o persona que recibió/envió el dinero, o null
+- Confidence: 0.9 o superior si ves monto y banco claramente
+
+Responde ÚNICAMENTE con un JSON válido, sin texto adicional ni markdown:
+{
+  "success": true,
+  "amount": 0.00,
+  "description": "descripción corta de la transacción",
+  "merchant": "nombre del comercio o persona, o null",
+  "date": "YYYY-MM-DD",
+  "transaction_type": "expense",
+  "confidence": 0.95,
+  "currency": "COP"
+}`, smsContent)
+}
+
+// cleanJSONResponse removes markdown formatting if present.
+func (s *GeminiService) cleanJSONResponse(content string) string {
+	content = strings.TrimSpace(content)
+	content = strings.TrimPrefix(content, "```json")
+	content = strings.TrimPrefix(content, "```")
+	content = strings.TrimSuffix(content, "```")
+	content = strings.TrimSpace(content)
+	return content
 }

@@ -21,43 +21,6 @@ func NewBankNotificationPatternHandler(uc *usecase.BankNotificationPatternUseCas
 	return &BankNotificationPatternHandler{uc: uc, logger: logger}
 }
 
-// @Summary      Generate a notification pattern from a message using AI
-// @Description  Takes a notification message and uses an AI model to suggest regex patterns.
-// @Tags         notification-patterns
-// @Accept       json
-// @Produce      json
-// @Param        request body dto.GeneratePatternRequest true "Message and bank account ID"
-// @Success      200 {object} dto.GeneratePatternResponse
-// @Failure      400 {object} errorResponse
-// @Failure      500 {object} errorResponse
-// @Router       /notification-patterns/generate-from-message [post]
-func (h *BankNotificationPatternHandler) GeneratePatternFromMessage(c *gin.Context) {
-	var req dto.GeneratePatternRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		h.logger.Error().Err(err).Msg("bad request on generate pattern")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
-		return
-	}
-	h.logger.Info().Uint("bank_account_id", req.BankAccountID).Msg("Received request to generate pattern with AI")
-
-	result, err := h.uc.GeneratePatternFromMessage(c.Request.Context(), req.Message)
-	if err != nil {
-		h.logger.Error().Err(err).Msg("failed to generate pattern with AI")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate pattern"})
-		return
-	}
-
-	response := dto.GeneratePatternResponse{
-		AmountRegex:      result.AmountRegex,
-		DateRegex:        result.DateRegex,
-		DescriptionRegex: result.DescriptionRegex,
-		MerchantRegex:    result.MerchantRegex,
-		KeywordsTrigger:  result.KeywordsTrigger,
-	}
-
-	c.JSON(http.StatusOK, response)
-}
-
 func (h *BankNotificationPatternHandler) GetUserPatterns(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
@@ -115,41 +78,6 @@ func (h *BankNotificationPatternHandler) GetPatternStatistics(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, stats)
-}
-
-// @Summary      Create a pattern from a message using AI
-// @Description  Analyzes a message with AI to automatically create and save a new notification pattern.
-// @Tags         notification-patterns
-// @Accept       json
-// @Produce      json
-// @Param        request body dto.CreatePatternFromMessageRequest true "Message and bank account ID"
-// @Success      201 {object} dto.BankNotificationPatternResponse
-// @Failure      400 {object} gin.H
-// @Failure      500 {object} gin.H
-// @Router       /notification-patterns/create-from-message [post]
-func (h *BankNotificationPatternHandler) CreatePatternFromMessage(c *gin.Context) {
-	userID, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-		return
-	}
-
-	var req dto.CreatePatternFromMessageRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		h.logger.Error().Err(err).Msg("bad request on create pattern from message")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
-		return
-	}
-	h.logger.Info().Msg("Received request to create pattern from message with AI")
-
-	pattern, err := h.uc.CreatePatternFromMessage(c.Request.Context(), userID.(uint), &req)
-	if err != nil {
-		h.logger.Error().Err(err).Msg("failed to create pattern from message with AI")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create pattern from message"})
-		return
-	}
-
-	c.JSON(http.StatusCreated, pattern)
 }
 
 func (h *BankNotificationPatternHandler) ProcessNotification(c *gin.Context) {

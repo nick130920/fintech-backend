@@ -6,20 +6,13 @@ import (
 	"github.com/nick130920/fintech-backend/internal/entity"
 )
 
-// CreateBankNotificationPatternRequest representa la estructura para crear un patrón de notificación
+// CreateBankNotificationPatternRequest representa la estructura para crear una configuración de notificación
 type CreateBankNotificationPatternRequest struct {
 	BankAccountID       uint                       `json:"bank_account_id" validate:"required"`
 	Name                string                     `json:"name" validate:"required,min=1,max=100"`
 	Description         string                     `json:"description" validate:"omitempty,max=500"`
 	Channel             entity.NotificationChannel `json:"channel" validate:"required,oneof=sms push email app"`
-	MessagePattern      string                     `json:"message_pattern" validate:"omitempty,max=2000"`
 	ExampleMessage      string                     `json:"example_message" validate:"omitempty,max=2000"`
-	KeywordsTrigger     []string                   `json:"keywords_trigger" validate:"omitempty"`
-	KeywordsExclude     []string                   `json:"keywords_exclude" validate:"omitempty"`
-	AmountRegex         string                     `json:"amount_regex" validate:"omitempty,max=500"`
-	DateRegex           string                     `json:"date_regex" validate:"omitempty,max=500"`
-	DescriptionRegex    string                     `json:"description_regex" validate:"omitempty,max=500"`
-	MerchantRegex       string                     `json:"merchant_regex" validate:"omitempty,max=500"`
 	RequiresValidation  bool                       `json:"requires_validation"`
 	ConfidenceThreshold float64                    `json:"confidence_threshold" validate:"omitempty,gte=0,lte=1"`
 	AutoApprove         bool                       `json:"auto_approve"`
@@ -29,18 +22,11 @@ type CreateBankNotificationPatternRequest struct {
 	Metadata            map[string]interface{}     `json:"metadata" validate:"omitempty"`
 }
 
-// UpdateBankNotificationPatternRequest representa la estructura para actualizar un patrón
+// UpdateBankNotificationPatternRequest representa la estructura para actualizar una configuración
 type UpdateBankNotificationPatternRequest struct {
 	Name                *string                `json:"name" validate:"omitempty,min=1,max=100"`
 	Description         *string                `json:"description" validate:"omitempty,max=500"`
-	MessagePattern      *string                `json:"message_pattern" validate:"omitempty,max=2000"`
 	ExampleMessage      *string                `json:"example_message" validate:"omitempty,max=2000"`
-	KeywordsTrigger     []string               `json:"keywords_trigger"`
-	KeywordsExclude     []string               `json:"keywords_exclude"`
-	AmountRegex         *string                `json:"amount_regex" validate:"omitempty,max=500"`
-	DateRegex           *string                `json:"date_regex" validate:"omitempty,max=500"`
-	DescriptionRegex    *string                `json:"description_regex" validate:"omitempty,max=500"`
-	MerchantRegex       *string                `json:"merchant_regex" validate:"omitempty,max=500"`
 	RequiresValidation  *bool                  `json:"requires_validation"`
 	ConfidenceThreshold *float64               `json:"confidence_threshold" validate:"omitempty,gte=0,lte=1"`
 	AutoApprove         *bool                  `json:"auto_approve"`
@@ -50,7 +36,7 @@ type UpdateBankNotificationPatternRequest struct {
 	Metadata            map[string]interface{} `json:"metadata"`
 }
 
-// SetPatternStatusRequest representa la estructura para cambiar el estado de un patrón
+// SetPatternStatusRequest representa la estructura para cambiar el estado
 type SetPatternStatusRequest struct {
 	Status entity.NotificationPatternStatus `json:"status" validate:"required,oneof=active inactive learning"`
 }
@@ -65,34 +51,13 @@ type ProcessNotificationRequest struct {
 	UserID     uint      `json:"user_id,omitempty"`
 }
 
-// GeneratePatternRequest is the request DTO for generating a pattern.
-type GeneratePatternRequest struct {
-	Message       string `json:"message" validate:"required"`
-	BankAccountID uint   `json:"bank_account_id" validate:"required"`
-}
-
-// GeneratePatternResponse is the response DTO for a generated pattern.
-type GeneratePatternResponse struct {
-	AmountRegex      string   `json:"amount_regex"`
-	DateRegex        string   `json:"date_regex"`
-	DescriptionRegex string   `json:"description_regex"`
-	MerchantRegex    string   `json:"merchant_regex"`
-	KeywordsTrigger  []string `json:"keywords_trigger"`
-}
-
-// CreatePatternFromMessageRequest is the DTO for creating a pattern directly from a message.
-type CreatePatternFromMessageRequest struct {
-	Message       string `json:"message" validate:"required"`
-	BankAccountID uint   `json:"bank_account_id" validate:"required"`
-}
-
 // ProcessSMSWithAIRequest is the DTO for processing an SMS directly with AI.
 // This is the new simplified flow that uses OpenRouter/Mistral to analyze SMS.
 type ProcessSMSWithAIRequest struct {
 	Message string `json:"message" validate:"required,min=1" example:"BBVA: Compra por $150.00 en OXXO el 28/01/26"`
 }
 
-// BankNotificationPatternResponse representa la respuesta de un patrón de notificación
+// BankNotificationPatternResponse representa la respuesta de una configuración de notificación
 type BankNotificationPatternResponse struct {
 	ID                  uint                             `json:"id"`
 	BankAccountID       uint                             `json:"bank_account_id"`
@@ -100,14 +65,7 @@ type BankNotificationPatternResponse struct {
 	Description         string                           `json:"description"`
 	Channel             entity.NotificationChannel       `json:"channel"`
 	Status              entity.NotificationPatternStatus `json:"status"`
-	MessagePattern      string                           `json:"message_pattern"`
 	ExampleMessage      string                           `json:"example_message"`
-	KeywordsTrigger     []string                         `json:"keywords_trigger"`
-	KeywordsExclude     []string                         `json:"keywords_exclude"`
-	AmountRegex         string                           `json:"amount_regex"`
-	DateRegex           string                           `json:"date_regex"`
-	DescriptionRegex    string                           `json:"description_regex"`
-	MerchantRegex       string                           `json:"merchant_regex"`
 	RequiresValidation  bool                             `json:"requires_validation"`
 	ConfidenceThreshold float64                          `json:"confidence_threshold"`
 	AutoApprove         bool                             `json:"auto_approve"`

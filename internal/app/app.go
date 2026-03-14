@@ -81,7 +81,7 @@ type Dependencies struct {
 	BankNotificationPatternUC *usecase.BankNotificationPatternUseCase
 
 	// Servicios externos
-	OpenRouterService *webapi.OpenRouterService
+	AIService *webapi.AIServiceWithFallback
 
 	// Repositories (necesarios para algunos handlers)
 	CategoryRepo repo.CategoryRepo
@@ -103,10 +103,13 @@ func initDependencies(db *gorm.DB, jwtManager *auth.JWTManager) *Dependencies {
 	bankAccountRepo := repository.NewBankAccountPostgres(db)
 	bankNotificationPatternRepo := repository.NewBankNotificationPatternPostgres(db)
 
-	// Inicializar servicios externos (OpenRouter para IA)
-	openRouterService, err := webapi.NewOpenRouterService()
+	// Inicializar servicios externos de IA (con fallback OpenRouter -> Gemini)
+	aiService, err := webapi.NewAIServiceWithFallback()
 	if err != nil {
-		log.Fatal().Err(err).Msg("Error al inicializar OpenRouter Service")
+		log.Fatal().Err(err).Msg("Error al inicializar servicios de IA (configure OPENROUTER_API_KEY o GEMINI_API_KEY)")
+	}
+	if aiService.HasFallback() {
+		log.Info().Msg("Servicio de IA configurado con fallback")
 	}
 
 	// Asegurar que existan las categorías por defecto
@@ -126,7 +129,7 @@ func initDependencies(db *gorm.DB, jwtManager *auth.JWTManager) *Dependencies {
 	expenseUC := usecase.NewExpenseUseCase(expenseRepo, budgetRepo, categoryRepo, userRepo)
 	incomeUC := usecase.NewIncomeUseCase(incomeRepo, userRepo)
 	bankAccountUC := usecase.NewBankAccountUseCase(bankAccountRepo, userRepo)
-	bankNotificationPatternUC := usecase.NewBankNotificationPatternUseCase(bankNotificationPatternRepo, bankAccountRepo, userRepo, transactionRepo, openRouterService)
+	bankNotificationPatternUC := usecase.NewBankNotificationPatternUseCase(bankNotificationPatternRepo, bankAccountRepo, userRepo, transactionRepo, aiService)
 
 	return &Dependencies{
 		UserUC:                    userUC,
@@ -137,7 +140,7 @@ func initDependencies(db *gorm.DB, jwtManager *auth.JWTManager) *Dependencies {
 		IncomeUC:                  incomeUC,
 		BankAccountUC:             bankAccountUC,
 		BankNotificationPatternUC: bankNotificationPatternUC,
-		OpenRouterService:         openRouterService,
+		AIService:                 aiService,
 		CategoryRepo:              categoryRepo,
 		JWTManager:                jwtManager,
 	}

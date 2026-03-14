@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -18,11 +17,11 @@ import (
 
 // BankNotificationPatternUseCase contiene la lógica de negocio para patrones de notificación bancaria
 type BankNotificationPatternUseCase struct {
-	patternRepo       repo.BankNotificationPatternRepo
-	bankAccountRepo   repo.BankAccountRepo
-	userRepo          repo.UserRepo
-	transactionRepo   repo.TransactionRepo
-	openRouterService *webapi.OpenRouterService
+	patternRepo     repo.BankNotificationPatternRepo
+	bankAccountRepo repo.BankAccountRepo
+	userRepo        repo.UserRepo
+	transactionRepo repo.TransactionRepo
+	aiService       *webapi.AIServiceWithFallback
 }
 
 // NewBankNotificationPatternUseCase crea una nueva instancia de BankNotificationPatternUseCase
@@ -31,18 +30,18 @@ func NewBankNotificationPatternUseCase(
 	bankAccountRepo repo.BankAccountRepo,
 	userRepo repo.UserRepo,
 	transactionRepo repo.TransactionRepo,
-	openRouterService *webapi.OpenRouterService,
+	aiService *webapi.AIServiceWithFallback,
 ) *BankNotificationPatternUseCase {
 	return &BankNotificationPatternUseCase{
-		patternRepo:       patternRepo,
-		bankAccountRepo:   bankAccountRepo,
-		userRepo:          userRepo,
-		transactionRepo:   transactionRepo,
-		openRouterService: openRouterService,
+		patternRepo:     patternRepo,
+		bankAccountRepo: bankAccountRepo,
+		userRepo:        userRepo,
+		transactionRepo: transactionRepo,
+		aiService:       aiService,
 	}
 }
 
-// CreatePattern crea un nuevo patrón de notificación bancaria
+// CreatePattern crea una nueva configuración de notificación bancaria
 func (uc *BankNotificationPatternUseCase) CreatePattern(userID uint, req *dto.CreateBankNotificationPatternRequest) (*dto.BankNotificationPatternResponse, error) {
 	// Verificar que la cuenta bancaria existe y pertenece al usuario
 	bankAccount, err := uc.bankAccountRepo.GetByID(req.BankAccountID)
@@ -56,12 +55,7 @@ func (uc *BankNotificationPatternUseCase) CreatePattern(userID uint, req *dto.Cr
 		return nil, errors.New("unauthorized access to bank account")
 	}
 
-	// Validar regex si se proporcionan
-	if err := uc.validateRegexPatterns(req); err != nil {
-		return nil, fmt.Errorf("invalid regex patterns: %w", err)
-	}
-
-	// Crear la entidad patrón
+	// Crear la entidad configuración
 	pattern := &entity.BankNotificationPattern{
 		UserID:              userID,
 		BankAccountID:       req.BankAccountID,
@@ -69,12 +63,7 @@ func (uc *BankNotificationPatternUseCase) CreatePattern(userID uint, req *dto.Cr
 		Description:         req.Description,
 		Channel:             req.Channel,
 		Status:              entity.NotificationPatternStatusActive,
-		MessagePattern:      req.MessagePattern,
 		ExampleMessage:      req.ExampleMessage,
-		AmountRegex:         req.AmountRegex,
-		DateRegex:           req.DateRegex,
-		DescriptionRegex:    req.DescriptionRegex,
-		MerchantRegex:       req.MerchantRegex,
 		RequiresValidation:  req.RequiresValidation,
 		ConfidenceThreshold: req.ConfidenceThreshold,
 		AutoApprove:         req.AutoApprove,
@@ -82,17 +71,7 @@ func (uc *BankNotificationPatternUseCase) CreatePattern(userID uint, req *dto.Cr
 		IsDefault:           req.IsDefault,
 	}
 
-	// Establecer palabras clave
-	if len(req.KeywordsTrigger) > 0 {
-		if err := pattern.SetKeywordsTrigger(req.KeywordsTrigger); err != nil {
-			return nil, fmt.Errorf("failed to set trigger keywords: %w", err)
-		}
-	}
-	if len(req.KeywordsExclude) > 0 {
-		if err := pattern.SetKeywordsExclude(req.KeywordsExclude); err != nil {
-			return nil, fmt.Errorf("failed to set exclude keywords: %w", err)
-		}
-	}
+	// Establecer tags
 	if len(req.Tags) > 0 {
 		if err := pattern.SetTags(req.Tags); err != nil {
 			return nil, fmt.Errorf("failed to set tags: %w", err)
@@ -104,14 +83,14 @@ func (uc *BankNotificationPatternUseCase) CreatePattern(userID uint, req *dto.Cr
 		}
 	}
 
-	// Si se está marcando como por defecto, desactivar otros patrones por defecto
+	// Si se está marcando como por defecto, desactivar otros por defecto
 	if req.IsDefault {
 		if err := uc.unsetOtherDefaultPatterns(req.BankAccountID, req.Channel); err != nil {
 			return nil, fmt.Errorf("failed to unset other default patterns: %w", err)
 		}
 	}
 
-	// Crear el patrón
+	// Crear la configuración
 	if err := uc.patternRepo.Create(pattern); err != nil {
 		return nil, fmt.Errorf("failed to create pattern: %w", err)
 	}
@@ -184,9 +163,9 @@ func (uc *BankNotificationPatternUseCase) GetBankAccountPatterns(userID, bankAcc
 	return responses, nil
 }
 
-// UpdatePattern actualiza un patrón existente
+// UpdatePattern actualiza una configuración existente
 func (uc *BankNotificationPatternUseCase) UpdatePattern(userID, patternID uint, req *dto.UpdateBankNotificationPatternRequest) (*dto.BankNotificationPatternResponse, error) {
-	// Obtener el patrón existente
+	// Obtener la configuración existente
 	pattern, err := uc.patternRepo.GetByID(patternID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get pattern: %w", err)
@@ -205,36 +184,8 @@ func (uc *BankNotificationPatternUseCase) UpdatePattern(userID, patternID uint, 
 	if req.Description != nil && *req.Description != "" {
 		pattern.Description = *req.Description
 	}
-	if req.MessagePattern != nil && *req.MessagePattern != "" {
-		pattern.MessagePattern = *req.MessagePattern
-	}
 	if req.ExampleMessage != nil && *req.ExampleMessage != "" {
 		pattern.ExampleMessage = *req.ExampleMessage
-	}
-	if req.AmountRegex != nil && *req.AmountRegex != "" {
-		// Validar regex
-		if _, err := regexp.Compile(*req.AmountRegex); err != nil {
-			return nil, fmt.Errorf("invalid amount regex: %w", err)
-		}
-		pattern.AmountRegex = *req.AmountRegex
-	}
-	if req.DateRegex != nil && *req.DateRegex != "" {
-		if _, err := regexp.Compile(*req.DateRegex); err != nil {
-			return nil, fmt.Errorf("invalid date regex: %w", err)
-		}
-		pattern.DateRegex = *req.DateRegex
-	}
-	if req.DescriptionRegex != nil && *req.DescriptionRegex != "" {
-		if _, err := regexp.Compile(*req.DescriptionRegex); err != nil {
-			return nil, fmt.Errorf("invalid description regex: %w", err)
-		}
-		pattern.DescriptionRegex = *req.DescriptionRegex
-	}
-	if req.MerchantRegex != nil && *req.MerchantRegex != "" {
-		if _, err := regexp.Compile(*req.MerchantRegex); err != nil {
-			return nil, fmt.Errorf("invalid merchant regex: %w", err)
-		}
-		pattern.MerchantRegex = *req.MerchantRegex
 	}
 	if req.RequiresValidation != nil {
 		pattern.RequiresValidation = *req.RequiresValidation
@@ -250,7 +201,7 @@ func (uc *BankNotificationPatternUseCase) UpdatePattern(userID, patternID uint, 
 	}
 	if req.IsDefault != nil && *req.IsDefault != pattern.IsDefault {
 		if *req.IsDefault {
-			// Desactivar otros patrones por defecto
+			// Desactivar otros por defecto
 			if err := uc.unsetOtherDefaultPatterns(pattern.BankAccountID, pattern.Channel); err != nil {
 				return nil, fmt.Errorf("failed to unset other default patterns: %w", err)
 			}
@@ -258,17 +209,7 @@ func (uc *BankNotificationPatternUseCase) UpdatePattern(userID, patternID uint, 
 		pattern.IsDefault = *req.IsDefault
 	}
 
-	// Actualizar palabras clave si se proporcionan
-	if req.KeywordsTrigger != nil {
-		if err := pattern.SetKeywordsTrigger(req.KeywordsTrigger); err != nil {
-			return nil, fmt.Errorf("failed to set trigger keywords: %w", err)
-		}
-	}
-	if req.KeywordsExclude != nil {
-		if err := pattern.SetKeywordsExclude(req.KeywordsExclude); err != nil {
-			return nil, fmt.Errorf("failed to set exclude keywords: %w", err)
-		}
-	}
+	// Actualizar tags si se proporcionan
 	if req.Tags != nil {
 		if err := pattern.SetTags(req.Tags); err != nil {
 			return nil, fmt.Errorf("failed to set tags: %w", err)
@@ -366,30 +307,6 @@ func (uc *BankNotificationPatternUseCase) GetPatternStatistics(userID uint) (*dt
 	return stats, nil
 }
 
-// validateRegexPatterns valida los patrones regex
-func (uc *BankNotificationPatternUseCase) validateRegexPatterns(req *dto.CreateBankNotificationPatternRequest) error {
-	if req.AmountRegex != "" {
-		if _, err := regexp.Compile(req.AmountRegex); err != nil {
-			return fmt.Errorf("invalid amount regex: %w", err)
-		}
-	}
-	if req.DateRegex != "" {
-		if _, err := regexp.Compile(req.DateRegex); err != nil {
-			return fmt.Errorf("invalid date regex: %w", err)
-		}
-	}
-	if req.DescriptionRegex != "" {
-		if _, err := regexp.Compile(req.DescriptionRegex); err != nil {
-			return fmt.Errorf("invalid description regex: %w", err)
-		}
-	}
-	if req.MerchantRegex != "" {
-		if _, err := regexp.Compile(req.MerchantRegex); err != nil {
-			return fmt.Errorf("invalid merchant regex: %w", err)
-		}
-	}
-	return nil
-}
 
 // unsetOtherDefaultPatterns desactiva otros patrones por defecto para la misma cuenta y canal
 func (uc *BankNotificationPatternUseCase) unsetOtherDefaultPatterns(bankAccountID uint, channel entity.NotificationChannel) error {
@@ -409,66 +326,6 @@ func (uc *BankNotificationPatternUseCase) unsetOtherDefaultPatterns(bankAccountI
 	return nil
 }
 
-// extractDataFromMessage extrae datos de un mensaje usando un patrón
-func (uc *BankNotificationPatternUseCase) extractDataFromMessage(pattern *entity.BankNotificationPattern, message string) (map[string]interface{}, float64) {
-	extractedData := make(map[string]interface{})
-	confidence := 0.0
-	matches := 0
-	totalAttempts := 0
-
-	// Extraer monto
-	if pattern.AmountRegex != "" {
-		totalAttempts++
-		if re, err := regexp.Compile(pattern.AmountRegex); err == nil {
-			if match := re.FindStringSubmatch(message); len(match) > 1 {
-				extractedData["amount"] = strings.TrimSpace(match[1])
-				matches++
-			}
-		}
-	}
-
-	// Extraer fecha
-	if pattern.DateRegex != "" {
-		totalAttempts++
-		if re, err := regexp.Compile(pattern.DateRegex); err == nil {
-			if match := re.FindStringSubmatch(message); len(match) > 1 {
-				extractedData["date"] = strings.TrimSpace(match[1])
-				matches++
-			}
-		}
-	}
-
-	// Extraer descripción
-	if pattern.DescriptionRegex != "" {
-		totalAttempts++
-		if re, err := regexp.Compile(pattern.DescriptionRegex); err == nil {
-			if match := re.FindStringSubmatch(message); len(match) > 1 {
-				extractedData["description"] = strings.TrimSpace(match[1])
-				matches++
-			}
-		}
-	}
-
-	// Extraer comercio
-	if pattern.MerchantRegex != "" {
-		totalAttempts++
-		if re, err := regexp.Compile(pattern.MerchantRegex); err == nil {
-			if match := re.FindStringSubmatch(message); len(match) > 1 {
-				extractedData["merchant"] = strings.TrimSpace(match[1])
-				matches++
-			}
-		}
-	}
-
-	// Calcular confianza basada en coincidencias
-	if totalAttempts > 0 {
-		confidence = float64(matches) / float64(totalAttempts)
-	} else {
-		confidence = 0.5 // Confianza base si no hay regex definidos
-	}
-
-	return extractedData, confidence
-}
 
 // toDTO convierte una entidad BankNotificationPattern a DTO de respuesta
 func (uc *BankNotificationPatternUseCase) toDTO(pattern *entity.BankNotificationPattern) *dto.BankNotificationPatternResponse {
@@ -479,14 +336,7 @@ func (uc *BankNotificationPatternUseCase) toDTO(pattern *entity.BankNotification
 		Description:         pattern.Description,
 		Channel:             pattern.Channel,
 		Status:              pattern.Status,
-		MessagePattern:      pattern.MessagePattern,
 		ExampleMessage:      pattern.ExampleMessage,
-		KeywordsTrigger:     pattern.GetKeywordsTrigger(),
-		KeywordsExclude:     pattern.GetKeywordsExclude(),
-		AmountRegex:         pattern.AmountRegex,
-		DateRegex:           pattern.DateRegex,
-		DescriptionRegex:    pattern.DescriptionRegex,
-		MerchantRegex:       pattern.MerchantRegex,
 		RequiresValidation:  pattern.RequiresValidation,
 		ConfidenceThreshold: pattern.ConfidenceThreshold,
 		AutoApprove:         pattern.AutoApprove,
@@ -503,7 +353,7 @@ func (uc *BankNotificationPatternUseCase) toDTO(pattern *entity.BankNotification
 	}
 }
 
-// ProcessNotificationWebhook procesa una notificación bancaria desde webhook
+// ProcessNotificationWebhook procesa una notificación bancaria desde webhook usando IA
 func (uc *BankNotificationPatternUseCase) ProcessNotificationWebhook(req dto.ProcessNotificationRequest) (*dto.ProcessedNotificationResponse, error) {
 	// Buscar usuario por teléfono si no se proporciona UserID
 	var userID uint
@@ -518,120 +368,20 @@ func (uc *BankNotificationPatternUseCase) ProcessNotificationWebhook(req dto.Pro
 		userID = bankAccount.UserID
 	}
 
-	// Obtener patrones activos del usuario
-	patterns, err := uc.patternRepo.GetByUserID(userID)
-	if err != nil {
-		return nil, apperrors.ErrInternal.WithInternal(err).WithDetails("Error al obtener patrones de notificación")
-	}
-
-	// Filtrar patrones por canal
-	var activePatterns []*entity.BankNotificationPattern
-	for _, pattern := range patterns {
-		if pattern.Status == "active" && (string(pattern.Channel) == req.Channel || string(pattern.Channel) == "all") {
-			activePatterns = append(activePatterns, pattern)
-		}
-	}
-
-	if len(activePatterns) == 0 {
-		return &dto.ProcessedNotificationResponse{
-			Success:            false,
-			TransactionCreated: false,
-			Confidence:         0.0,
-			Reason:             "No hay patrones activos para este canal",
-		}, nil
-	}
-
-	// Intentar procesar con cada patrón (ordenado por prioridad)
-	var bestMatch *entity.BankNotificationPattern
-	var bestData map[string]interface{}
-	var bestConfidence float64
-
-	for _, pattern := range activePatterns {
-		data, confidence := uc.extractDataFromMessage(pattern, req.Message)
-
-		if confidence > bestConfidence {
-			bestMatch = pattern
-			bestData = data
-			bestConfidence = confidence
-		}
-	}
-
-	response := &dto.ProcessedNotificationResponse{
-		Success:    bestMatch != nil,
-		Confidence: bestConfidence,
-	}
-
-	if bestMatch == nil {
-		response.Reason = "Ningún patrón coincide con la notificación"
-		return response, nil
-	}
-
-	// Actualizar estadísticas del patrón
-	bestMatch.MatchCount++
-	bestMatch.LastMatchedAt = &time.Time{}
-	*bestMatch.LastMatchedAt = time.Now()
-
-	// Verificar si se debe crear transacción automáticamente
-	shouldAutoCreate := bestConfidence >= bestMatch.ConfidenceThreshold && bestMatch.AutoApprove
-
-	if shouldAutoCreate {
-		// Crear transacción automáticamente
-		transaction, err := uc.createTransactionFromNotification(userID, bestMatch, bestData, req)
-		if err != nil {
-			// Marcar como requiere validación si falla la creación automática
-			response.TransactionCreated = false
-			response.RequiresValidation = true
-			response.Reason = "Error al crear transacción automáticamente: " + err.Error()
-		} else {
-			response.TransactionCreated = true
-			response.TransactionID = transaction.ID
-			response.Amount = transaction.Amount
-			response.Description = transaction.Description
-
-			// Actualizar estadísticas de éxito
-			bestMatch.SuccessCount++
-			bestMatch.SuccessRate = float64(bestMatch.SuccessCount) / float64(bestMatch.MatchCount)
-		}
-	} else {
-		response.RequiresValidation = true
-		response.Reason = "Requiere validación manual (confianza insuficiente o patrón no auto-aprobado)"
-	}
-
-	// Guardar estadísticas actualizadas del patrón
-	if err := uc.patternRepo.Update(bestMatch); err != nil {
-		// Log error pero no fallar la respuesta
-		// TODO: Log error
-	}
-
-	response.PatternUsed = bestMatch.Name
-	response.ExtractedData = uc.parseExtractedData(bestData) // Adjuntar siempre los datos extraídos y parseados
-	return response, nil
-}
-
-// GeneratePatternFromMessage uses the OpenRouter service to generate a pattern from a given message.
-func (uc *BankNotificationPatternUseCase) GeneratePatternFromMessage(ctx context.Context, message string) (*webapi.PatternGenerationResult, error) {
-	if uc.openRouterService == nil {
-		return nil, apperrors.ErrInternal.WithDetails("Servicio de IA no está configurado")
-	}
-
-	fmt.Println("Generating pattern from message using OpenRouter service...")
-	result, err := uc.openRouterService.GeneratePatternFromMessage(ctx, message)
-	if err != nil {
-		return nil, apperrors.ErrInternal.WithInternal(err).WithDetails("Error al generar patrón con OpenRouter")
-	}
-
-	return result, nil
+	// Usar IA para procesar el mensaje directamente
+	ctx := context.Background()
+	return uc.ProcessSMSWithAI(ctx, userID, req.Message)
 }
 
 // ProcessSMSWithAI processes an SMS directly using AI without pattern matching.
-// This is the new simplified flow that uses only AI.
+// This is the new simplified flow that uses only AI with fallback support.
 func (uc *BankNotificationPatternUseCase) ProcessSMSWithAI(ctx context.Context, userID uint, message string) (*dto.ProcessedNotificationResponse, error) {
-	if uc.openRouterService == nil {
+	if uc.aiService == nil {
 		return nil, apperrors.ErrInternal.WithDetails("Servicio de IA no está configurado")
 	}
 
-	// 1. Extract transaction data using AI
-	extraction, err := uc.openRouterService.ExtractTransactionFromSMS(ctx, message)
+	// 1. Extract transaction data using AI (with automatic fallback)
+	extraction, err := uc.aiService.ExtractTransactionFromSMS(ctx, message)
 	if err != nil {
 		return &dto.ProcessedNotificationResponse{
 			Success:            false,
@@ -645,7 +395,7 @@ func (uc *BankNotificationPatternUseCase) ProcessSMSWithAI(ctx context.Context, 
 	response := &dto.ProcessedNotificationResponse{
 		Success:            extraction.Success,
 		Confidence:         extraction.Confidence,
-		PatternUsed:        "OpenRouter AI (Mistral 7B)",
+		PatternUsed:        uc.aiService.GetUsedService(),
 		RequiresValidation: extraction.Confidence < 0.8,
 		ExtractedData: map[string]interface{}{
 			"amount":           extraction.Amount,
@@ -729,36 +479,6 @@ func (uc *BankNotificationPatternUseCase) createTransactionFromAIExtraction(
 	}
 
 	return transaction, nil
-}
-
-// CreatePatternFromMessage creates a new pattern by analyzing a message with AI.
-func (uc *BankNotificationPatternUseCase) CreatePatternFromMessage(ctx context.Context, userID uint, req *dto.CreatePatternFromMessageRequest) (*dto.BankNotificationPatternResponse, error) {
-	// 1. Generate pattern details from the message using Gemini
-	aiResult, err := uc.GeneratePatternFromMessage(ctx, req.Message)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate pattern details from message: %w", err)
-	}
-
-	// 2. Prepare a request to create a new pattern
-	createReq := &dto.CreateBankNotificationPatternRequest{
-		BankAccountID:       req.BankAccountID,
-		Name:                aiResult.Name,
-		Description:         aiResult.Description,
-		Channel:             "sms", // Defaulting to SMS, can be changed later
-		ExampleMessage:      req.Message,
-		KeywordsTrigger:     aiResult.KeywordsTrigger,
-		AmountRegex:         aiResult.AmountRegex,
-		DateRegex:           aiResult.DateRegex,
-		DescriptionRegex:    aiResult.DescriptionRegex,
-		MerchantRegex:       aiResult.MerchantRegex,
-		RequiresValidation:  true,  // Default value
-		ConfidenceThreshold: 0.8,   // Default value
-		AutoApprove:         false, // Default value
-		Priority:            100,   // Default value
-	}
-
-	// 3. Call the existing CreatePattern method to save it
-	return uc.CreatePattern(userID, createReq)
 }
 
 // parseExtractedData convierte los valores extraídos a sus tipos correctos

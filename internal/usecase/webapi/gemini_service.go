@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	geminiModel = "gemini-2.0-flash"
+	geminiModel = "gemini-2.5-flash-lite"
 )
 
 // GeminiService handles interactions with the Google Gemini API using the official SDK.

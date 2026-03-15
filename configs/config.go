@@ -120,8 +120,8 @@ func Load() *Config {
 		Database: loadDatabaseConfig(),
 		JWT: JWTConfig{
 			SecretKey:             getEnv("JWT_SECRET_KEY", "default-secret-key-change-in-production"),
-			ExpiresIn:             time.Duration(getEnvAsInt("JWT_EXPIRES_IN", 3600)) * time.Second,
-			RefreshTokenExpiresIn: time.Duration(getEnvAsInt("REFRESH_TOKEN_EXPIRES_IN", 604800)) * time.Second,
+			ExpiresIn:             time.Duration(getEnvAsInt("JWT_EXPIRES_IN", 86400)) * time.Second,             // 24 horas por defecto
+			RefreshTokenExpiresIn: time.Duration(getEnvAsInt("REFRESH_TOKEN_EXPIRES_IN", 2592000)) * time.Second, // 30 días
 		},
 		CORS: CORSConfig{
 			AllowedOrigins: getEnvAsStringSlice("CORS_ALLOWED_ORIGINS", []string{"*"}), // Railway permite todo por defecto, configurar en producción
@@ -149,10 +149,10 @@ func Load() *Config {
 		},
 		Features: FeatureConfig{
 			EnableSwagger:       getEnvAsBool("ENABLE_SWAGGER", true),
-			EnableMetrics:       getEnvAsBool("ENABLE_METRICS", false),
-			EnableProfiler:      getEnvAsBool("ENABLE_PROFILER", false),
+			EnableMetrics:       getEnvAsBool("ENABLE_METRICS", true),
+			EnableProfiler:      getEnvAsBool("ENABLE_PROFILER", true),
 			EnableDebugRoutes:   getEnvAsBool("ENABLE_DEBUG_ROUTES", true),
-			EnableNotifications: getEnvAsBool("ENABLE_NOTIFICATIONS", false),
+			EnableNotifications: getEnvAsBool("ENABLE_NOTIFICATIONS", true),
 		},
 		Logger: LoggerConfig{
 			Level: getEnv("LOG_LEVEL", "info"),

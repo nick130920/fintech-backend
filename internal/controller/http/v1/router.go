@@ -190,7 +190,9 @@ func NewRouter(
 			// Otras rutas
 			notificationPatternsGroup.GET("/statistics", bankNotificationPatternHandler.GetPatternStatistics)
 			notificationPatternsGroup.POST("/process", bankNotificationPatternHandler.ProcessNotification)
-			notificationPatternsGroup.POST("/process-sms", bankNotificationPatternHandler.ProcessSMSWithAI) // NEW: AI-only SMS processing
+			notificationPatternsGroup.POST("/process-sms", bankNotificationPatternHandler.ProcessSMSWithAI)
+			notificationPatternsGroup.POST("/analyze-sms-batch", bankNotificationPatternHandler.AnalyzeSMSBatch)
+			notificationPatternsGroup.POST("/analyze-statement", bankNotificationPatternHandler.AnalyzeStatement)
 			notificationPatternsGroup.GET("/:id", bankNotificationPatternHandler.GetPattern)
 			notificationPatternsGroup.PUT("/:id", bankNotificationPatternHandler.UpdatePattern)
 			notificationPatternsGroup.DELETE("/:id", bankNotificationPatternHandler.DeletePattern)

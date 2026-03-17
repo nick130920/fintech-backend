@@ -747,6 +747,72 @@ func (uc *BankNotificationPatternUseCase) GetPendingNotifications(userID uint, l
 	return []*dto.PendingNotification{}, nil
 }
 
+// ProcessSMSBatchForSuggestions analyzes multiple SMS to produce budget suggestions (no transactions created).
+func (uc *BankNotificationPatternUseCase) ProcessSMSBatchForSuggestions(ctx context.Context, userID uint, messages []dto.SMSMessageForAnalysis) (*dto.AnalyzeSMSBatchResponse, error) {
+	const maxMessages = 500
+	if len(messages) > maxMessages {
+		messages = messages[:maxMessages]
+	}
+
+	categories, err := uc.categoryRepo.GetAllAvailableForUser(userID)
+	if err != nil || len(categories) == 0 {
+		return &dto.AnalyzeSMSBatchResponse{
+			Suggestions: dto.BudgetSuggestions{ByCategory: []dto.BudgetSuggestionCategory{}},
+		}, nil
+	}
+
+	var otrosCategory *entity.Category
+	for _, c := range categories {
+		if c.Name == "Otros" || c.Name == "Other" {
+			otrosCategory = c
+			break
+		}
+	}
+	if otrosCategory == nil {
+		otrosCategory = categories[0]
+	}
+
+	var totalExpense float64
+	var expenseCount int
+	for _, msg := range messages {
+		if strings.TrimSpace(msg.Body) == "" {
+			continue
+		}
+		extraction, err := uc.aiService.ExtractTransactionFromSMS(ctx, msg.Body)
+		if err != nil || extraction == nil || !extraction.Success {
+			continue
+		}
+		if extraction.TransactionType != "expense" {
+			continue
+		}
+		if extraction.Confidence < 0.3 {
+			continue
+		}
+		if extraction.Amount <= 0 {
+			continue
+		}
+		totalExpense += extraction.Amount
+		expenseCount++
+	}
+
+	byCategory := []dto.BudgetSuggestionCategory{}
+	if totalExpense > 0 && expenseCount > 0 {
+		byCategory = append(byCategory, dto.BudgetSuggestionCategory{
+			CategoryID:   otrosCategory.ID,
+			CategoryName: otrosCategory.Name,
+			Total:        totalExpense,
+			Count:        expenseCount,
+		})
+	}
+
+	return &dto.AnalyzeSMSBatchResponse{
+		Suggestions: dto.BudgetSuggestions{
+			TotalExpense3m: totalExpense,
+			ByCategory:     byCategory,
+		},
+	}, nil
+}
+
 // GetNotificationStats obtiene estadísticas de procesamiento de notificaciones
 func (uc *BankNotificationPatternUseCase) GetNotificationStats(userID *uint, days int) (*dto.NotificationStatsResponse, error) {
 	// TODO: Implementar estadísticas reales

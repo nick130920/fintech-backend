@@ -57,6 +57,36 @@ type ProcessSMSWithAIRequest struct {
 	Message string `json:"message" validate:"required,min=1" example:"BBVA: Compra por $150.00 en OXXO el 28/01/26"`
 }
 
+// AnalyzeSMSBatchRequest is the DTO for analyzing multiple SMS for budget suggestions (no transaction creation).
+type AnalyzeSMSBatchRequest struct {
+	Messages []SMSMessageForAnalysis `json:"messages" validate:"required,dive"`
+}
+
+// SMSMessageForAnalysis represents one SMS in the batch.
+type SMSMessageForAnalysis struct {
+	Body string `json:"body" validate:"required"`
+	Date string `json:"date"` // ISO8601 optional, for aggregation by period
+}
+
+// BudgetSuggestionCategory is one category in the budget suggestion response.
+type BudgetSuggestionCategory struct {
+	CategoryID   uint    `json:"category_id"`
+	CategoryName string  `json:"category_name"`
+	Total        float64 `json:"total"`
+	Count        int     `json:"count"`
+}
+
+// AnalyzeSMSBatchResponse is the response for analyze-sms-batch (suggestions only, no transactions created).
+type AnalyzeSMSBatchResponse struct {
+	Suggestions BudgetSuggestions `json:"suggestions"`
+}
+
+// BudgetSuggestions is used by both analyze-sms-batch and analyze-statement.
+type BudgetSuggestions struct {
+	TotalExpense3m float64                    `json:"total_expense_3m"`
+	ByCategory     []BudgetSuggestionCategory `json:"by_category"`
+}
+
 // BankNotificationPatternResponse representa la respuesta de una configuración de notificación
 type BankNotificationPatternResponse struct {
 	ID                  uint                             `json:"id"`

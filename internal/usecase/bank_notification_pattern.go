@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/nick130920/fintech-backend/internal/controller/http/v1/dto"
 	"github.com/nick130920/fintech-backend/internal/entity"
@@ -319,7 +321,6 @@ func (uc *BankNotificationPatternUseCase) GetPatternStatistics(userID uint) (*dt
 	return stats, nil
 }
 
-
 // unsetOtherDefaultPatterns desactiva otros patrones por defecto para la misma cuenta y canal
 func (uc *BankNotificationPatternUseCase) unsetOtherDefaultPatterns(bankAccountID uint, channel entity.NotificationChannel) error {
 	patterns, err := uc.patternRepo.GetByBankAccountID(bankAccountID)
@@ -337,7 +338,6 @@ func (uc *BankNotificationPatternUseCase) unsetOtherDefaultPatterns(bankAccountI
 
 	return nil
 }
-
 
 // toDTO convierte una entidad BankNotificationPattern a DTO de respuesta
 func (uc *BankNotificationPatternUseCase) toDTO(pattern *entity.BankNotificationPattern) *dto.BankNotificationPatternResponse {
@@ -747,9 +747,14 @@ func (uc *BankNotificationPatternUseCase) GetPendingNotifications(userID uint, l
 	return []*dto.PendingNotification{}, nil
 }
 
-// ProcessSMSBatchForSuggestions analyzes multiple SMS to produce budget suggestions (no transactions created).
+// ProcessSMSBatchForSuggestions analyzes multiple SMS with pocas llamadas a la IA (lotes), no una por SMS.
 func (uc *BankNotificationPatternUseCase) ProcessSMSBatchForSuggestions(ctx context.Context, userID uint, messages []dto.SMSMessageForAnalysis) (*dto.AnalyzeSMSBatchResponse, error) {
-	const maxMessages = 500
+	const (
+		maxMessages   = 500
+		smsPerChunk   = 28
+		maxBodyRunes  = 220
+		minConfidence = 0.3
+	)
 	if len(messages) > maxMessages {
 		messages = messages[:maxMessages]
 	}
@@ -772,27 +777,56 @@ func (uc *BankNotificationPatternUseCase) ProcessSMSBatchForSuggestions(ctx cont
 		otrosCategory = categories[0]
 	}
 
+	filtered := filterMessagesLikelyBankSMS(messages)
+	if len(filtered) < 8 {
+		filtered = filterNonEmptyBodies(messages, maxMessages)
+	}
+
 	var totalExpense float64
 	var expenseCount int
-	for _, msg := range messages {
-		if strings.TrimSpace(msg.Body) == "" {
+
+	for chunkStart := 0; chunkStart < len(filtered); chunkStart += smsPerChunk {
+		chunkEnd := chunkStart + smsPerChunk
+		if chunkEnd > len(filtered) {
+			chunkEnd = len(filtered)
+		}
+		chunk := filtered[chunkStart:chunkEnd]
+		var sb strings.Builder
+		for i, msg := range chunk {
+			lineNum := i + 1
+			body := sanitizeSMSLine(msg.Body, maxBodyRunes)
+			if body == "" {
+				continue
+			}
+			sb.WriteString(fmt.Sprintf("[%d] %s\n", lineNum, body))
+		}
+		block := sb.String()
+		if strings.TrimSpace(block) == "" {
 			continue
 		}
-		extraction, err := uc.aiService.ExtractTransactionFromSMS(ctx, msg.Body)
-		if err != nil || extraction == nil || !extraction.Success {
+
+		resp, err := uc.aiService.ExtractBudgetLinesFromSMSChunk(ctx, block)
+		if err != nil || resp == nil {
 			continue
 		}
-		if extraction.TransactionType != "expense" {
-			continue
+		seenLine := make(map[int]bool)
+		for _, line := range resp.Lines {
+			if line.Line < 1 || seenLine[line.Line] {
+				continue
+			}
+			seenLine[line.Line] = true
+			if strings.ToLower(strings.TrimSpace(line.TransactionType)) != "expense" {
+				continue
+			}
+			if line.Confidence < minConfidence {
+				continue
+			}
+			if line.Amount <= 0 || line.Amount > 1e9 {
+				continue
+			}
+			totalExpense += line.Amount
+			expenseCount++
 		}
-		if extraction.Confidence < 0.3 {
-			continue
-		}
-		if extraction.Amount <= 0 {
-			continue
-		}
-		totalExpense += extraction.Amount
-		expenseCount++
 	}
 
 	byCategory := []dto.BudgetSuggestionCategory{}
@@ -811,6 +845,74 @@ func (uc *BankNotificationPatternUseCase) ProcessSMSBatchForSuggestions(ctx cont
 			ByCategory:     byCategory,
 		},
 	}, nil
+}
+
+// bankTransactionSMSRegexp: una pasada sobre el texto; agrupa señales típicas de SMS bancarios LATAM.
+// Monedas / símbolos · verbos de movimiento · instituciones · identificadores de pago regionales.
+var bankTransactionSMSRegexp = regexp.MustCompile(
+	`(?i)(` +
+		`[\$€£]|` +
+		`\b(mxn|cop|clp|ars|brl|pen|usd|eur|gs\.|pyg|uyu|bob|crc|gtq|hnl|nio|dop|ves)\b|` +
+		`compra|consumo|pago|débito|debito|debit|cargo|abono|retiro|transferencia|transfer|` +
+		`\bbanco\b|` +
+		`spei|clabe|cbu|cvu|alias|pix|` +
+		`bbva|banamex|santander|banorte|hsbc|scotiabank|inbursa|azteca|banregio|` +
+		`bancolombia|nequi|daviplata|davivienda|banco\s+de\s+occidente|` +
+		`interbank|bcp|continental|nubank|mercado.pago|rappi\s*bank|uala|brubank|` +
+		`yape|plin|banco\s+nacion|banco\s+estado|` +
+		`tarjeta|cuenta|ahorro|corriente|movimiento|transacci|` +
+		`visa|mastercard|amex` +
+		`)`,
+)
+
+func filterMessagesLikelyBankSMS(messages []dto.SMSMessageForAnalysis) []dto.SMSMessageForAnalysis {
+	var out []dto.SMSMessageForAnalysis
+	for _, msg := range messages {
+		if likelyBankTransactionSMS(msg.Body) {
+			out = append(out, msg)
+		}
+	}
+	return out
+}
+
+func filterNonEmptyBodies(messages []dto.SMSMessageForAnalysis, max int) []dto.SMSMessageForAnalysis {
+	var out []dto.SMSMessageForAnalysis
+	for _, msg := range messages {
+		if strings.TrimSpace(msg.Body) != "" {
+			out = append(out, msg)
+			if len(out) >= max {
+				break
+			}
+		}
+	}
+	return out
+}
+
+func likelyBankTransactionSMS(body string) bool {
+	b := strings.TrimSpace(body)
+	if utf8.RuneCountInString(b) < 12 {
+		return false
+	}
+	if !strings.ContainsAny(b, "0123456789") {
+		return false
+	}
+	if bankTransactionSMSRegexp.MatchString(b) {
+		return true
+	}
+	// Mensajes largos con dígitos: posible extracto o notificación sin palabras clave estándar
+	return utf8.RuneCountInString(b) > 80
+}
+
+func sanitizeSMSLine(body string, maxRunes int) string {
+	s := strings.ReplaceAll(strings.ReplaceAll(strings.TrimSpace(body), "\n", " "), "\r", " ")
+	if s == "" {
+		return ""
+	}
+	if utf8.RuneCountInString(s) <= maxRunes {
+		return s
+	}
+	r := []rune(s)
+	return string(r[:maxRunes])
 }
 
 // GetNotificationStats obtiene estadísticas de procesamiento de notificaciones

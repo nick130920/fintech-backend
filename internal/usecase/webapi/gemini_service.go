@@ -127,6 +127,36 @@ Responde ÚNICAMENTE con un JSON válido, sin texto adicional ni markdown:
 }`, smsContent)
 }
 
+// ExtractBudgetLinesFromSMSChunk analyzes many numbered SMS in one Gemini request.
+func (s *GeminiService) ExtractBudgetLinesFromSMSChunk(ctx context.Context, numberedSMSBlock string) (*BatchSMSBudgetResponse, error) {
+	prompt := fmt.Sprintf(`Eres experto en SMS bancarios Latinoamérica. Cada línea es [N] texto.
+BLOQUE:
+%s
+Para cada [N] con notificación bancaria clara: si gasto/débito/compra → transaction_type "expense"; si depósito recibido → "income". Ignora OTP, publi, 2FA.
+JSON solo: {"lines":[{"line":1,"amount":100,"transaction_type":"expense","confidence":0.9}]}`, numberedSMSBlock)
+
+	result, err := s.client.Models.GenerateContent(
+		ctx,
+		geminiModel,
+		genai.Text(prompt),
+		&genai.GenerateContentConfig{
+			Temperature:      genai.Ptr(float32(0.0)),
+			MaxOutputTokens:  8192,
+			ResponseMIMEType: "application/json",
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("gemini batch: %w", err)
+	}
+	responseText := s.cleanJSONResponse(result.Text())
+	var out BatchSMSBudgetResponse
+	if err := json.Unmarshal([]byte(responseText), &out); err != nil {
+		s.logger.Error("parse gemini batch", zap.String("response", responseText), zap.Error(err))
+		return nil, fmt.Errorf("parse batch: %w", err)
+	}
+	return &out, nil
+}
+
 // cleanJSONResponse removes markdown formatting if present.
 func (s *GeminiService) cleanJSONResponse(content string) string {
 	content = strings.TrimSpace(content)

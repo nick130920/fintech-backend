@@ -10,6 +10,8 @@ import (
 // AIService defines the interface for AI-based transaction extraction.
 type AIService interface {
 	ExtractTransactionFromSMS(ctx context.Context, smsContent string) (*TransactionExtraction, error)
+	// ExtractBudgetLinesFromSMSChunk analyzes many numbered SMS in one request (budget suggestions only).
+	ExtractBudgetLinesFromSMSChunk(ctx context.Context, numberedSMSBlock string) (*BatchSMSBudgetResponse, error)
 }
 
 // AIServiceWithFallback wraps multiple AI services and provides fallback capability.
@@ -99,6 +101,25 @@ func (s *AIServiceWithFallback) ExtractTransactionFromSMS(ctx context.Context, s
 	}
 
 	return nil, fmt.Errorf("servicio primario de IA falló y no hay fallback disponible: %w", err)
+}
+
+// ExtractBudgetLinesFromSMSChunk runs batch budget extraction on primary with fallback.
+func (s *AIServiceWithFallback) ExtractBudgetLinesFromSMSChunk(ctx context.Context, numberedSMSBlock string) (*BatchSMSBudgetResponse, error) {
+	resp, err := s.primary.ExtractBudgetLinesFromSMSChunk(ctx, numberedSMSBlock)
+	if err == nil {
+		s.usedService = s.getPrimaryServiceName()
+		return resp, nil
+	}
+	s.logger.Warn("Batch extracción: primario falló, intentando fallback", zap.Error(err))
+	if s.fallback != nil {
+		resp, fallbackErr := s.fallback.ExtractBudgetLinesFromSMSChunk(ctx, numberedSMSBlock)
+		if fallbackErr == nil {
+			s.usedService = s.getFallbackServiceName()
+			return resp, nil
+		}
+		return nil, fmt.Errorf("batch IA: primario=%v, fallback=%v", err, fallbackErr)
+	}
+	return nil, err
 }
 
 // GetUsedService returns the name of the service that was last used successfully.

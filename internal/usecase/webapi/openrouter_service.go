@@ -195,43 +195,87 @@ func (s *OpenRouterService) callOpenRouterBatch(ctx context.Context, prompt stri
 	if err != nil {
 		return "", err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, openRouterBaseURL, bytes.NewBuffer(jsonBody))
-	if err != nil {
-		return "", err
-	}
-	req.Header.Set("Authorization", "Bearer "+s.apiKey)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("HTTP-Referer", "https://money-flow-app.com")
-	req.Header.Set("X-Title", "Money Flow App")
 
-	resp, err := s.batchClient.Do(req)
-	if err != nil {
-		return "", err
+	// Modelo gratuito: 429 frecuente; reintentos con backoff antes de delegar al fallback.
+	backoffs := []time.Duration{0, 3 * time.Second, 8 * time.Second, 15 * time.Second}
+	var lastErr error
+
+	for attempt, wait := range backoffs {
+		if wait > 0 {
+			select {
+			case <-ctx.Done():
+				return "", ctx.Err()
+			case <-time.After(wait):
+			}
+		}
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, openRouterBaseURL, bytes.NewReader(jsonBody))
+		if err != nil {
+			return "", err
+		}
+		req.Header.Set("Authorization", "Bearer "+s.apiKey)
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("HTTP-Referer", "https://money-flow-app.com")
+		req.Header.Set("X-Title", "Money Flow App")
+
+		resp, err := s.batchClient.Do(req)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+
+		body, readErr := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if readErr != nil {
+			lastErr = readErr
+			continue
+		}
+
+		if resp.StatusCode == http.StatusTooManyRequests {
+			s.logger.Warn("OpenRouter batch 429 (rate limit), reintentando",
+				zap.Int("intento", attempt+1),
+				zap.Int("max_intentos", len(backoffs)),
+			)
+			lastErr = fmt.Errorf("status 429: %s", string(body))
+			continue
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			return "", fmt.Errorf("status %d: %s", resp.StatusCode, string(body))
+		}
+
+		var openRouterResp OpenRouterResponse
+		if err := json.Unmarshal(body, &openRouterResp); err != nil {
+			return "", err
+		}
+		if openRouterResp.Error != nil {
+			// Algunos errores de proveedor vienen como 200 + error JSON
+			msg := strings.ToLower(openRouterResp.Error.Message)
+			if strings.Contains(msg, "rate") || strings.Contains(msg, "429") || strings.Contains(msg, "limit") {
+				s.logger.Warn("OpenRouter batch error tipo rate limit en body, reintentando",
+					zap.Int("intento", attempt+1),
+					zap.String("message", openRouterResp.Error.Message),
+				)
+				lastErr = fmt.Errorf("%s", openRouterResp.Error.Message)
+				continue
+			}
+			return "", fmt.Errorf("%s", openRouterResp.Error.Message)
+		}
+		if len(openRouterResp.Choices) == 0 {
+			return "", fmt.Errorf("sin choices")
+		}
+		content := s.cleanJSONResponse(openRouterResp.Choices[0].Message.Content)
+		s.logger.Info("OpenRouter batch OK",
+			zap.Int("prompt_tokens", openRouterResp.Usage.PromptTokens),
+			zap.Int("lines_in_response_estimate", len(content)),
+		)
+		return content, nil
 	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
+
+	if lastErr != nil {
+		return "", fmt.Errorf("OpenRouter batch tras reintentos: %w", lastErr)
 	}
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("status %d: %s", resp.StatusCode, string(body))
-	}
-	var openRouterResp OpenRouterResponse
-	if err := json.Unmarshal(body, &openRouterResp); err != nil {
-		return "", err
-	}
-	if openRouterResp.Error != nil {
-		return "", fmt.Errorf("%s", openRouterResp.Error.Message)
-	}
-	if len(openRouterResp.Choices) == 0 {
-		return "", fmt.Errorf("sin choices")
-	}
-	content := s.cleanJSONResponse(openRouterResp.Choices[0].Message.Content)
-	s.logger.Info("OpenRouter batch OK",
-		zap.Int("prompt_tokens", openRouterResp.Usage.PromptTokens),
-		zap.Int("lines_in_response_estimate", len(content)),
-	)
-	return content, nil
+	return "", fmt.Errorf("OpenRouter batch: sin respuesta tras reintentos")
 }
 
 // buildExtractionPrompt creates the prompt for transaction extraction.

@@ -13,6 +13,9 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// analyzeSMSBatchMaxDuration debe cubrir muchos chunks secuenciales a la IA (OpenRouter gratuito puede ir lento o 429).
+const analyzeSMSBatchMaxDuration = 12 * time.Minute
+
 // bankNotificationPatternHandler handles HTTP requests related to bank notification patterns.
 type BankNotificationPatternHandler struct {
 	uc     *usecase.BankNotificationPatternUseCase
@@ -183,9 +186,9 @@ func (h *BankNotificationPatternHandler) AnalyzeSMSBatch(c *gin.Context) {
 		return
 	}
 
-	// Contexto propio: si el cliente o un proxy cierran la conexión pronto, el análisis por lotes
-	// seguía recibiendo context canceled en llamadas a OpenRouter. Timeout máximo 5 min (alineado con la app).
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	// Contexto propio (no el del HTTP): evita cancelación por proxy/cliente en llamadas a OpenRouter.
+	// 12 min: muchos SMS ⇒ muchos chunks; el modelo gratuito + 429/reintentos puede superar 5 min.
+	ctx, cancel := context.WithTimeout(context.Background(), analyzeSMSBatchMaxDuration)
 	defer cancel()
 	result, err := h.uc.ProcessSMSBatchForSuggestions(ctx, userID.(uint), req.Messages)
 	if err != nil {

@@ -13,8 +13,8 @@ import (
 	"github.com/rs/zerolog"
 )
 
-// analyzeSMSBatchMaxDuration debe cubrir muchos chunks secuenciales a la IA (OpenRouter gratuito puede ir lento o 429).
-const analyzeSMSBatchMaxDuration = 12 * time.Minute
+// analyzeSMSBatchMaxDuration: el use case limita SMS y chunks; 6 min bastan salvo muchos 429.
+const analyzeSMSBatchMaxDuration = 6 * time.Minute
 
 // bankNotificationPatternHandler handles HTTP requests related to bank notification patterns.
 type BankNotificationPatternHandler struct {

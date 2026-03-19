@@ -18,9 +18,8 @@ description: Railway deployment configuration and environment setup
 - JWT secrets and other sensitive data via Railway environment
 
 ## Long-running endpoints
-- `POST /api/v1/notification-patterns/analyze-sms-batch`: hasta **~12 min** en servidor (muchos chunks + modelo gratuito OpenRouter con 429)
-- El cliente móvil debe usar timeout **≥12 min** en esa ruta
-- Si Railway/proxy corta antes, subir timeout del edge o usar modelo de pago en OpenRouter para menos 429
+- `analyze-sms-batch`: servidor limita a **100 SMS** y **4 chunks** a la IA; timeout típico **≤6 min** (cliente alineado)
+- Modelo gratuito OpenRouter puede 429; hay reintentos con backoff en código
 
 ## Logging Configuration
 - Production mode uses JSON logging format

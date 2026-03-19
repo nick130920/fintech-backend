@@ -3,6 +3,7 @@ package usecase
 import (
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"gorm.io/gorm"
@@ -54,13 +55,12 @@ func (uc *BudgetUseCase) CreateBudget(userID uint, req *dto.CreateBudgetRequest)
 		return nil, apperrors.ErrBudgetExists
 	}
 
-	// Validar que la suma de asignaciones no exceda el total
+	// Validar que la suma de asignaciones no exceda el total (tolerancia por float64 / cliente % * total)
 	totalAllocated := float64(0)
 	for _, allocation := range req.Allocations {
 		totalAllocated += allocation.AllocatedAmount
 	}
-
-	if totalAllocated > req.TotalAmount {
+	if allocationsExceedBudgetTotal(totalAllocated, req.TotalAmount) {
 		return nil, apperrors.ErrBudgetAllocationsExceed
 	}
 
@@ -623,4 +623,12 @@ func (uc *BudgetUseCase) generateQuickStats(budget *dto.BudgetSummaryResponse, m
 		CategoriesOnTrack:    categoriesOnTrack,
 		CategoriesOverBudget: categoriesOverBudget,
 	}
+}
+
+// allocationsExceedBudgetTotal compara la suma de asignaciones contra el total del presupuesto.
+// Redondeo a centavos evita VALIDATION_ERROR por float64 cuando el cliente calcula (total * % / 100).
+func allocationsExceedBudgetTotal(totalAllocated, budgetTotal float64) bool {
+	allocCents := math.Round(totalAllocated * 100)
+	totalCents := math.Round(budgetTotal * 100)
+	return allocCents > totalCents
 }

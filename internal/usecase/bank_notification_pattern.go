@@ -753,15 +753,19 @@ func (uc *BankNotificationPatternUseCase) GetPendingNotifications(userID uint, l
 }
 
 // ProcessSMSBatchForSuggestions analyzes multiple SMS with pocas llamadas a la IA (lotes), no una por SMS.
+// Solo se usan los SMS más recientes (cap bajo) para no hacer esperar minutos al usuario; el perfil de gasto suele verse bien con esa muestra.
 func (uc *BankNotificationPatternUseCase) ProcessSMSBatchForSuggestions(ctx context.Context, userID uint, messages []dto.SMSMessageForAnalysis) (*dto.AnalyzeSMSBatchResponse, error) {
 	const (
-		maxMessages   = 500
-		smsPerChunk   = 20 // Equilibrio: menos llamadas totales (menos tiempo acumulado) vs. prompt por request
-		maxBodyRunes  = 220
-		minConfidence = 0.3
+		maxSMSForSuggestions = 100 // muestra reciente; pocas llamadas a la IA
+		smsPerChunk          = 25 // máx. 4 chunks con el cap anterior
+		maxAIChunks          = 4  // cinturón: no más de 4 rondas aunque cambien constantes
+		maxBodyRunes         = 220
+		minConfidence        = 0.3
 	)
-	if len(messages) > maxMessages {
-		messages = messages[:maxMessages]
+
+	sortSMSMessagesNewestFirst(messages)
+	if len(messages) > maxSMSForSuggestions {
+		messages = messages[:maxSMSForSuggestions]
 	}
 
 	categories, err := uc.categoryRepo.GetAllAvailableForUser(userID)
@@ -784,7 +788,7 @@ func (uc *BankNotificationPatternUseCase) ProcessSMSBatchForSuggestions(ctx cont
 
 	filtered := filterMessagesLikelyBankSMS(messages)
 	if len(filtered) < 8 {
-		filtered = filterNonEmptyBodies(messages, maxMessages)
+		filtered = filterNonEmptyBodies(messages, maxSMSForSuggestions)
 	}
 
 	type catAgg struct {
@@ -794,12 +798,14 @@ func (uc *BankNotificationPatternUseCase) ProcessSMSBatchForSuggestions(ctx cont
 	byCatID := make(map[uint]*catAgg)
 	slugHits := make(map[string]int)
 
-	for chunkStart := 0; chunkStart < len(filtered); chunkStart += smsPerChunk {
+	chunksDone := 0
+	for chunkStart := 0; chunkStart < len(filtered) && chunksDone < maxAIChunks; chunkStart += smsPerChunk {
 		chunkEnd := chunkStart + smsPerChunk
 		if chunkEnd > len(filtered) {
 			chunkEnd = len(filtered)
 		}
 		chunk := filtered[chunkStart:chunkEnd]
+		chunksDone++
 		var sb strings.Builder
 		for i, msg := range chunk {
 			lineNum := i + 1
@@ -976,6 +982,44 @@ var bankTransactionSMSRegexp = regexp.MustCompile(
 		`visa|mastercard|amex` +
 		`)`,
 )
+
+// sortSMSMessagesNewestFirst ordena por fecha descendente (ISO8601 en Date); sin fecha van al final.
+func sortSMSMessagesNewestFirst(messages []dto.SMSMessageForAnalysis) {
+	sort.SliceStable(messages, func(i, j int) bool {
+		ti := parseSMSAnalysisDate(messages[i].Date)
+		tj := parseSMSAnalysisDate(messages[j].Date)
+		if ti.IsZero() && tj.IsZero() {
+			return false
+		}
+		if ti.IsZero() {
+			return false
+		}
+		if tj.IsZero() {
+			return true
+		}
+		return ti.After(tj)
+	})
+}
+
+func parseSMSAnalysisDate(s string) time.Time {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return time.Time{}
+	}
+	layouts := []string{
+		time.RFC3339,
+		time.RFC3339Nano,
+		"2006-01-02T15:04:05.000Z",
+		"2006-01-02T15:04:05Z",
+		"2006-01-02 15:04:05",
+	}
+	for _, layout := range layouts {
+		if t, err := time.Parse(layout, s); err == nil {
+			return t
+		}
+	}
+	return time.Time{}
+}
 
 func filterMessagesLikelyBankSMS(messages []dto.SMSMessageForAnalysis) []dto.SMSMessageForAnalysis {
 	var out []dto.SMSMessageForAnalysis

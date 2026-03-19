@@ -892,6 +892,136 @@ func (uc *BankNotificationPatternUseCase) ProcessSMSBatchForSuggestions(ctx cont
 	}, nil
 }
 
+// ProcessSMSBatchWithAI agrupa SMS en chunks, llama a la IA una vez por chunk y crea transacciones si confianza >= 0.8.
+func (uc *BankNotificationPatternUseCase) ProcessSMSBatchWithAI(ctx context.Context, userID uint, messages []dto.SMSMessageForAnalysis) (*dto.ProcessSMSBatchWithAIResponse, error) {
+	const (
+		maxSMSInBatch     = 200
+		smsPerChunk       = 20
+		maxAIChunks       = 12
+		maxBodyRunes      = 400
+		minAutoConfidence = 0.8
+	)
+
+	totalIn := len(messages)
+	out := &dto.ProcessSMSBatchWithAIResponse{
+		TotalReceived: totalIn,
+	}
+
+	if uc.aiService == nil {
+		return nil, apperrors.ErrInternal.WithDetails("Servicio de IA no está configurado")
+	}
+
+	if len(messages) == 0 {
+		return out, nil
+	}
+
+	sortSMSMessagesNewestFirst(messages)
+	toProcess := messages
+	if len(toProcess) > maxSMSInBatch {
+		toProcess = toProcess[:maxSMSInBatch]
+	}
+
+	filtered := filterMessagesLikelyBankSMS(toProcess)
+	out.FilteredOut = len(toProcess) - len(filtered)
+	out.SMSAfterFilter = len(filtered)
+
+	if len(filtered) == 0 {
+		out.PatternUsed = uc.aiService.GetUsedService()
+		return out, nil
+	}
+
+	chunksDone := 0
+	for chunkStart := 0; chunkStart < len(filtered) && chunksDone < maxAIChunks; chunkStart += smsPerChunk {
+		chunkEnd := chunkStart + smsPerChunk
+		if chunkEnd > len(filtered) {
+			chunkEnd = len(filtered)
+		}
+		chunk := filtered[chunkStart:chunkEnd]
+		chunksDone++
+		out.ChunksProcessed++
+
+		var sb strings.Builder
+		lineToBody := make(map[int]string)
+		lineNum := 0
+		for _, msg := range chunk {
+			body := sanitizeSMSLine(msg.Body, maxBodyRunes)
+			if body == "" {
+				continue
+			}
+			lineNum++
+			lineToBody[lineNum] = msg.Body
+			sb.WriteString(fmt.Sprintf("[%d] %s\n", lineNum, body))
+		}
+		block := sb.String()
+		if strings.TrimSpace(block) == "" {
+			continue
+		}
+
+		resp, err := uc.aiService.ExtractTransactionsFromSMSChunk(ctx, block)
+		if err != nil || resp == nil {
+			out.ProcessingErrors++
+			continue
+		}
+
+		seenLine := make(map[int]bool)
+		for _, line := range resp.Lines {
+			if line.Line < 1 || seenLine[line.Line] {
+				continue
+			}
+			seenLine[line.Line] = true
+
+			raw, ok := lineToBody[line.Line]
+			if !ok {
+				out.ProcessingErrors++
+				continue
+			}
+
+			ext := batchTxnLineToExtraction(line, raw)
+
+			if !ext.Success {
+				out.NotBankSms++
+				continue
+			}
+			if ext.Confidence < minAutoConfidence {
+				out.LowConfidenceOrSkipped++
+				continue
+			}
+			if ext.TransactionType != "income" && ext.TransactionType != "expense" && ext.TransactionType != "transfer" {
+				out.LowConfidenceOrSkipped++
+				continue
+			}
+			if ext.Amount <= 0 || ext.Amount > 1e9 {
+				out.LowConfidenceOrSkipped++
+				continue
+			}
+
+			_, err := uc.createTransactionFromAIExtraction(userID, ext, raw)
+			if err != nil {
+				out.ProcessingErrors++
+				continue
+			}
+			out.TransactionsCreated++
+		}
+	}
+
+	out.PatternUsed = uc.aiService.GetUsedService()
+	return out, nil
+}
+
+func batchTxnLineToExtraction(line webapi.BatchSMSTransactionLine, raw string) *webapi.TransactionExtraction {
+	return &webapi.TransactionExtraction{
+		Success:         line.Success,
+		Amount:          line.Amount,
+		Description:     line.Description,
+		Merchant:        line.Merchant,
+		Date:            line.Date,
+		TransactionType: line.TransactionType,
+		Confidence:      line.Confidence,
+		Currency:        line.Currency,
+		RawMessage:      raw,
+	}
+}
+
 func normalizeSlugForAnalytics(key string) string {
 	k := strings.ToLower(strings.TrimSpace(key))
 	k = strings.ReplaceAll(k, "-", "_")

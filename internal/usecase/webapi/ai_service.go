@@ -12,6 +12,8 @@ type AIService interface {
 	ExtractTransactionFromSMS(ctx context.Context, smsContent string) (*TransactionExtraction, error)
 	// ExtractBudgetLinesFromSMSChunk analyzes many numbered SMS in one request (budget suggestions only).
 	ExtractBudgetLinesFromSMSChunk(ctx context.Context, numberedSMSBlock string) (*BatchSMSBudgetResponse, error)
+	// ExtractTransactionsFromSMSChunk analyzes numbered SMS in one request (crear movimientos).
+	ExtractTransactionsFromSMSChunk(ctx context.Context, numberedSMSBlock string) (*BatchSMSTransactionResponse, error)
 }
 
 // AIServiceWithFallback wraps multiple AI services and provides fallback capability.
@@ -118,6 +120,25 @@ func (s *AIServiceWithFallback) ExtractBudgetLinesFromSMSChunk(ctx context.Conte
 			return resp, nil
 		}
 		return nil, fmt.Errorf("batch IA: primario=%v, fallback=%v", err, fallbackErr)
+	}
+	return nil, err
+}
+
+// ExtractTransactionsFromSMSChunk runs batch transaction extraction on primary with fallback.
+func (s *AIServiceWithFallback) ExtractTransactionsFromSMSChunk(ctx context.Context, numberedSMSBlock string) (*BatchSMSTransactionResponse, error) {
+	resp, err := s.primary.ExtractTransactionsFromSMSChunk(ctx, numberedSMSBlock)
+	if err == nil {
+		s.usedService = s.getPrimaryServiceName()
+		return resp, nil
+	}
+	s.logger.Warn("Batch transacciones: primario falló, intentando fallback", zap.Error(err))
+	if s.fallback != nil {
+		resp, fallbackErr := s.fallback.ExtractTransactionsFromSMSChunk(ctx, numberedSMSBlock)
+		if fallbackErr == nil {
+			s.usedService = s.getFallbackServiceName()
+			return resp, nil
+		}
+		return nil, fmt.Errorf("batch transacciones IA: primario=%v, fallback=%v", err, fallbackErr)
 	}
 	return nil, err
 }

@@ -158,6 +158,39 @@ food=comida super; transport=gas uber; entertainment=ocio; utilities=luz interne
 	return &out, nil
 }
 
+// ExtractTransactionsFromSMSChunk analyzes many numbered SMS in one Gemini request.
+func (s *GeminiService) ExtractTransactionsFromSMSChunk(ctx context.Context, numberedSMSBlock string) (*BatchSMSTransactionResponse, error) {
+	prompt := fmt.Sprintf(`SMS bancarios LATAM. Cada línea [N] es un SMS aparte.
+
+%s
+
+Por cada [N]: si no es movimiento banco real (publi, mora, OTP) → success false, amount 0, confidence 0.
+Si es movimiento: success true, amount, description, merchant, date YYYY-MM-DD, transaction_type expense|income|transfer, confidence 0.35-1, currency COP o MXN.
+
+{"lines":[{"line":1,"success":true,"amount":100,"description":"Compra","merchant":"OXXO","date":"2026-03-01","transaction_type":"expense","confidence":0.9,"currency":"COP"}]}`, numberedSMSBlock)
+
+	result, err := s.client.Models.GenerateContent(
+		ctx,
+		geminiModel,
+		genai.Text(prompt),
+		&genai.GenerateContentConfig{
+			Temperature:      genai.Ptr(float32(0.0)),
+			MaxOutputTokens:  8192,
+			ResponseMIMEType: "application/json",
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("gemini batch transacciones: %w", err)
+	}
+	responseText := s.cleanJSONResponse(result.Text())
+	var out BatchSMSTransactionResponse
+	if err := json.Unmarshal([]byte(responseText), &out); err != nil {
+		s.logger.Error("parse gemini batch transacciones", zap.String("response", responseText), zap.Error(err))
+		return nil, fmt.Errorf("parse batch transacciones: %w", err)
+	}
+	return &out, nil
+}
+
 // cleanJSONResponse removes markdown formatting if present.
 func (s *GeminiService) cleanJSONResponse(content string) string {
 	content = strings.TrimSpace(content)

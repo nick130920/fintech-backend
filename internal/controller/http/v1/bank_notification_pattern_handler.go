@@ -200,6 +200,50 @@ func (h *BankNotificationPatternHandler) AnalyzeSMSBatch(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
+// ProcessSMSBatchWithAI procesa muchos SMS en pocos requests a la IA y crea transacciones (alta confianza).
+// @Summary      Procesar lote de SMS con IA
+// @Description  Agrupa SMS, filtra ruido, extrae movimientos por chunks y crea gastos/ingresos automáticos.
+// @Tags         notification-patterns
+// @Accept       json
+// @Produce      json
+// @Param        request body dto.ProcessSMSBatchWithAIRequest true "Lista de SMS (body + date opcional)"
+// @Success      200 {object} dto.ProcessSMSBatchWithAIResponse
+// @Failure      400 {object} gin.H
+// @Failure      401 {object} gin.H
+// @Failure      500 {object} gin.H
+// @Router       /notification-patterns/process-sms-batch [post]
+func (h *BankNotificationPatternHandler) ProcessSMSBatchWithAI(c *gin.Context) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	var req dto.ProcessSMSBatchWithAIRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.logger.Error().Err(err).Msg("bad request on process SMS batch with AI")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	if len(req.Messages) == 0 {
+		c.JSON(http.StatusOK, &dto.ProcessSMSBatchWithAIResponse{})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), analyzeSMSBatchMaxDuration)
+	defer cancel()
+
+	result, err := h.uc.ProcessSMSBatchWithAI(ctx, userID.(uint), req.Messages)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("failed to process SMS batch with AI")
+		handleErrorResponse(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
 // StartAnalyzeSMSBatchJob crea un job asíncrono; la app hace polling a GET .../jobs/:jobId (evita HTTP largo / proxy reset).
 func (h *BankNotificationPatternHandler) StartAnalyzeSMSBatchJob(c *gin.Context) {
 	userID, exists := c.Get("user_id")

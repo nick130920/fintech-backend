@@ -81,6 +81,24 @@ type AnalyzeSMSBatchResponse struct {
 	Suggestions BudgetSuggestions `json:"suggestions"`
 }
 
+// ProcessSMSBatchWithAIRequest reutiliza la misma forma que analyze-sms-batch (lista de SMS).
+type ProcessSMSBatchWithAIRequest struct {
+	Messages []SMSMessageForAnalysis `json:"messages" validate:"required,dive"`
+}
+
+// ProcessSMSBatchWithAIResponse resume el procesamiento por lotes (crear transacciones vía IA).
+type ProcessSMSBatchWithAIResponse struct {
+	TotalReceived            int    `json:"total_received"`
+	FilteredOut            int    `json:"filtered_out"`
+	SMSAfterFilter           int    `json:"sms_after_filter"`
+	ChunksProcessed          int    `json:"chunks_processed"`
+	TransactionsCreated      int    `json:"transactions_created"`
+	LowConfidenceOrSkipped   int    `json:"low_confidence_or_skipped"`
+	NotBankSms               int    `json:"not_bank_sms"`
+	ProcessingErrors         int    `json:"processing_errors"`
+	PatternUsed              string `json:"pattern_used,omitempty"`
+}
+
 // StartSMSBatchJobResponse respuesta inmediata al crear job async (sin esperar a la IA).
 type StartSMSBatchJobResponse struct {
 	JobID       string              `json:"job_id,omitempty"`

@@ -191,6 +191,7 @@ func NewRouter(
 			notificationPatternsGroup.GET("/statistics", bankNotificationPatternHandler.GetPatternStatistics)
 			notificationPatternsGroup.POST("/process", bankNotificationPatternHandler.ProcessNotification)
 			notificationPatternsGroup.POST("/process-sms", bankNotificationPatternHandler.ProcessSMSWithAI)
+			notificationPatternsGroup.POST("/process-sms-batch", bankNotificationPatternHandler.ProcessSMSBatchWithAI)
 			notificationPatternsGroup.POST("/analyze-sms-batch/jobs", bankNotificationPatternHandler.StartAnalyzeSMSBatchJob)
 			notificationPatternsGroup.GET("/analyze-sms-batch/jobs/:jobId", bankNotificationPatternHandler.GetAnalyzeSMSBatchJobStatus)
 			notificationPatternsGroup.POST("/analyze-sms-batch", bankNotificationPatternHandler.AnalyzeSMSBatch)

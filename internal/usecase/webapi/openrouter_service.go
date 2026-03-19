@@ -154,6 +154,46 @@ func (s *OpenRouterService) ExtractBudgetLinesFromSMSChunk(ctx context.Context, 
 	return &out, nil
 }
 
+// ExtractTransactionsFromSMSChunk analyzes many numbered SMS in a single IA request (crear transacciones).
+func (s *OpenRouterService) ExtractTransactionsFromSMSChunk(ctx context.Context, numberedSMSBlock string) (*BatchSMSTransactionResponse, error) {
+	prompt := s.buildBatchTransactionPrompt(numberedSMSBlock)
+	response, err := s.callOpenRouterBatch(ctx, prompt)
+	if err != nil {
+		return nil, fmt.Errorf("OpenRouter batch transacciones: %w", err)
+	}
+	var out BatchSMSTransactionResponse
+	if err := json.Unmarshal([]byte(response), &out); err != nil {
+		s.logger.Error("Error parsing batch transaction response", zap.String("response", response), zap.Error(err))
+		return nil, fmt.Errorf("parse batch transacciones JSON: %w", err)
+	}
+	return &out, nil
+}
+
+func (s *OpenRouterService) buildBatchTransactionPrompt(block string) string {
+	return fmt.Sprintf(`Eres un experto en SMS bancarios de Latinoamérica (Colombia, México, etc.).
+
+Analiza el BLOQUE. Cada línea empieza con [N] y es UN SMS distinto.
+
+BLOQUE:
+%s
+
+Para cada línea [N]:
+- Si NO es una notificación de movimiento bancario real (publicidad, mora, recordatorio de pago, OTP, código de app): devuelve success=false, amount=0, confidence=0.
+- Si SÍ es movimiento bancario con monto claro: success=true, confidence 0.35-1.
+
+REGLAS (igual que extracción individual):
+- transaction_type = "expense" si: pagaste, compraste, débito, transferiste saliente, enviaste
+- transaction_type = "income" si: recibiste transferencia, abono, depósito
+- transaction_type = "transfer" si es transferencia ambigua
+- Monto numérico (1.000,50 → 1000.50)
+- Moneda: COP para bancos colombianos, MXN para mexicanos
+- date: YYYY-MM-DD si aparece en el SMS, si no aproxima o cadena vacía
+- description: corta; merchant: comercio o persona si aplica
+
+Responde SOLO JSON válido:
+{"lines":[{"line":1,"success":true,"amount":100.5,"description":"...","merchant":"...","date":"2026-03-01","transaction_type":"expense","confidence":0.9,"currency":"COP"}]}`, block)
+}
+
 func (s *OpenRouterService) buildBatchBudgetPrompt(block string) string {
 	return fmt.Sprintf(`Eres un experto en SMS bancarios de Latinoamérica (México, Colombia, etc.).
 

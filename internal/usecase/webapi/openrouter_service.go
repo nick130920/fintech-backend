@@ -18,6 +18,8 @@ const (
 	openRouterBaseURL = "https://openrouter.ai/api/v1/chat/completions"
 	// Modelo gratuito de Mistral
 	defaultModel = "openrouter/free"
+	// Lotes grandes pueden tardar >2 min en generar JSON (tokens + lectura del body).
+	openRouterBatchHTTPTimeout = 5 * time.Minute
 )
 
 // OpenRouterService handles interactions with the OpenRouter API.
@@ -97,7 +99,7 @@ func NewOpenRouterService() (*OpenRouterService, error) {
 		Timeout: 30 * time.Second,
 	}
 	batchClient := &http.Client{
-		Timeout: 120 * time.Second,
+		Timeout: openRouterBatchHTTPTimeout,
 	}
 
 	return &OpenRouterService{

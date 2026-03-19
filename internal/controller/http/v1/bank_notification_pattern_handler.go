@@ -1,9 +1,11 @@
 package v1
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/nick130920/fintech-backend/internal/controller/http/v1/dto"
@@ -181,7 +183,11 @@ func (h *BankNotificationPatternHandler) AnalyzeSMSBatch(c *gin.Context) {
 		return
 	}
 
-	result, err := h.uc.ProcessSMSBatchForSuggestions(c.Request.Context(), userID.(uint), req.Messages)
+	// Contexto propio: si el cliente o un proxy cierran la conexión pronto, el análisis por lotes
+	// seguía recibiendo context canceled en llamadas a OpenRouter. Timeout máximo 5 min (alineado con la app).
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	result, err := h.uc.ProcessSMSBatchForSuggestions(ctx, userID.(uint), req.Messages)
 	if err != nil {
 		h.logger.Error().Err(err).Msg("failed to analyze SMS batch")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to analyze SMS batch"})

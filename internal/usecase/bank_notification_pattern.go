@@ -756,7 +756,7 @@ func (uc *BankNotificationPatternUseCase) GetPendingNotifications(userID uint, l
 func (uc *BankNotificationPatternUseCase) ProcessSMSBatchForSuggestions(ctx context.Context, userID uint, messages []dto.SMSMessageForAnalysis) (*dto.AnalyzeSMSBatchResponse, error) {
 	const (
 		maxMessages   = 500
-		smsPerChunk   = 28
+		smsPerChunk   = 16 // Menos SMS por chunk = respuestas más rápidas y menos timeouts de OpenRouter
 		maxBodyRunes  = 220
 		minConfidence = 0.3
 	)

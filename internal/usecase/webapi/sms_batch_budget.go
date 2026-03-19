@@ -6,6 +6,8 @@ type BatchSMSBudgetLine struct {
 	Amount          float64 `json:"amount"`
 	TransactionType string  `json:"transaction_type"` // expense, income, ignore
 	Confidence      float64 `json:"confidence"`
+	// category_key: food|transport|entertainment|utilities|health|shopping|education|other
+	CategoryKey string `json:"category_key"`
 }
 
 // BatchSMSBudgetResponse is the JSON shape returned by batch budget extraction.

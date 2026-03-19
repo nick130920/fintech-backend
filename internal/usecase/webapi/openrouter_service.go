@@ -155,22 +155,27 @@ func (s *OpenRouterService) ExtractBudgetLinesFromSMSChunk(ctx context.Context, 
 func (s *OpenRouterService) buildBatchBudgetPrompt(block string) string {
 	return fmt.Sprintf(`Eres un experto en SMS bancarios de Latinoamérica (México, Colombia, etc.).
 
-Analiza el BLOQUE siguiente. Cada línea empieza con [N] donde N es el número de línea.
+Analiza el BLOQUE. Cada línea empieza con [N].
 
 BLOQUE:
 %s
 
-TAREA:
-- Para cada línea [N] que sea claramente una NOTIFICACIÓN BANCARIA de movimiento de dinero:
-  - Si el usuario GASTÓ / compró / pagó / débito / retiro / envió dinero → transaction_type "expense"
-  - Si el usuario RECIBIÓ depósito / abono claro → transaction_type "income"
-- IGNORA: OTP, códigos 2FA, publicidad, mensajes personales, recordatorios sin monto claro.
-- Incluye en "lines" SOLO líneas con monto numérico claro y confidence >= 0.35.
-- amount: número decimal (ej. 1500.50; normaliza miles/decimales locales).
-- Una entrada por línea como máximo (usa el número N de [N]).
+Para cada línea [N] con NOTIFICACIÓN BANCARIA clara y monto:
+- transaction_type: "expense" (gasto/débito/compra/pago) | "income" (depósito recibido) | ignora la línea si no aplica.
+- category_key SOLO si expense — clasifica el gasto según el comercio/contexto del SMS, usando EXACTAMENTE una de estas claves en inglés minúsculas:
+  food → super, restaurante, OXXO, comida, uber eats, rappi
+  transport → gasolina, uber, taxi, metro, peaje, estacionamiento
+  entertainment → cine, netflix, spotify, juegos, bar, evento
+  utilities → luz, agua, gas, internet, teléfono, recibo CFE
+  health → farmacia, hospital, médico, seguro médico
+  shopping → ropa, amazon, tienda departamental, electrónica (no comida)
+  education → curso, colegiatura, libro escolar
+  other → transferencias persona, retiros ATM sin comercio claro, comisiones, no clasificable
 
-Responde ÚNICAMENTE JSON válido, sin markdown:
-{"lines":[{"line":1,"amount":100.5,"transaction_type":"expense","confidence":0.9}]}`, block)
+Reglas: una entrada por [N]; confidence 0.35-1; amount numérico.
+
+JSON solo:
+{"lines":[{"line":1,"amount":100.5,"transaction_type":"expense","confidence":0.9,"category_key":"food"}]}`, block)
 }
 
 func (s *OpenRouterService) callOpenRouterBatch(ctx context.Context, prompt string) (string, error) {

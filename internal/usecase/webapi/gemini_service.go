@@ -129,11 +129,12 @@ Responde ÚNICAMENTE con un JSON válido, sin texto adicional ni markdown:
 
 // ExtractBudgetLinesFromSMSChunk analyzes many numbered SMS in one Gemini request.
 func (s *GeminiService) ExtractBudgetLinesFromSMSChunk(ctx context.Context, numberedSMSBlock string) (*BatchSMSBudgetResponse, error) {
-	prompt := fmt.Sprintf(`Eres experto en SMS bancarios Latinoamérica. Cada línea es [N] texto.
-BLOQUE:
+	prompt := fmt.Sprintf(`SMS bancarios LATAM. Líneas [N]:
 %s
-Para cada [N] con notificación bancaria clara: si gasto/débito/compra → transaction_type "expense"; si depósito recibido → "income". Ignora OTP, publi, 2FA.
-JSON solo: {"lines":[{"line":1,"amount":100,"transaction_type":"expense","confidence":0.9}]}`, numberedSMSBlock)
+expense: gasto. income: depósito. Ignora OTP/publi.
+Si expense, category_key obligatorio: food|transport|entertainment|utilities|health|shopping|education|other (inglés minúsculas).
+food=comida super; transport=gas uber; entertainment=ocio; utilities=luz internet; health=farmacia; shopping=ropa amazon; education=cursos; other=resto.
+{"lines":[{"line":1,"amount":100,"transaction_type":"expense","confidence":0.9,"category_key":"food"}]}`, numberedSMSBlock)
 
 	result, err := s.client.Models.GenerateContent(
 		ctx,

@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -27,6 +29,7 @@ type BankNotificationPatternUseCase struct {
 	incomeRepo      repo.IncomeRepo
 	budgetRepo      repo.BudgetRepo
 	categoryRepo    repo.CategoryRepo
+	slugStatsRepo   repo.BudgetSuggestionSlugStatsRepo
 	aiService       *webapi.AIServiceWithFallback
 }
 
@@ -40,6 +43,7 @@ func NewBankNotificationPatternUseCase(
 	incomeRepo repo.IncomeRepo,
 	budgetRepo repo.BudgetRepo,
 	categoryRepo repo.CategoryRepo,
+	slugStatsRepo repo.BudgetSuggestionSlugStatsRepo,
 	aiService *webapi.AIServiceWithFallback,
 ) *BankNotificationPatternUseCase {
 	return &BankNotificationPatternUseCase{
@@ -51,6 +55,7 @@ func NewBankNotificationPatternUseCase(
 		incomeRepo:      incomeRepo,
 		budgetRepo:      budgetRepo,
 		categoryRepo:    categoryRepo,
+		slugStatsRepo:   slugStatsRepo,
 		aiService:       aiService,
 	}
 }
@@ -782,8 +787,12 @@ func (uc *BankNotificationPatternUseCase) ProcessSMSBatchForSuggestions(ctx cont
 		filtered = filterNonEmptyBodies(messages, maxMessages)
 	}
 
-	var totalExpense float64
-	var expenseCount int
+	type catAgg struct {
+		total float64
+		count int
+	}
+	byCatID := make(map[uint]*catAgg)
+	slugHits := make(map[string]int)
 
 	for chunkStart := 0; chunkStart < len(filtered); chunkStart += smsPerChunk {
 		chunkEnd := chunkStart + smsPerChunk
@@ -824,19 +833,49 @@ func (uc *BankNotificationPatternUseCase) ProcessSMSBatchForSuggestions(ctx cont
 			if line.Amount <= 0 || line.Amount > 1e9 {
 				continue
 			}
-			totalExpense += line.Amount
-			expenseCount++
+			cat := resolveBudgetCategory(line.CategoryKey, categories, otrosCategory)
+			if byCatID[cat.ID] == nil {
+				byCatID[cat.ID] = &catAgg{}
+			}
+			byCatID[cat.ID].total += line.Amount
+			byCatID[cat.ID].count++
+			slugHits[normalizeSlugForAnalytics(line.CategoryKey)]++
 		}
 	}
 
-	byCategory := []dto.BudgetSuggestionCategory{}
-	if totalExpense > 0 && expenseCount > 0 {
+	var totalExpense float64
+	var expenseCount int
+	byCategory := make([]dto.BudgetSuggestionCategory, 0, len(byCatID))
+	for _, c := range categories {
+		agg := byCatID[c.ID]
+		if agg == nil || agg.total <= 0 {
+			continue
+		}
+		totalExpense += agg.total
+		expenseCount += agg.count
 		byCategory = append(byCategory, dto.BudgetSuggestionCategory{
-			CategoryID:   otrosCategory.ID,
-			CategoryName: otrosCategory.Name,
-			Total:        totalExpense,
-			Count:        expenseCount,
+			CategoryID:   c.ID,
+			CategoryName: c.Name,
+			Total:        agg.total,
+			Count:        agg.count,
 		})
+	}
+	sort.Slice(byCategory, func(i, j int) bool {
+		return byCategory[i].Total > byCategory[j].Total
+	})
+
+	if len(slugHits) > 0 && uc.slugStatsRepo != nil {
+		countsCopy := make(map[string]int64, len(slugHits))
+		for k, v := range slugHits {
+			countsCopy[k] = int64(v)
+		}
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			if err := uc.slugStatsRepo.AddHits(ctx, time.Now().UTC(), countsCopy); err != nil {
+				log.Printf("budget_suggestion_slug_stats: %v", err)
+			}
+		}()
 	}
 
 	return &dto.AnalyzeSMSBatchResponse{
@@ -845,6 +884,79 @@ func (uc *BankNotificationPatternUseCase) ProcessSMSBatchForSuggestions(ctx cont
 			ByCategory:     byCategory,
 		},
 	}, nil
+}
+
+func normalizeSlugForAnalytics(key string) string {
+	k := strings.ToLower(strings.TrimSpace(key))
+	k = strings.ReplaceAll(k, "-", "_")
+	if _, ok := budgetCategorySlugToName[k]; ok {
+		return k
+	}
+	switch k {
+	case "groceries", "restaurant", "dining":
+		return "food"
+	case "gas", "fuel", "mobility":
+		return "transport"
+	case "fun", "leisure":
+		return "entertainment"
+	case "bills", "services":
+		return "utilities"
+	case "medical", "pharmacy":
+		return "health"
+	case "retail":
+		return "shopping"
+	case "school", "learning":
+		return "education"
+	default:
+		return "other"
+	}
+}
+
+// slug de IA → nombre de categoría por defecto en Money Flow
+var budgetCategorySlugToName = map[string]string{
+	"food":          "Alimentación",
+	"transport":     "Transporte",
+	"entertainment": "Ocio",
+	"utilities":     "Servicios",
+	"health":        "Salud",
+	"shopping":      "Compras",
+	"education":     "Educación",
+	"other":         "Otros",
+}
+
+func resolveBudgetCategory(categoryKey string, userCats []*entity.Category, fallback *entity.Category) *entity.Category {
+	k := strings.ToLower(strings.TrimSpace(categoryKey))
+	k = strings.ReplaceAll(k, "-", "_")
+	if k == "" {
+		return fallback
+	}
+	targetName, ok := budgetCategorySlugToName[k]
+	if !ok {
+		switch k {
+		case "groceries", "restaurant", "dining":
+			targetName = "Alimentación"
+		case "gas", "fuel", "mobility":
+			targetName = "Transporte"
+		case "fun", "leisure":
+			targetName = "Ocio"
+		case "bills", "services":
+			targetName = "Servicios"
+		case "medical", "pharmacy":
+			targetName = "Salud"
+		case "retail":
+			targetName = "Compras"
+		case "school", "learning":
+			targetName = "Educación"
+		default:
+			return fallback
+		}
+	}
+	for _, c := range userCats {
+		if strings.EqualFold(strings.TrimSpace(c.Name), targetName) {
+			return c
+		}
+	}
+	return fallback
 }
 
 // bankTransactionSMSRegexp: una pasada sobre el texto; agrupa señales típicas de SMS bancarios LATAM.

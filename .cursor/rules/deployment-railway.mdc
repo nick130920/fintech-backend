@@ -18,7 +18,7 @@ description: Railway deployment configuration and environment setup
 - JWT secrets and other sensitive data via Railway environment
 
 ## Long-running endpoints
-- `analyze-sms-batch`: servidor limita a **100 SMS** y **4 chunks** a la IA; timeout típico **≤6 min** (cliente alineado)
+- `analyze-sms-batch`: **100 SMS**, **4 chunks**; contexto servidor y cliente **~10 min** (429 + lentitud del modelo gratuito)
 - Modelo gratuito OpenRouter puede 429; hay reintentos con backoff en código
 
 ## Logging Configuration

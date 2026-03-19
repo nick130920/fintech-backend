@@ -13,8 +13,8 @@ import (
 	"github.com/rs/zerolog"
 )
 
-// analyzeSMSBatchMaxDuration: el use case limita SMS y chunks; 6 min bastan salvo muchos 429.
-const analyzeSMSBatchMaxDuration = 6 * time.Minute
+// analyzeSMSBatchMaxDuration: 4 chunks + reintentos 429 pueden acercarse a 6 min; margen para no cortar a mitad.
+const analyzeSMSBatchMaxDuration = 10 * time.Minute
 
 // bankNotificationPatternHandler handles HTTP requests related to bank notification patterns.
 type BankNotificationPatternHandler struct {

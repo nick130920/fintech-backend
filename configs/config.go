@@ -114,7 +114,7 @@ func Load() *Config {
 		Server: ServerConfig{
 			Port:     getEnv("PORT", "8080"),        // Railway usa PORT por defecto
 			Host:     getEnv("HOST", "0.0.0.0"),     // Railway necesita 0.0.0.0
-			Mode:     getEnv("GIN_MODE", "release"), // Producción por defecto
+			Mode:     getEnv("GIN_MODE", "release"), // release en producción; en Railway Dashboard verificar que no esté "debug"
 			LogLevel: getEnv("LOG_LEVEL", "info"),
 		},
 		Database: loadDatabaseConfig(),

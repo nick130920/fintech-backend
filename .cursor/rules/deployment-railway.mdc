@@ -11,9 +11,15 @@ description: Railway deployment configuration and environment setup
 - Use Dockerfile builder for containerized deployment
 
 ## Environment Variables
-- `GIN_MODE=release` enables production optimizations
+- `GIN_MODE=release` enables production optimizations (definir en Railway Dashboard si los logs muestran "debug")
+- [configs/config.go](mdc:configs/config.go) usa por defecto `release` si no está definido
+- [railway.toml](mdc:railway.toml) define `GIN_MODE=release` en `[env]` para el servicio
 - Database connection via Railway's PostgreSQL service
 - JWT secrets and other sensitive data via Railway environment
+
+## Long-running endpoints
+- `POST /api/v1/notification-patterns/analyze-sms-batch` y `analyze-statement` pueden tardar 1–5 min
+- El cliente móvil usa timeout de 5 min; si Railway proxy tiene límite (p. ej. 60 s), subirlo o dejarlo sin límite para estos paths
 
 ## Logging Configuration
 - Production mode uses JSON logging format

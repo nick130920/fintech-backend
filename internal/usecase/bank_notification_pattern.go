@@ -29,8 +29,9 @@ type BankNotificationPatternUseCase struct {
 	incomeRepo      repo.IncomeRepo
 	budgetRepo      repo.BudgetRepo
 	categoryRepo    repo.CategoryRepo
-	slugStatsRepo   repo.BudgetSuggestionSlugStatsRepo
-	aiService       *webapi.AIServiceWithFallback
+	slugStatsRepo       repo.BudgetSuggestionSlugStatsRepo
+	suggestionJobRepo   repo.BudgetSuggestionJobRepo
+	aiService           *webapi.AIServiceWithFallback
 }
 
 // NewBankNotificationPatternUseCase crea una nueva instancia de BankNotificationPatternUseCase
@@ -44,19 +45,21 @@ func NewBankNotificationPatternUseCase(
 	budgetRepo repo.BudgetRepo,
 	categoryRepo repo.CategoryRepo,
 	slugStatsRepo repo.BudgetSuggestionSlugStatsRepo,
+	suggestionJobRepo repo.BudgetSuggestionJobRepo,
 	aiService *webapi.AIServiceWithFallback,
 ) *BankNotificationPatternUseCase {
 	return &BankNotificationPatternUseCase{
-		patternRepo:     patternRepo,
-		bankAccountRepo: bankAccountRepo,
-		userRepo:        userRepo,
-		transactionRepo: transactionRepo,
-		expenseRepo:     expenseRepo,
-		incomeRepo:      incomeRepo,
-		budgetRepo:      budgetRepo,
-		categoryRepo:    categoryRepo,
-		slugStatsRepo:   slugStatsRepo,
-		aiService:       aiService,
+		patternRepo:       patternRepo,
+		bankAccountRepo:   bankAccountRepo,
+		userRepo:          userRepo,
+		transactionRepo:   transactionRepo,
+		expenseRepo:       expenseRepo,
+		incomeRepo:        incomeRepo,
+		budgetRepo:        budgetRepo,
+		categoryRepo:      categoryRepo,
+		slugStatsRepo:     slugStatsRepo,
+		suggestionJobRepo: suggestionJobRepo,
+		aiService:         aiService,
 	}
 }
 

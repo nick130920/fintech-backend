@@ -103,6 +103,7 @@ func initDependencies(db *gorm.DB, jwtManager *auth.JWTManager) *Dependencies {
 	bankAccountRepo := repository.NewBankAccountPostgres(db)
 	bankNotificationPatternRepo := repository.NewBankNotificationPatternPostgres(db)
 	slugStatsRepo := repository.NewBudgetSuggestionSlugStatsPostgres(db)
+	budgetSuggestionJobRepo := repository.NewBudgetSuggestionJobPostgres(db)
 
 	// Inicializar servicios externos de IA (con fallback OpenRouter -> Gemini)
 	aiService, err := webapi.NewAIServiceWithFallback()
@@ -140,6 +141,7 @@ func initDependencies(db *gorm.DB, jwtManager *auth.JWTManager) *Dependencies {
 		budgetRepo,
 		categoryRepo,
 		slugStatsRepo,
+		budgetSuggestionJobRepo,
 		aiService,
 	)
 

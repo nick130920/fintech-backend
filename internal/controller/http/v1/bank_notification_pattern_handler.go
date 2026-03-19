@@ -200,6 +200,57 @@ func (h *BankNotificationPatternHandler) AnalyzeSMSBatch(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
+// StartAnalyzeSMSBatchJob crea un job asíncrono; la app hace polling a GET .../jobs/:jobId (evita HTTP largo / proxy reset).
+func (h *BankNotificationPatternHandler) StartAnalyzeSMSBatchJob(c *gin.Context) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	var req dto.AnalyzeSMSBatchRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.logger.Error().Err(err).Msg("bad request on start analyze SMS batch job")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	out, err := h.uc.StartSMSBatchSuggestionJob(userID.(uint), req.Messages)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("failed to start SMS batch suggestion job")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	if out.JobID == "" {
+		c.JSON(http.StatusOK, out)
+		return
+	}
+	c.JSON(http.StatusAccepted, out)
+}
+
+// GetAnalyzeSMSBatchJobStatus devuelve pending|processing|completed|failed para polling.
+func (h *BankNotificationPatternHandler) GetAnalyzeSMSBatchJobStatus(c *gin.Context) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	jobID := c.Param("jobId")
+	if jobID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing job id"})
+		return
+	}
+
+	resp, err := h.uc.GetSMSBatchSuggestionJobStatus(userID.(uint), jobID)
+	if err != nil {
+		handleErrorResponse(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
 // AnalyzeStatement analyzes an uploaded bank statement (PDF or image) for budget suggestions (stub: returns empty for now).
 // @Summary      Analyze bank statement for budget suggestions
 // @Description  Accepts a PDF or image file and returns aggregated budget suggestions. File is not stored. Stub implementation.

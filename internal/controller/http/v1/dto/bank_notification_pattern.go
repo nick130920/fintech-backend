@@ -81,6 +81,20 @@ type AnalyzeSMSBatchResponse struct {
 	Suggestions BudgetSuggestions `json:"suggestions"`
 }
 
+// StartSMSBatchJobResponse respuesta inmediata al crear job async (sin esperar a la IA).
+type StartSMSBatchJobResponse struct {
+	JobID       string              `json:"job_id,omitempty"`
+	Status      string              `json:"status"` // pending | completed (vacío sync)
+	Suggestions *BudgetSuggestions  `json:"suggestions,omitempty"`
+}
+
+// SMSBatchJobStatusResponse estado para GET .../jobs/:jobId (polling).
+type SMSBatchJobStatusResponse struct {
+	Status      string              `json:"status"` // pending | processing | completed | failed
+	Suggestions *BudgetSuggestions  `json:"suggestions,omitempty"`
+	Error       string              `json:"error,omitempty"`
+}
+
 // BudgetSuggestions is used by both analyze-sms-batch and analyze-statement.
 type BudgetSuggestions struct {
 	TotalExpense3m float64                    `json:"total_expense_3m"`

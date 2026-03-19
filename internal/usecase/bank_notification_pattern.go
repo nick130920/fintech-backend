@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -789,10 +788,8 @@ func (uc *BankNotificationPatternUseCase) ProcessSMSBatchForSuggestions(ctx cont
 		otrosCategory = categories[0]
 	}
 
+	// Solo SMS que parecen movimientos reales; no reinyectar todo el inbox (ofertas/moras/OTP).
 	filtered := filterMessagesLikelyBankSMS(messages)
-	if len(filtered) < 8 {
-		filtered = filterNonEmptyBodies(messages, maxSMSForSuggestions)
-	}
 
 	type catAgg struct {
 		total float64
@@ -968,24 +965,6 @@ func resolveBudgetCategory(categoryKey string, userCats []*entity.Category, fall
 	return fallback
 }
 
-// bankTransactionSMSRegexp: una pasada sobre el texto; agrupa señales típicas de SMS bancarios LATAM.
-// Monedas / símbolos · verbos de movimiento · instituciones · identificadores de pago regionales.
-var bankTransactionSMSRegexp = regexp.MustCompile(
-	`(?i)(` +
-		`[\$€£]|` +
-		`\b(mxn|cop|clp|ars|brl|pen|usd|eur|gs\.|pyg|uyu|bob|crc|gtq|hnl|nio|dop|ves)\b|` +
-		`compra|consumo|pago|débito|debito|debit|cargo|abono|retiro|transferencia|transfer|` +
-		`\bbanco\b|` +
-		`spei|clabe|cbu|cvu|alias|pix|` +
-		`bbva|banamex|santander|banorte|hsbc|scotiabank|inbursa|azteca|banregio|` +
-		`bancolombia|nequi|daviplata|davivienda|banco\s+de\s+occidente|` +
-		`interbank|bcp|continental|nubank|mercado.pago|rappi\s*bank|uala|brubank|` +
-		`yape|plin|banco\s+nacion|banco\s+estado|` +
-		`tarjeta|cuenta|ahorro|corriente|movimiento|transacci|` +
-		`visa|mastercard|amex` +
-		`)`,
-)
-
 // sortSMSMessagesNewestFirst ordena por fecha descendente (ISO8601 en Date); sin fecha van al final.
 func sortSMSMessagesNewestFirst(messages []dto.SMSMessageForAnalysis) {
 	sort.SliceStable(messages, func(i, j int) bool {
@@ -1022,44 +1001,6 @@ func parseSMSAnalysisDate(s string) time.Time {
 		}
 	}
 	return time.Time{}
-}
-
-func filterMessagesLikelyBankSMS(messages []dto.SMSMessageForAnalysis) []dto.SMSMessageForAnalysis {
-	var out []dto.SMSMessageForAnalysis
-	for _, msg := range messages {
-		if likelyBankTransactionSMS(msg.Body) {
-			out = append(out, msg)
-		}
-	}
-	return out
-}
-
-func filterNonEmptyBodies(messages []dto.SMSMessageForAnalysis, max int) []dto.SMSMessageForAnalysis {
-	var out []dto.SMSMessageForAnalysis
-	for _, msg := range messages {
-		if strings.TrimSpace(msg.Body) != "" {
-			out = append(out, msg)
-			if len(out) >= max {
-				break
-			}
-		}
-	}
-	return out
-}
-
-func likelyBankTransactionSMS(body string) bool {
-	b := strings.TrimSpace(body)
-	if utf8.RuneCountInString(b) < 12 {
-		return false
-	}
-	if !strings.ContainsAny(b, "0123456789") {
-		return false
-	}
-	if bankTransactionSMSRegexp.MatchString(b) {
-		return true
-	}
-	// Mensajes largos con dígitos: posible extracto o notificación sin palabras clave estándar
-	return utf8.RuneCountInString(b) > 80
 }
 
 func sanitizeSMSLine(body string, maxRunes int) string {

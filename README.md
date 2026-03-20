@@ -100,9 +100,23 @@ DB_AUTO_MIGRATE=true
 JWT_SECRET_KEY=tu-clave-secreta-muy-segura
 JWT_EXPIRES_IN=3600
 
+# Gmail / correo como entrada (OAuth2, solo lectura)
+# Redirect URI debe coincidir con Google Cloud Console, p. ej.:
+# https://tu-api/api/v1/email-connections/gmail/callback
+GMAIL_CLIENT_ID=
+GMAIL_CLIENT_SECRET=
+GMAIL_REDIRECT_URL=
+# Obligatorias si las tres de arriba están definidas (Railway/producción con Gmail). No sustituir por JWT.
+TOKEN_ENCRYPTION_KEY=   # cadena fuerte; se hashea a 32 bytes para AES-GCM del refresh_token
+OAUTH_STATE_SECRET=     # secreto HMAC para el parámetro state del OAuth
+# Opcional: query inicial de búsqueda Gmail (p. ej. newer_than:90d)
+GMAIL_DEFAULT_LIST_QUERY=
+
 # CORS
 CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:4200
 ```
+
+**Privacidad (correo Gmail):** el usuario autoriza lectura de Gmail para detectar movimientos bancarios; el texto relevante puede enviarse al mismo flujo de IA que los SMS. No subas credenciales OAuth (`client_secret*.json`) al repositorio.
 
 ## Instalación y Uso
 

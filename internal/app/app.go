@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"os"
 	"os/signal"
 	"syscall"
@@ -24,6 +25,21 @@ import (
 	"github.com/nick130920/fintech-backend/pkg/logger"
 	"github.com/nick130920/fintech-backend/pkg/repository"
 )
+
+func startGmailSyncWorker(uc *usecase.EmailGmailUseCase) {
+	if uc == nil || !uc.IsGmailConfigured() {
+		return
+	}
+	go func() {
+		ticker := time.NewTicker(20 * time.Minute)
+		defer ticker.Stop()
+		for range ticker.C {
+			ctx, cancel := context.WithTimeout(context.Background(), 12*time.Minute)
+			uc.SyncAllGmailConnections(ctx)
+			cancel()
+		}
+	}()
+}
 
 // Run inicializa y ejecuta la aplicación
 func Run() {
@@ -59,7 +75,7 @@ func Run() {
 	jwtManager := auth.NewJWTManager(cfg.JWT.SecretKey, cfg.JWT.ExpiresIn)
 
 	// Inicializar dependencias
-	deps := initDependencies(db, jwtManager)
+	deps := initDependencies(cfg, db, jwtManager)
 
 	// Inicializar servidor HTTP
 	httpServer := initHTTPServer(cfg, deps, logger.Get())
@@ -79,6 +95,7 @@ type Dependencies struct {
 	IncomeUC                  *usecase.IncomeUseCase
 	BankAccountUC             *usecase.BankAccountUseCase
 	BankNotificationPatternUC *usecase.BankNotificationPatternUseCase
+	EmailGmailUC              *usecase.EmailGmailUseCase
 
 	// Servicios externos
 	AIService *webapi.AIServiceWithFallback
@@ -91,7 +108,7 @@ type Dependencies struct {
 }
 
 // initDependencies inicializa todas las dependencias usando inyección de dependencias
-func initDependencies(db *gorm.DB, jwtManager *auth.JWTManager) *Dependencies {
+func initDependencies(cfg *configs.Config, db *gorm.DB, jwtManager *auth.JWTManager) *Dependencies {
 	log := logger.Get()
 
 	// Inicializar repositorios
@@ -145,6 +162,13 @@ func initDependencies(db *gorm.DB, jwtManager *auth.JWTManager) *Dependencies {
 		aiService,
 	)
 
+	emailConnRepo := repository.NewUserEmailConnectionPostgres(db)
+	procEmailRepo := repository.NewProcessedEmailMessagePostgres(db)
+	emailGmailUC, err := usecase.NewEmailGmailUseCase(cfg, emailConnRepo, procEmailRepo, bankNotificationPatternUC)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to init EmailGmailUseCase")
+	}
+
 	return &Dependencies{
 		UserUC:                    userUC,
 		AccountUC:                 accountUC,
@@ -154,6 +178,7 @@ func initDependencies(db *gorm.DB, jwtManager *auth.JWTManager) *Dependencies {
 		IncomeUC:                  incomeUC,
 		BankAccountUC:             bankAccountUC,
 		BankNotificationPatternUC: bankNotificationPatternUC,
+		EmailGmailUC:              emailGmailUC,
 		AIService:                 aiService,
 		CategoryRepo:              categoryRepo,
 		JWTManager:                jwtManager,
@@ -182,7 +207,9 @@ func initHTTPServer(cfg *configs.Config, deps *Dependencies, log zerolog.Logger)
 	})
 
 	// Inicializar rutas API v1
-	v1.NewRouter(router, deps.UserUC, deps.AccountUC, deps.TransactionUC, deps.BudgetUC, deps.ExpenseUC, deps.IncomeUC, deps.BankAccountUC, deps.BankNotificationPatternUC, deps.CategoryRepo, deps.JWTManager, log)
+	v1.NewRouter(router, deps.UserUC, deps.AccountUC, deps.TransactionUC, deps.BudgetUC, deps.ExpenseUC, deps.IncomeUC, deps.BankAccountUC, deps.BankNotificationPatternUC, deps.EmailGmailUC, deps.CategoryRepo, deps.JWTManager, log)
+
+	startGmailSyncWorker(deps.EmailGmailUC)
 
 	// Documentación Swagger (solo en desarrollo)
 	if cfg.Features.EnableSwagger {

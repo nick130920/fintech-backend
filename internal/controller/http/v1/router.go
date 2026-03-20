@@ -22,6 +22,7 @@ func NewRouter(
 	incomeUC *usecase.IncomeUseCase,
 	bankAccountUC *usecase.BankAccountUseCase,
 	bankNotificationPatternUC *usecase.BankNotificationPatternUseCase,
+	emailGmailUC *usecase.EmailGmailUseCase,
 	categoryRepo repo.CategoryRepo,
 	jwtManager *auth.JWTManager,
 	logger zerolog.Logger,
@@ -47,8 +48,12 @@ func NewRouter(
 	incomeHandler := NewIncomeHandler(incomeUC, logger)
 	bankAccountHandler := NewBankAccountHandler(bankAccountUC, logger)
 	bankNotificationPatternHandler := NewBankNotificationPatternHandler(bankNotificationPatternUC, logger)
+	emailConnectionHandler := NewEmailConnectionHandler(emailGmailUC, logger)
 	webhookHandler := NewWebhookHandler(bankNotificationPatternUC, transactionUC, logger)
 	categoryHandler := NewCategoryHandler(categoryRepo, logger)
+
+	// OAuth Gmail: callback público (sin JWT)
+	v1.GET("/email-connections/gmail/callback", emailConnectionHandler.GmailOAuthCallback)
 
 	// Middleware de autenticación
 	authMiddleware := NewAuthMiddleware(jwtManager)
@@ -203,6 +208,15 @@ func NewRouter(
 
 			// Rutas de patrones por cuenta bancaria (usando ruta alternativa)
 			notificationPatternsGroup.GET("/bank-account/:bank_account_id", bankNotificationPatternHandler.GetBankAccountPatterns)
+		}
+
+		// Correo OAuth (Gmail)
+		emailConnGroup := protectedGroup.Group("/email-connections")
+		{
+			emailConnGroup.GET("/gmail/authorize", emailConnectionHandler.GmailAuthorize)
+			emailConnGroup.GET("", emailConnectionHandler.GetEmailConnectionStatus)
+			emailConnGroup.DELETE("/gmail", emailConnectionHandler.GmailDisconnect)
+			emailConnGroup.POST("/gmail/sync", emailConnectionHandler.GmailSync)
 		}
 	}
 

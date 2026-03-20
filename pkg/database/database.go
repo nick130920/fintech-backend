@@ -94,6 +94,8 @@ func runMigrations(db *gorm.DB) error {
 		&entity.BankNotificationPattern{},
 		&entity.BudgetSuggestionSlugStat{},
 		&entity.BudgetSuggestionJob{},
+		&entity.UserEmailConnection{},
+		&entity.ProcessedEmailMessage{},
 	)
 }
 
@@ -114,6 +116,8 @@ func DropTables(db *gorm.DB) error {
 	return db.Migrator().DropTable(
 		&entity.BudgetSuggestionJob{},
 		&entity.BudgetSuggestionSlugStat{},
+		&entity.ProcessedEmailMessage{},
+		&entity.UserEmailConnection{},
 		// Eliminar en orden inverso por dependencias
 		&entity.BankNotificationPattern{}, // Depende de BankAccount
 		&entity.Expense{},

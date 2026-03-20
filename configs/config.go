@@ -1,6 +1,7 @@
 package configs
 
 import (
+	"fmt"
 	"log"
 	"net/url"
 	"os"
@@ -85,6 +86,18 @@ type ExternalConfig struct {
 	PlaidSecret      string `json:"-"` // No exponer en JSON
 	PlaidEnvironment string `json:"plaid_environment"`
 	SentryDSN        string `json:"-"` // No exponer en JSON
+	Gmail            GmailOAuthConfig `json:"-"`
+}
+
+// GmailOAuthConfig credenciales y secretos para Gmail API (OAuth2).
+type GmailOAuthConfig struct {
+	ClientID           string `json:"-"`
+	ClientSecret       string `json:"-"`
+	RedirectURL        string `json:"-"`
+	TokenEncryptionKey string `json:"-"` // hex o base64 (32 bytes raw) para AES-GCM
+	OAuthStateSecret   string `json:"-"` // HMAC del parámetro state
+	// GmailQueryQuery query por defecto para listar mensajes (ej. newer_than:90d)
+	DefaultListQuery string `json:"-"`
 }
 
 // FeatureConfig representa configuraciones de características
@@ -146,6 +159,14 @@ func Load() *Config {
 			PlaidSecret:      getEnv("PLAID_SECRET", ""),
 			PlaidEnvironment: getEnv("PLAID_ENVIRONMENT", "sandbox"),
 			SentryDSN:        getEnv("SENTRY_DSN", ""),
+			Gmail: GmailOAuthConfig{
+				ClientID:           getEnv("GMAIL_CLIENT_ID", ""),
+				ClientSecret:       getEnv("GMAIL_CLIENT_SECRET", ""),
+				RedirectURL:        getEnv("GMAIL_REDIRECT_URL", ""),
+				TokenEncryptionKey: getEnv("TOKEN_ENCRYPTION_KEY", ""),
+				OAuthStateSecret:   getEnv("OAUTH_STATE_SECRET", ""),
+				DefaultListQuery:   getEnv("GMAIL_DEFAULT_LIST_QUERY", "newer_than:90d"),
+			},
 		},
 		Features: FeatureConfig{
 			EnableSwagger:       getEnvAsBool("ENABLE_SWAGGER", true),
@@ -190,6 +211,20 @@ func (c *Config) Validate() error {
 
 	if c.Database.Password == "postgres" && c.IsProduction() {
 		log.Warn().Msg("Using default database password in production")
+	}
+
+	g := c.External.Gmail
+	if g.ClientID != "" && g.ClientSecret != "" && g.RedirectURL != "" {
+		if strings.TrimSpace(g.TokenEncryptionKey) == "" {
+			return fmt.Errorf(
+				"TOKEN_ENCRYPTION_KEY es obligatoria cuando Gmail OAuth está configurado (GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REDIRECT_URL); no uses el JWT como sustituto",
+			)
+		}
+		if strings.TrimSpace(g.OAuthStateSecret) == "" {
+			return fmt.Errorf(
+				"OAUTH_STATE_SECRET es obligatoria cuando Gmail OAuth está configurado; no uses el JWT como sustituto",
+			)
+		}
 	}
 
 	return nil

@@ -65,10 +65,7 @@ func (h *EmailConnectionHandler) GmailOAuthCallback(c *gin.Context) {
 }
 
 func gmailCallbackSuccessHTML() string {
-	return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Gmail conectado</title></head><body style="font-family:system-ui;padding:24px;">
-<p>Gmail conectado correctamente. Puedes volver a la app Money Flow.</p>
-<p><a href="moneyflow://email-connected">Abrir app</a></p>
-</body></html>`
+	return gmailOAuthCallbackHTML(gmailOAuthPageSuccess)
 }
 
 func gmailCallbackErrorHTML(msg string) string {
@@ -76,10 +73,200 @@ func gmailCallbackErrorHTML(msg string) string {
 		msg = "Error desconocido"
 	}
 	esc := template.HTMLEscapeString(msg)
-	return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Error</title></head><body style="font-family:system-ui;padding:24px;">
-<p>` + esc + `</p>
-<p><a href="moneyflow://email-error">Volver a la app</a></p>
-</body></html>`
+	return gmailOAuthCallbackHTML(gmailOAuthPageError(esc))
+}
+
+type gmailOAuthPage struct {
+	Title       string
+	ThemeColor  string
+	StatusClass string
+	Headline    string
+	DetailHTML  string
+	CTAHref     string
+	CTALabel    string
+}
+
+var gmailOAuthPageSuccess = gmailOAuthPage{
+	Title:       "Gmail conectado · Money Flow",
+	ThemeColor:  "#007bff",
+	StatusClass: "success",
+	Headline:    "Gmail conectado",
+	DetailHTML:  "Tu cuenta quedó vinculada. Vuelve a <strong>Money Flow</strong> para seguir gestionando tus finanzas.",
+	CTAHref:     "moneyflow://email-connected",
+	CTALabel:    "Abrir Money Flow",
+}
+
+func gmailOAuthPageError(escapedDetail string) gmailOAuthPage {
+	return gmailOAuthPage{
+		Title:       "Error al conectar · Money Flow",
+		ThemeColor:  "#ef4444",
+		StatusClass: "error",
+		Headline:    "No pudimos completar la conexión",
+		DetailHTML:  `<p class="msg error-detail">` + escapedDetail + `</p>`,
+		CTAHref:     "moneyflow://email-error",
+		CTALabel:    "Volver a Money Flow",
+	}
+}
+
+func gmailOAuthCallbackHTML(p gmailOAuthPage) string {
+	detail := p.DetailHTML
+	if p.StatusClass == "success" {
+		detail = `<p class="msg">` + p.DetailHTML + `</p>`
+	}
+	return `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="` + template.HTMLEscapeString(p.ThemeColor) + `">
+<meta name="color-scheme" content="light dark">
+<title>` + template.HTMLEscapeString(p.Title) + `</title>
+<style>
+:root {
+  --mf-primary: #007bff;
+  --mf-primary-hover: #0066d9;
+  --mf-bg: #f6f8fa;
+  --mf-surface: #ffffff;
+  --mf-text: #0f172a;
+  --mf-muted: #475569;
+  --mf-border: rgba(0, 123, 255, 0.14);
+  --mf-success: #10b981;
+  --mf-error: #ef4444;
+  --mf-shadow: rgba(15, 23, 42, 0.08);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --mf-bg: #0a0f14;
+    --mf-surface: rgba(30, 41, 59, 0.72);
+    --mf-text: #f1f5f9;
+    --mf-muted: #94a3b8;
+    --mf-border: rgba(0, 123, 255, 0.22);
+    --mf-shadow: rgba(0, 0, 0, 0.45);
+  }
+}
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: var(--mf-bg);
+  color: var(--mf-text);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  padding:
+    max(24px, env(safe-area-inset-top, 0px))
+    max(24px, env(safe-area-inset-right, 0px))
+    max(24px, env(safe-area-inset-bottom, 0px))
+    max(24px, env(safe-area-inset-left, 0px));
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.shell { width: 100%; max-width: 440px; }
+.card {
+  background: var(--mf-surface);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--mf-border);
+  border-radius: 16px;
+  padding: clamp(20px, 5vw, 28px) clamp(20px, 5vw, 28px);
+  box-shadow: 0 12px 40px var(--mf-shadow);
+}
+.brand {
+  font-weight: 700;
+  font-size: 0.8125rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mf-primary);
+  margin-bottom: 1.25rem;
+}
+.status-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.25rem;
+}
+.status-icon svg { width: 28px; height: 28px; }
+.status-icon.success {
+  background: color-mix(in srgb, var(--mf-success) 18%, transparent);
+  color: var(--mf-success);
+}
+.status-icon.error {
+  background: color-mix(in srgb, var(--mf-error) 18%, transparent);
+  color: var(--mf-error);
+}
+h1 {
+  font-size: clamp(1.25rem, 4vw, 1.375rem);
+  font-weight: 700;
+  margin: 0 0 0.75rem;
+  line-height: 1.25;
+}
+.msg {
+  margin: 0 0 1.5rem;
+  font-size: 0.9375rem;
+  color: var(--mf-muted);
+}
+.msg strong { color: var(--mf-text); font-weight: 600; }
+.error-detail { margin-bottom: 1.5rem; }
+.cta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+a.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 48px;
+  padding: 0.875rem 1.25rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #fff !important;
+  background: var(--mf-primary);
+  text-decoration: none;
+  border-radius: 12px;
+  transition: background 0.15s ease, transform 0.08s ease;
+}
+a.btn:hover { background: var(--mf-primary-hover); }
+a.btn:active { transform: scale(0.98); }
+.hint {
+  margin: 1rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--mf-muted);
+  text-align: center;
+  line-height: 1.45;
+}
+@supports not (background: color-mix(in srgb, red, blue)) {
+  .status-icon.success { background: rgba(16, 185, 129, 0.15); }
+  .status-icon.error { background: rgba(239, 68, 68, 0.15); }
+}
+</style>
+</head>
+<body>
+<div class="shell">
+  <article class="card" aria-live="polite">
+    <div class="brand">Money Flow</div>
+    <div class="status-icon ` + p.StatusClass + `" aria-hidden="true">` + gmailOAuthStatusIconSVG(p.StatusClass) + `</div>
+    <h1>` + template.HTMLEscapeString(p.Headline) + `</h1>
+    ` + detail + `
+    <div class="cta">
+      <a class="btn" href="` + template.HTMLEscapeString(p.CTAHref) + `">` + template.HTMLEscapeString(p.CTALabel) + `</a>
+    </div>
+    <p class="hint">Si el enlace no abre la app, cierra esta pestaña y vuelve desde Money Flow.</p>
+  </article>
+</div>
+</body>
+</html>`
+}
+
+func gmailOAuthStatusIconSVG(kind string) string {
+	if kind == "error" {
+		return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>`
+	}
+	return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>`
 }
 
 // GetEmailConnectionStatus GET estado vinculación.

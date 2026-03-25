@@ -20,6 +20,14 @@ func NewEmailConnectionHandler(uc *usecase.EmailGmailUseCase, logger zerolog.Log
 	return &EmailConnectionHandler{uc: uc, logger: logger}
 }
 
+// CSP del middleware global (default-src 'self') bloquea <style> inline y fuentes de Google Fonts.
+// Esta política solo aplica a las respuestas HTML del callback OAuth de Gmail.
+const gmailOAuthCallbackCSP = "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; img-src data:; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com"
+
+func setGmailOAuthCallbackHTMLHeaders(c *gin.Context) {
+	c.Header("Content-Security-Policy", gmailOAuthCallbackCSP)
+}
+
 // GmailAuthorize GET devuelve URL para abrir en navegador.
 func (h *EmailConnectionHandler) GmailAuthorize(c *gin.Context) {
 	userID, ok := c.Get("user_id")
@@ -47,20 +55,24 @@ func (h *EmailConnectionHandler) GmailOAuthCallback(c *gin.Context) {
 		return
 	}
 	if c.Query("error") != "" {
+		setGmailOAuthCallbackHTMLHeaders(c)
 		c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(gmailCallbackErrorHTML(c.Query("error_description"))))
 		return
 	}
 	code := c.Query("code")
 	state := c.Query("state")
 	if code == "" || state == "" {
+		setGmailOAuthCallbackHTMLHeaders(c)
 		c.Data(http.StatusBadRequest, "text/html; charset=utf-8", []byte(gmailCallbackErrorHTML("Faltan code o state")))
 		return
 	}
 	if err := h.uc.HandleGmailCallback(c.Request.Context(), state, code); err != nil {
 		h.logger.Error().Err(err).Msg("gmail oauth callback")
+		setGmailOAuthCallbackHTMLHeaders(c)
 		c.Data(http.StatusBadRequest, "text/html; charset=utf-8", []byte(gmailCallbackErrorHTML("No se pudo completar la conexión")))
 		return
 	}
+	setGmailOAuthCallbackHTMLHeaders(c)
 	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(gmailCallbackSuccessHTML()))
 }
 
@@ -90,8 +102,8 @@ var gmailOAuthPageSuccess = gmailOAuthPage{
 	Title:       "Gmail conectado · Money Flow",
 	ThemeColor:  "#007bff",
 	StatusClass: "success",
-	Headline:    "Gmail conectado",
-	DetailHTML:  "Tu cuenta quedó vinculada. Vuelve a <strong>Money Flow</strong> para seguir gestionando tus finanzas.",
+	Headline:    "Listo: Gmail vinculado",
+	DetailHTML:  "Las notificaciones de tu banco en el correo podrán usarse en <strong>Money Flow</strong>. Vuelve a la app para continuar.",
 	CTAHref:     "moneyflow://email-connected",
 	CTALabel:    "Abrir Money Flow",
 }
@@ -121,34 +133,46 @@ func gmailOAuthCallbackHTML(p gmailOAuthPage) string {
 <meta name="theme-color" content="` + template.HTMLEscapeString(p.ThemeColor) + `">
 <meta name="color-scheme" content="light dark">
 <title>` + template.HTMLEscapeString(p.Title) + `</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
 <style>
+/* Alineado con AppColors / dashboard_money_flow_blue: primary #007bff, glass 5%, bordes primary 10% */
 :root {
   --mf-primary: #007bff;
+  --mf-primary-dim: rgba(0, 123, 255, 0.12);
+  --mf-primary-glow: rgba(0, 123, 255, 0.35);
   --mf-primary-hover: #0066d9;
-  --mf-bg: #f6f8fa;
-  --mf-surface: #ffffff;
+  --mf-bg-top: #f6f8fa;
+  --mf-bg-bot: #f1f5f9;
+  --mf-glass: rgba(255, 255, 255, 0.78);
+  --mf-glass-border: rgba(0, 123, 255, 0.12);
+  --mf-glass-inner: rgba(0, 123, 255, 0.06);
   --mf-text: #0f172a;
-  --mf-muted: #475569;
-  --mf-border: rgba(0, 123, 255, 0.14);
+  --mf-muted: #64748b;
   --mf-success: #10b981;
   --mf-error: #ef4444;
-  --mf-shadow: rgba(15, 23, 42, 0.08);
+  --mf-chip-bg: rgba(0, 123, 255, 0.08);
+  --mf-chip-border: rgba(0, 123, 255, 0.18);
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --mf-bg: #0a0f14;
-    --mf-surface: rgba(30, 41, 59, 0.72);
-    --mf-text: #f1f5f9;
+    --mf-bg-top: #0a0f14;
+    --mf-bg-bot: #0d1419;
+    --mf-glass: rgba(30, 41, 59, 0.55);
+    --mf-glass-border: rgba(0, 123, 255, 0.22);
+    --mf-glass-inner: rgba(255, 255, 255, 0.04);
+    --mf-text: #f8fafc;
     --mf-muted: #94a3b8;
-    --mf-border: rgba(0, 123, 255, 0.22);
-    --mf-shadow: rgba(0, 0, 0, 0.45);
+    --mf-chip-bg: rgba(0, 123, 255, 0.12);
+    --mf-chip-border: rgba(0, 123, 255, 0.28);
+    --mf-primary-glow: rgba(0, 123, 255, 0.45);
   }
 }
 *, *::before, *::after { box-sizing: border-box; }
 html, body { margin: 0; min-height: 100%; }
 body {
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  background: var(--mf-bg);
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   color: var(--mf-text);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
@@ -161,105 +185,259 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
+  overflow-x: hidden;
+  background: linear-gradient(165deg, var(--mf-bg-top) 0%, var(--mf-bg-bot) 55%, var(--mf-bg-top) 100%);
 }
-.shell { width: 100%; max-width: 440px; }
+.ambient {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(72px);
+  opacity: 0.55;
+}
+.orb-1 {
+  width: min(320px, 85vw);
+  height: min(320px, 85vw);
+  background: var(--mf-primary-glow);
+  top: -12%;
+  right: -18%;
+}
+.orb-2 {
+  width: min(280px, 75vw);
+  height: min(280px, 75vw);
+  background: var(--mf-primary);
+  bottom: -20%;
+  left: -22%;
+  opacity: 0.22;
+}
+.grid-noise {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  opacity: 0.04;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.shell {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 420px;
+}
 .card {
-  background: var(--mf-surface);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--mf-border);
-  border-radius: 16px;
-  padding: clamp(20px, 5vw, 28px) clamp(20px, 5vw, 28px);
-  box-shadow: 0 12px 40px var(--mf-shadow);
+  position: relative;
+  background: var(--mf-glass);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid var(--mf-glass-border);
+  border-radius: 20px;
+  padding: clamp(24px, 6vw, 32px);
+  box-shadow:
+    0 0 0 1px var(--mf-glass-inner) inset,
+    0 24px 48px rgba(15, 23, 42, 0.1),
+    0 8px 24px rgba(0, 123, 255, 0.06);
 }
-.brand {
-  font-weight: 700;
-  font-size: 0.8125rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--mf-primary);
-  margin-bottom: 1.25rem;
+@media (prefers-color-scheme: dark) {
+  .card {
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.06) inset,
+      0 24px 56px rgba(0, 0, 0, 0.55),
+      0 8px 32px rgba(0, 123, 255, 0.12);
+  }
 }
-.status-icon {
-  width: 56px;
-  height: 56px;
+.card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 16px;
+  right: 16px;
+  height: 1px;
+  border-radius: 1px;
+  background: linear-gradient(90deg, transparent, rgba(0, 123, 255, 0.35), transparent);
+  opacity: 0.7;
+}
+.brand-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 24px;
+}
+.brand-mark {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
   border-radius: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 1.25rem;
+  background: rgba(0, 123, 255, 0.12);
+  border: 1px solid rgba(0, 123, 255, 0.22);
+  color: var(--mf-primary);
 }
-.status-icon svg { width: 28px; height: 28px; }
+.brand-mark svg { width: 26px; height: 26px; }
+.brand-text .name {
+  font-weight: 700;
+  font-size: 1.125rem;
+  letter-spacing: -0.02em;
+  color: var(--mf-text);
+  line-height: 1.2;
+}
+.brand-text .tag {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--mf-primary);
+  margin-top: 4px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--mf-primary);
+  background: var(--mf-chip-bg);
+  border: 1px solid var(--mf-chip-border);
+  margin-bottom: 16px;
+}
+.chip svg { width: 14px; height: 14px; flex-shrink: 0; }
+.chip.error {
+  color: var(--mf-error);
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.28);
+}
+.status-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+.status-icon svg { width: 32px; height: 32px; }
 .status-icon.success {
-  background: color-mix(in srgb, var(--mf-success) 18%, transparent);
+  background: color-mix(in srgb, var(--mf-success) 20%, transparent);
   color: var(--mf-success);
+  border: 1px solid color-mix(in srgb, var(--mf-success) 35%, transparent);
 }
 .status-icon.error {
-  background: color-mix(in srgb, var(--mf-error) 18%, transparent);
+  background: color-mix(in srgb, var(--mf-error) 20%, transparent);
   color: var(--mf-error);
+  border: 1px solid color-mix(in srgb, var(--mf-error) 35%, transparent);
 }
 h1 {
-  font-size: clamp(1.25rem, 4vw, 1.375rem);
+  font-size: clamp(1.375rem, 4.5vw, 1.5rem);
   font-weight: 700;
-  margin: 0 0 0.75rem;
-  line-height: 1.25;
+  margin: 0 0 12px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
 }
 .msg {
-  margin: 0 0 1.5rem;
+  margin: 0 0 24px;
   font-size: 0.9375rem;
   color: var(--mf-muted);
+  line-height: 1.55;
 }
 .msg strong { color: var(--mf-text); font-weight: 600; }
-.error-detail { margin-bottom: 1.5rem; }
-.cta {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
+.error-detail { margin-bottom: 24px; }
+.cta { margin-top: 4px; }
 a.btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 100%;
-  min-height: 48px;
-  padding: 0.875rem 1.25rem;
+  min-height: 50px;
+  padding: 14px 20px;
   font-size: 1rem;
   font-weight: 600;
+  letter-spacing: -0.01em;
   color: #fff !important;
-  background: var(--mf-primary);
+  background: linear-gradient(180deg, #1a8cff 0%, var(--mf-primary) 45%, #0066d9 100%);
   text-decoration: none;
   border-radius: 12px;
-  transition: background 0.15s ease, transform 0.08s ease;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.15) inset,
+    0 8px 24px rgba(0, 123, 255, 0.35);
+  transition: transform 0.1s ease, box-shadow 0.15s ease, filter 0.15s ease;
 }
-a.btn:hover { background: var(--mf-primary-hover); }
+a.btn:hover {
+  filter: brightness(1.05);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.2) inset,
+    0 12px 32px rgba(0, 123, 255, 0.4);
+}
 a.btn:active { transform: scale(0.98); }
 .hint {
-  margin: 1rem 0 0;
+  margin: 18px 0 0;
+  padding-top: 18px;
+  border-top: 1px solid var(--mf-primary-dim);
   font-size: 0.8125rem;
   color: var(--mf-muted);
   text-align: center;
   line-height: 1.45;
 }
 @supports not (background: color-mix(in srgb, red, blue)) {
-  .status-icon.success { background: rgba(16, 185, 129, 0.15); }
-  .status-icon.error { background: rgba(239, 68, 68, 0.15); }
+  .status-icon.success {
+    background: rgba(16, 185, 129, 0.18);
+    border-color: rgba(16, 185, 129, 0.35);
+  }
+  .status-icon.error {
+    background: rgba(239, 68, 68, 0.18);
+    border-color: rgba(239, 68, 68, 0.35);
+  }
 }
 </style>
 </head>
 <body>
+<div class="ambient" aria-hidden="true"><div class="orb orb-1"></div><div class="orb orb-2"></div></div>
+<div class="grid-noise" aria-hidden="true"></div>
 <div class="shell">
   <article class="card" aria-live="polite">
-    <div class="brand">Money Flow</div>
+    <header class="brand-row">
+      <div class="brand-mark" aria-hidden="true">` + gmailOAuthBrandMarkSVG() + `</div>
+      <div class="brand-text">
+        <div class="name">Money Flow</div>
+        <div class="tag">Avisos bancarios · solo lectura</div>
+      </div>
+    </header>
+    <div class="chip ` + p.StatusClass + `">` + gmailOAuthChipInner(p.StatusClass) + `</div>
     <div class="status-icon ` + p.StatusClass + `" aria-hidden="true">` + gmailOAuthStatusIconSVG(p.StatusClass) + `</div>
     <h1>` + template.HTMLEscapeString(p.Headline) + `</h1>
     ` + detail + `
     <div class="cta">
       <a class="btn" href="` + template.HTMLEscapeString(p.CTAHref) + `">` + template.HTMLEscapeString(p.CTALabel) + `</a>
     </div>
-    <p class="hint">Si el enlace no abre la app, cierra esta pestaña y vuelve desde Money Flow.</p>
+    <p class="hint">Si el botón no abre la app, vuelve a Money Flow manualmente; en algunos navegadores hay que permitir abrir enlaces externos.</p>
   </article>
 </div>
 </body>
 </html>`
+}
+
+func gmailOAuthBrandMarkSVG() string {
+	return `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+<path d="M12 2L3 7v10l9 5 9-5V7l-9-5z" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"/>
+<path d="M3 7l9 5 9-5M12 12v9" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
+</svg>`
+}
+
+func gmailOAuthChipInner(statusClass string) string {
+	if statusClass == "error" {
+		return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg><span>Conexión de correo</span>`
+	}
+	return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"/></svg><span>Gmail · Money Flow</span>`
 }
 
 func gmailOAuthStatusIconSVG(kind string) string {

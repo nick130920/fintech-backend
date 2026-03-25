@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -23,6 +24,7 @@ import (
 	"github.com/nick130920/fintech-backend/pkg/auth"
 	"github.com/nick130920/fintech-backend/pkg/database"
 	"github.com/nick130920/fintech-backend/pkg/logger"
+	"github.com/nick130920/fintech-backend/pkg/observability"
 	"github.com/nick130920/fintech-backend/pkg/repository"
 )
 
@@ -54,6 +56,11 @@ func Run() {
 	if err := cfg.Validate(); err != nil {
 		log.Fatal().Err(err).Msg("Configuration validation failed")
 	}
+
+	if err := observability.InitSentry(cfg.External.SentryDSN, cfg.Server.Mode); err != nil {
+		log.Warn().Err(err).Msg("GlitchTip/Sentry no inicializado (revisa SENTRY_DSN)")
+	}
+	defer observability.FlushSentry()
 
 	// Configurar modo de Gin
 	gin.SetMode(cfg.Server.Mode)
@@ -190,8 +197,9 @@ func initHTTPServer(cfg *configs.Config, deps *Dependencies, log zerolog.Logger)
 	// Crear router
 	router := gin.New()
 
-	// Los middlewares avanzados están integrados en el router v1
-	// No necesitamos configurarlos aquí
+	if strings.TrimSpace(cfg.External.SentryDSN) != "" {
+		router.Use(observability.SentryGinMiddleware())
+	}
 
 	// Middleware CORS
 	router.Use(corsMiddleware(cfg.CORS))

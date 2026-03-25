@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/nick130920/fintech-backend/pkg/apperrors"
 	"github.com/nick130920/fintech-backend/pkg/logger"
+	"github.com/nick130920/fintech-backend/pkg/observability"
 )
 
 // ErrorResponse representa la estructura de respuesta de error estándar
@@ -40,6 +41,7 @@ func RecoveryMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
 			if err := recover(); err != nil {
+				observability.CapturePanicForRequest(c, err)
 				// Obtener stack trace
 				stack := make([]byte, 4096)
 				length := runtime.Stack(stack, false)

@@ -11,6 +11,7 @@ import (
 	"github.com/nick130920/fintech-backend/internal/usecase"
 	"github.com/nick130920/fintech-backend/pkg/apperrors"
 	"github.com/nick130920/fintech-backend/pkg/logger"
+	"github.com/nick130920/fintech-backend/pkg/observability"
 )
 
 // WebhookHandler maneja webhooks de notificaciones bancarias
@@ -301,6 +302,7 @@ func SimpleRecoveryMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
 			if err := recover(); err != nil {
+				observability.CapturePanicForRequest(c, err)
 				requestID := getRequestID(c)
 				log.Error().
 					Str("request_id", requestID).

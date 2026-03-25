@@ -79,7 +79,7 @@ func (manager *JWTManager) ValidateToken(tokenString string) (*UserClaims, error
 func (manager *JWTManager) GenerateRefreshToken(userID uint, email string) (string, error) {
 	claims := jwt.RegisteredClaims{
 		Subject:   email,
-		ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour * 7)), // 7 días
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour * 30)), // 30 días (sesión en app móvil)
 		IssuedAt:  jwt.NewNumericDate(time.Now()),
 		NotBefore: jwt.NewNumericDate(time.Now()),
 		Issuer:    "fintech-api",

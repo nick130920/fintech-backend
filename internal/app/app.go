@@ -214,6 +214,25 @@ func initHTTPServer(cfg *configs.Config, deps *Dependencies, log zerolog.Logger)
 		})
 	})
 
+	// Prueba manual de GlitchTip/Sentry (solo desarrollo; requiere SENTRY_TEST_SECRET).
+	if cfg.Features.EnableDebugRoutes && cfg.IsDevelopment() {
+		dsn := strings.TrimSpace(cfg.External.SentryDSN)
+		secret := strings.TrimSpace(cfg.External.SentryTestSecret)
+		if dsn != "" && secret != "" {
+			router.POST("/debug/sentry-test", func(c *gin.Context) {
+				if c.GetHeader("X-Sentry-Test-Secret") != secret {
+					c.Status(404)
+					return
+				}
+				observability.CaptureGlitchTipTestEvent()
+				c.JSON(200, gin.H{
+					"ok":      true,
+					"message": "Evento de prueba enviado; revisa Issues en GlitchTip en unos segundos.",
+				})
+			})
+		}
+	}
+
 	// Inicializar rutas API v1
 	v1.NewRouter(router, deps.UserUC, deps.AccountUC, deps.TransactionUC, deps.BudgetUC, deps.ExpenseUC, deps.IncomeUC, deps.BankAccountUC, deps.BankNotificationPatternUC, deps.EmailGmailUC, deps.CategoryRepo, deps.JWTManager, log)
 

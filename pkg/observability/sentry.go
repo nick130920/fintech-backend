@@ -40,6 +40,13 @@ func FlushSentry() {
 	sentry.Flush(2 * time.Second)
 }
 
+// CaptureGlitchTipTestEvent envía un mensaje de prueba al DSN (GlitchTip/Sentry).
+// Útil cuando la UI del proveedor no ofrece "Send test event".
+func CaptureGlitchTipTestEvent() {
+	sentry.CaptureMessage("GlitchTip/Sentry test event from fintech-backend (debug/sentry-test)")
+	sentry.Flush(2 * time.Second)
+}
+
 // SentryGinMiddleware añade el handler de Sentry/GlitchTip al router Gin.
 func SentryGinMiddleware() gin.HandlerFunc {
 	return sentrygin.New(sentrygin.Options{Repanic: false})

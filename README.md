@@ -235,7 +235,7 @@ golangci-lint run
   "name": "Cuenta Principal",
   "type": "checking",
   "balance": 10000.00,
-  "currency": "MXN",
+  "currency": "COP",
   "is_active": true
 }
 ```

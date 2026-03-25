@@ -20,17 +20,17 @@ import (
 
 // BankNotificationPatternUseCase contiene la lógica de negocio para patrones de notificación bancaria
 type BankNotificationPatternUseCase struct {
-	patternRepo     repo.BankNotificationPatternRepo
-	bankAccountRepo repo.BankAccountRepo
-	userRepo        repo.UserRepo
-	transactionRepo repo.TransactionRepo
-	expenseRepo     repo.ExpenseRepo
-	incomeRepo      repo.IncomeRepo
-	budgetRepo      repo.BudgetRepo
-	categoryRepo    repo.CategoryRepo
-	slugStatsRepo       repo.BudgetSuggestionSlugStatsRepo
-	suggestionJobRepo   repo.BudgetSuggestionJobRepo
-	aiService           *webapi.AIServiceWithFallback
+	patternRepo       repo.BankNotificationPatternRepo
+	bankAccountRepo   repo.BankAccountRepo
+	userRepo          repo.UserRepo
+	transactionRepo   repo.TransactionRepo
+	expenseRepo       repo.ExpenseRepo
+	incomeRepo        repo.IncomeRepo
+	budgetRepo        repo.BudgetRepo
+	categoryRepo      repo.CategoryRepo
+	slugStatsRepo     repo.BudgetSuggestionSlugStatsRepo
+	suggestionJobRepo repo.BudgetSuggestionJobRepo
+	aiService         *webapi.AIServiceWithFallback
 }
 
 // NewBankNotificationPatternUseCase crea una nueva instancia de BankNotificationPatternUseCase
@@ -489,7 +489,7 @@ func (uc *BankNotificationPatternUseCase) createTransactionFromAIExtraction(
 		}
 
 		if income.Currency == "" {
-			income.Currency = "MXN"
+			income.Currency = "COP"
 		}
 
 		if err := uc.incomeRepo.Create(income); err != nil {
@@ -566,7 +566,7 @@ func (uc *BankNotificationPatternUseCase) createTransactionFromAIExtraction(
 	}
 
 	if expense.Currency == "" {
-		expense.Currency = "MXN"
+		expense.Currency = "COP"
 	}
 
 	if err := uc.expenseRepo.Create(expense); err != nil {
@@ -759,8 +759,8 @@ func (uc *BankNotificationPatternUseCase) GetPendingNotifications(userID uint, l
 func (uc *BankNotificationPatternUseCase) ProcessSMSBatchForSuggestions(ctx context.Context, userID uint, messages []dto.SMSMessageForAnalysis) (*dto.AnalyzeSMSBatchResponse, error) {
 	const (
 		maxSMSForSuggestions = 100 // muestra reciente; pocas llamadas a la IA
-		smsPerChunk          = 25 // máx. 4 chunks con el cap anterior
-		maxAIChunks          = 4  // cinturón: no más de 4 rondas aunque cambien constantes
+		smsPerChunk          = 25  // máx. 4 chunks con el cap anterior
+		maxAIChunks          = 4   // cinturón: no más de 4 rondas aunque cambien constantes
 		maxBodyRunes         = 220
 		minConfidence        = 0.3
 	)

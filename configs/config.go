@@ -86,6 +86,7 @@ type ExternalConfig struct {
 	PlaidSecret      string `json:"-"` // No exponer en JSON
 	PlaidEnvironment string `json:"plaid_environment"`
 	SentryDSN        string `json:"-"` // No exponer en JSON
+	SentryTestSecret string `json:"-"` // Secreto para POST /debug/sentry-test (solo desarrollo)
 	Gmail            GmailOAuthConfig `json:"-"`
 }
 
@@ -159,6 +160,7 @@ func Load() *Config {
 			PlaidSecret:      getEnv("PLAID_SECRET", ""),
 			PlaidEnvironment: getEnv("PLAID_ENVIRONMENT", "sandbox"),
 			SentryDSN:        getEnv("SENTRY_DSN", ""),
+			SentryTestSecret: getEnv("SENTRY_TEST_SECRET", ""),
 			Gmail: GmailOAuthConfig{
 				ClientID:           getEnv("GMAIL_CLIENT_ID", ""),
 				ClientSecret:       getEnv("GMAIL_CLIENT_SECRET", ""),

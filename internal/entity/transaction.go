@@ -82,7 +82,7 @@ type Transaction struct {
 	RecurringID *uint  `json:"recurring_id" gorm:"index"`      // ID del patrón recurrente
 
 	// Moneda (normalmente heredada de la cuenta)
-	Currency     string  `json:"currency" gorm:"default:'MXN'" validate:"len=3"`
+	Currency     string  `json:"currency" gorm:"default:'USD'" validate:"len=3"`
 	ExchangeRate float64 `json:"exchange_rate" gorm:"default:1;type:decimal(10,6)"` // Para conversiones
 
 	// Origen y validación de la transacción

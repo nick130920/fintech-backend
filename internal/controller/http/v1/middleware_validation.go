@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 	"github.com/nick130920/fintech-backend/pkg/apperrors"
+	"github.com/nick130920/fintech-backend/pkg/currency"
 	"github.com/nick130920/fintech-backend/pkg/logger"
 )
 
@@ -134,17 +135,8 @@ func (cv *CustomValidator) getErrorMessage(fe validator.FieldError) string {
 
 // registerCustomValidations registra validaciones personalizadas
 func registerCustomValidations(v *validator.Validate) {
-	// Validación para moneda ISO
 	v.RegisterValidation("currency", func(fl validator.FieldLevel) bool {
-		currency := fl.Field().String()
-		validCurrencies := []string{"USD", "EUR", "MXN", "COP", "PEN", "CLP", "ARS"}
-
-		for _, valid := range validCurrencies {
-			if currency == valid {
-				return true
-			}
-		}
-		return false
+		return currency.IsValid(fl.Field().String())
 	})
 
 	// Validación para tipo de cuenta bancaria
@@ -237,7 +229,7 @@ func getCustomMessages() map[string]string {
 		"oneof":    "El campo '%s' debe ser uno de los valores permitidos",
 
 		// Mensajes personalizados
-		"currency":            "El campo '%s' debe ser una moneda válida (USD, EUR, MXN, COP, PEN, CLP, ARS)",
+		"currency":            "El campo '%s' debe ser un código de moneda ISO 4217 válido",
 		"bank_account_type":   "El campo '%s' debe ser un tipo de cuenta válido (checking, savings, credit, debit, investment)",
 		"hexcolor":            "El campo '%s' debe ser un color hexadecimal válido (ej: #FF0000)",
 		"international_phone": "El campo '%s' debe ser un número de teléfono internacional válido (ej: +52 55 1234 5678)",

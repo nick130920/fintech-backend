@@ -143,6 +143,9 @@ func (uc *UserUseCase) Update(id uint, req *dto.UpdateUserRequest) (*entity.User
 	if req.Timezone != "" {
 		user.Timezone = req.Timezone
 	}
+	if req.Currency != "" {
+		user.Currency = req.Currency
+	}
 
 	// Parsear fecha de nacimiento si se proporciona
 	if req.DateOfBirth != "" {

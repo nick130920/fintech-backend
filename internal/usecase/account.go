@@ -53,7 +53,7 @@ func (uc *AccountUseCase) Create(userID uint, req *dto.CreateAccountRequest) (*e
 
 	// Configurar valores por defecto
 	if newAccount.Currency == "" {
-		newAccount.Currency = "COP"
+		newAccount.Currency = user.Currency
 	}
 	if newAccount.Color == "" {
 		newAccount.Color = "#007bff"

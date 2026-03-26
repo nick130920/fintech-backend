@@ -9,6 +9,7 @@ import (
 	"github.com/nick130920/fintech-backend/internal/usecase"
 	"github.com/nick130920/fintech-backend/internal/usecase/repo"
 	"github.com/nick130920/fintech-backend/pkg/auth"
+	"github.com/nick130920/fintech-backend/pkg/exchange"
 )
 
 // NewRouter inicializa todas las rutas de la API v1
@@ -24,6 +25,7 @@ func NewRouter(
 	bankNotificationPatternUC *usecase.BankNotificationPatternUseCase,
 	emailGmailUC *usecase.EmailGmailUseCase,
 	categoryRepo repo.CategoryRepo,
+	exchangeProvider exchange.Provider,
 	jwtManager *auth.JWTManager,
 	logger zerolog.Logger,
 ) {
@@ -51,6 +53,11 @@ func NewRouter(
 	emailConnectionHandler := NewEmailConnectionHandler(emailGmailUC, logger)
 	webhookHandler := NewWebhookHandler(bankNotificationPatternUC, transactionUC, logger)
 	categoryHandler := NewCategoryHandler(categoryRepo, logger)
+	currencyHandler := NewCurrencyHandler(exchangeProvider)
+
+	// Public currency endpoints (no auth required, cacheable)
+	v1.GET("/currencies", currencyHandler.GetCurrencies)
+	v1.GET("/exchange-rates", currencyHandler.GetExchangeRates)
 
 	// OAuth Gmail: callback público (sin JWT)
 	v1.GET("/email-connections/gmail/callback", emailConnectionHandler.GmailOAuthCallback)

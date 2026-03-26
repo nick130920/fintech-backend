@@ -489,7 +489,7 @@ func (uc *BankNotificationPatternUseCase) createTransactionFromAIExtraction(
 		}
 
 		if income.Currency == "" {
-			income.Currency = "COP"
+			income.Currency = "USD"
 		}
 
 		if err := uc.incomeRepo.Create(income); err != nil {
@@ -566,7 +566,7 @@ func (uc *BankNotificationPatternUseCase) createTransactionFromAIExtraction(
 	}
 
 	if expense.Currency == "" {
-		expense.Currency = "COP"
+		expense.Currency = "USD"
 	}
 
 	if err := uc.expenseRepo.Create(expense); err != nil {

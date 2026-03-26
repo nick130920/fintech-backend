@@ -23,6 +23,7 @@ import (
 	"github.com/nick130920/fintech-backend/internal/usecase/webapi"
 	"github.com/nick130920/fintech-backend/pkg/auth"
 	"github.com/nick130920/fintech-backend/pkg/database"
+	"github.com/nick130920/fintech-backend/pkg/exchange"
 	"github.com/nick130920/fintech-backend/pkg/logger"
 	"github.com/nick130920/fintech-backend/pkg/observability"
 	"github.com/nick130920/fintech-backend/pkg/repository"
@@ -105,7 +106,8 @@ type Dependencies struct {
 	EmailGmailUC              *usecase.EmailGmailUseCase
 
 	// Servicios externos
-	AIService *webapi.AIServiceWithFallback
+	AIService        *webapi.AIServiceWithFallback
+	ExchangeProvider exchange.Provider
 
 	// Repositories (necesarios para algunos handlers)
 	CategoryRepo repo.CategoryRepo
@@ -169,6 +171,11 @@ func initDependencies(cfg *configs.Config, db *gorm.DB, jwtManager *auth.JWTMana
 		aiService,
 	)
 
+	fxProvider := exchange.NewCachedProvider(
+		exchange.NewFrankfurterProvider(),
+		24*time.Hour,
+	)
+
 	emailConnRepo := repository.NewUserEmailConnectionPostgres(db)
 	procEmailRepo := repository.NewProcessedEmailMessagePostgres(db)
 	emailGmailUC, err := usecase.NewEmailGmailUseCase(cfg, emailConnRepo, procEmailRepo, bankNotificationPatternUC)
@@ -187,6 +194,7 @@ func initDependencies(cfg *configs.Config, db *gorm.DB, jwtManager *auth.JWTMana
 		BankNotificationPatternUC: bankNotificationPatternUC,
 		EmailGmailUC:              emailGmailUC,
 		AIService:                 aiService,
+		ExchangeProvider:          fxProvider,
 		CategoryRepo:              categoryRepo,
 		JWTManager:                jwtManager,
 	}
@@ -234,7 +242,7 @@ func initHTTPServer(cfg *configs.Config, deps *Dependencies, log zerolog.Logger)
 	}
 
 	// Inicializar rutas API v1
-	v1.NewRouter(router, deps.UserUC, deps.AccountUC, deps.TransactionUC, deps.BudgetUC, deps.ExpenseUC, deps.IncomeUC, deps.BankAccountUC, deps.BankNotificationPatternUC, deps.EmailGmailUC, deps.CategoryRepo, deps.JWTManager, log)
+	v1.NewRouter(router, deps.UserUC, deps.AccountUC, deps.TransactionUC, deps.BudgetUC, deps.ExpenseUC, deps.IncomeUC, deps.BankAccountUC, deps.BankNotificationPatternUC, deps.EmailGmailUC, deps.CategoryRepo, deps.ExchangeProvider, deps.JWTManager, log)
 
 	startGmailSyncWorker(deps.EmailGmailUC)
 

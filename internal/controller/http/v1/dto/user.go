@@ -28,6 +28,7 @@ type UpdateUserRequest struct {
 	DateOfBirth string `json:"date_of_birth" validate:"omitempty"` // Format: YYYY-MM-DD
 	Locale      string `json:"locale" validate:"omitempty,len=5"`  // Format: es-MX
 	Timezone    string `json:"timezone" validate:"omitempty"`      // Format: America/Mexico_City
+	Currency    string `json:"currency" validate:"omitempty,currency"`
 }
 
 // ChangePasswordRequest representa la estructura para cambio de contraseña
@@ -68,6 +69,7 @@ type UserPublicResponse struct {
 	DateOfBirth string `json:"date_of_birth,omitempty"` // Format: YYYY-MM-DD
 	Locale      string `json:"locale"`
 	Timezone    string `json:"timezone"`
+	Currency    string `json:"currency"`
 	IsActive    bool   `json:"is_active"`
 	IsVerified  bool   `json:"is_verified"`
 	CreatedAt   string `json:"created_at"`              // ISO format
@@ -111,6 +113,7 @@ func MapUserToPublicResponse(user *entity.User) *UserPublicResponse {
 		Phone:      user.Phone,
 		Locale:     user.Locale,
 		Timezone:   user.Timezone,
+		Currency:   user.Currency,
 		IsActive:   user.IsActive,
 		IsVerified: user.IsVerified,
 		CreatedAt:  user.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),

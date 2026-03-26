@@ -166,7 +166,7 @@ func Seed(db *gorm.DB) error {
 				Type:           entity.AccountTypeChecking,
 				InitialBalance: 10000.00,
 				Balance:        10000.00,
-				Currency:       "COP",
+				Currency:       "USD",
 				Color:          "#007bff",
 				IsActive:       true,
 			}

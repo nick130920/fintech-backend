@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/nick130920/fintech-backend/pkg/currency"
 	"gorm.io/gorm"
 )
 
@@ -62,7 +63,7 @@ type Expense struct {
 	Notes        string  `json:"notes" validate:"max=1000"`
 	ReceiptURL   string  `json:"receipt_url" validate:"url"` // URL del comprobante
 	ExchangeRate float64 `json:"exchange_rate" gorm:"default:1;type:decimal(10,6)"`
-	Currency     string  `json:"currency" gorm:"type:varchar(3);default:'MXN'" validate:"len=3"`
+	Currency     string  `json:"currency" gorm:"type:varchar(3);default:'USD'" validate:"len=3"`
 
 	// Control de alertas
 	TriggeredAlert bool `json:"triggered_alert" gorm:"default:false"` // Si disparó una alerta
@@ -253,15 +254,6 @@ type ExpenseFilter struct {
 	OrderDir   string         `json:"order_dir"` // ASC o DESC
 }
 
-// FormatCurrency formatea una cantidad con la moneda especificada
-func FormatCurrency(amount float64, currency string) string {
-	// TODO: Implementar formateo según la moneda
-	switch currency {
-	case "MXN":
-		return fmt.Sprintf("$%.2f MXN", amount)
-	case "USD":
-		return fmt.Sprintf("$%.2f USD", amount)
-	default:
-		return fmt.Sprintf("%.2f %s", amount, currency)
-	}
+func FormatCurrency(amount float64, code string) string {
+	return currency.Format(amount, code)
 }

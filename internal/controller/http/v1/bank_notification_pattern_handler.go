@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -27,6 +28,16 @@ func NewBankNotificationPatternHandler(uc *usecase.BankNotificationPatternUseCas
 	return &BankNotificationPatternHandler{uc: uc, logger: logger}
 }
 
+// GetUserPatterns godoc
+// @Summary Listar patrones del usuario
+// @Description Obtiene los patrones de notificaciones bancarias del usuario autenticado
+// @Tags notification-patterns
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {array} entity.BankNotificationPattern
+// @Failure 401 {object} gin.H
+// @Failure 500 {object} gin.H
+// @Router /notification-patterns [get]
 func (h *BankNotificationPatternHandler) GetUserPatterns(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
@@ -44,6 +55,19 @@ func (h *BankNotificationPatternHandler) GetUserPatterns(c *gin.Context) {
 	c.JSON(http.StatusOK, patterns)
 }
 
+// CreatePattern godoc
+// @Summary Crear patrón de notificación
+// @Description Crea un nuevo patrón para procesar notificaciones bancarias
+// @Tags notification-patterns
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body dto.CreateBankNotificationPatternRequest true "Datos del patrón"
+// @Success 201 {object} entity.BankNotificationPattern
+// @Failure 400 {object} gin.H
+// @Failure 401 {object} gin.H
+// @Failure 500 {object} gin.H
+// @Router /notification-patterns [post]
 func (h *BankNotificationPatternHandler) CreatePattern(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
@@ -69,6 +93,16 @@ func (h *BankNotificationPatternHandler) CreatePattern(c *gin.Context) {
 	c.JSON(http.StatusCreated, pattern)
 }
 
+// GetPatternStatistics godoc
+// @Summary Estadísticas de patrones
+// @Description Obtiene estadísticas agregadas de uso y efectividad de patrones
+// @Tags notification-patterns
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{}
+// @Failure 401 {object} gin.H
+// @Failure 500 {object} gin.H
+// @Router /notification-patterns/stats [get]
 func (h *BankNotificationPatternHandler) GetPatternStatistics(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
@@ -86,6 +120,19 @@ func (h *BankNotificationPatternHandler) GetPatternStatistics(c *gin.Context) {
 	c.JSON(http.StatusOK, stats)
 }
 
+// ProcessNotification godoc
+// @Summary Procesar notificación bancaria
+// @Description Procesa una notificación bancaria y devuelve la transacción sugerida/procesada
+// @Tags notification-patterns
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body dto.ProcessNotificationRequest true "Payload de notificación"
+// @Success 200 {object} dto.ProcessedNotificationResponse
+// @Failure 400 {object} gin.H
+// @Failure 401 {object} gin.H
+// @Failure 500 {object} gin.H
+// @Router /notification-patterns/process [post]
 func (h *BankNotificationPatternHandler) ProcessNotification(c *gin.Context) {
 	var req dto.ProcessNotificationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -245,6 +292,18 @@ func (h *BankNotificationPatternHandler) ProcessSMSBatchWithAI(c *gin.Context) {
 }
 
 // StartAnalyzeSMSBatchJob crea un job asíncrono; la app hace polling a GET .../jobs/:jobId (evita HTTP largo / proxy reset).
+// @Summary      Iniciar job de análisis de SMS
+// @Description  Crea un job asíncrono para analizar SMS y generar sugerencias de presupuesto
+// @Tags         notification-patterns
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body dto.AnalyzeSMSBatchRequest true "Lote de SMS"
+// @Success      202 {object} dto.AnalyzeSMSBatchJobResponse
+// @Failure      400 {object} gin.H
+// @Failure      401 {object} gin.H
+// @Failure      500 {object} gin.H
+// @Router       /notification-patterns/analyze-sms-batch/jobs [post]
 func (h *BankNotificationPatternHandler) StartAnalyzeSMSBatchJob(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
@@ -274,6 +333,17 @@ func (h *BankNotificationPatternHandler) StartAnalyzeSMSBatchJob(c *gin.Context)
 }
 
 // GetAnalyzeSMSBatchJobStatus devuelve pending|processing|completed|failed para polling.
+// @Summary      Consultar estado de job de análisis
+// @Description  Devuelve el estado actual del job asíncrono de análisis de SMS
+// @Tags         notification-patterns
+// @Produce      json
+// @Security     BearerAuth
+// @Param        jobId path string true "ID del job"
+// @Success      200 {object} dto.AnalyzeSMSBatchJobStatusResponse
+// @Failure      400 {object} gin.H
+// @Failure      401 {object} gin.H
+// @Failure      500 {object} gin.H
+// @Router       /notification-patterns/analyze-sms-batch/jobs/{jobId} [get]
 func (h *BankNotificationPatternHandler) GetAnalyzeSMSBatchJobStatus(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
@@ -308,7 +378,7 @@ func (h *BankNotificationPatternHandler) GetAnalyzeSMSBatchJobStatus(c *gin.Cont
 // @Failure      500 {object} gin.H
 // @Router       /notification-patterns/analyze-statement [post]
 func (h *BankNotificationPatternHandler) AnalyzeStatement(c *gin.Context) {
-	_, exists := c.Get("user_id")
+	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
@@ -328,7 +398,7 @@ func (h *BankNotificationPatternHandler) AnalyzeStatement(c *gin.Context) {
 	}
 
 	allowed := map[string]bool{
-		".pdf": true, ".png": true, ".jpg": true, ".jpeg": true,
+		".pdf": true, ".png": true, ".jpg": true, ".jpeg": true, ".txt": true, ".csv": true,
 	}
 	lower := strings.ToLower(file.Filename)
 	ok := false
@@ -339,16 +409,36 @@ func (h *BankNotificationPatternHandler) AnalyzeStatement(c *gin.Context) {
 		}
 	}
 	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported format (use PDF, PNG or JPEG)"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported format (use PDF, PNG, JPEG, TXT or CSV)"})
 		return
 	}
 
-	// Stub: do not process file yet; return empty suggestions. TODO: OCR + extraction.
-	c.JSON(http.StatusOK, &dto.AnalyzeSMSBatchResponse{
-		Suggestions: dto.BudgetSuggestions{
-			TotalExpense3m: 0,
-			ByCategory:     []dto.BudgetSuggestionCategory{},
-		},
+	src, err := file.Open()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to open file"})
+		return
+	}
+	defer src.Close()
+
+	content, err := io.ReadAll(src)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to read file"})
+		return
+	}
+
+	// Paso intermedio: soportamos análisis real para texto/csv.
+	if strings.HasSuffix(lower, ".txt") || strings.HasSuffix(lower, ".csv") {
+		resp, err := h.uc.AnalyzeStatementText(c.Request.Context(), userID.(uint), string(content))
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to analyze statement"})
+			return
+		}
+		c.JSON(http.StatusOK, resp)
+		return
+	}
+
+	c.JSON(http.StatusBadRequest, gin.H{
+		"error": "image/pdf analysis not enabled yet; please upload TXT/CSV as intermediate format",
 	})
 }
 
@@ -359,6 +449,19 @@ func truncateString(s string, maxLen int) string {
 	}
 	return s[:maxLen] + "..."
 }
+
+// GetPattern godoc
+// @Summary Obtener patrón
+// @Description Obtiene un patrón específico por ID
+// @Tags notification-patterns
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "ID del patrón"
+// @Success 200 {object} entity.BankNotificationPattern
+// @Failure 400 {object} gin.H
+// @Failure 401 {object} gin.H
+// @Failure 404 {object} gin.H
+// @Router /notification-patterns/{id} [get]
 func (h *BankNotificationPatternHandler) GetPattern(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
@@ -381,6 +484,20 @@ func (h *BankNotificationPatternHandler) GetPattern(c *gin.Context) {
 
 	c.JSON(http.StatusOK, pattern)
 }
+// UpdatePattern godoc
+// @Summary Actualizar patrón
+// @Description Actualiza un patrón existente de notificación bancaria
+// @Tags notification-patterns
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "ID del patrón"
+// @Param request body dto.UpdateBankNotificationPatternRequest true "Datos a actualizar"
+// @Success 200 {object} entity.BankNotificationPattern
+// @Failure 400 {object} gin.H
+// @Failure 401 {object} gin.H
+// @Failure 500 {object} gin.H
+// @Router /notification-patterns/{id} [put]
 func (h *BankNotificationPatternHandler) UpdatePattern(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
@@ -410,6 +527,17 @@ func (h *BankNotificationPatternHandler) UpdatePattern(c *gin.Context) {
 
 	c.JSON(http.StatusOK, pattern)
 }
+// DeletePattern godoc
+// @Summary Eliminar patrón
+// @Description Elimina un patrón de notificación bancaria del usuario
+// @Tags notification-patterns
+// @Security BearerAuth
+// @Param id path int true "ID del patrón"
+// @Success 204 "No Content"
+// @Failure 400 {object} gin.H
+// @Failure 401 {object} gin.H
+// @Failure 500 {object} gin.H
+// @Router /notification-patterns/{id} [delete]
 func (h *BankNotificationPatternHandler) DeletePattern(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
@@ -431,6 +559,19 @@ func (h *BankNotificationPatternHandler) DeletePattern(c *gin.Context) {
 
 	c.Status(http.StatusNoContent)
 }
+// SetPatternStatus godoc
+// @Summary Cambiar estado del patrón
+// @Description Activa o desactiva un patrón de notificación bancaria
+// @Tags notification-patterns
+// @Accept json
+// @Security BearerAuth
+// @Param id path int true "ID del patrón"
+// @Param request body dto.SetPatternStatusRequest true "Nuevo estado"
+// @Success 204 "No Content"
+// @Failure 400 {object} gin.H
+// @Failure 401 {object} gin.H
+// @Failure 500 {object} gin.H
+// @Router /notification-patterns/{id}/status [patch]
 func (h *BankNotificationPatternHandler) SetPatternStatus(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
@@ -459,6 +600,19 @@ func (h *BankNotificationPatternHandler) SetPatternStatus(c *gin.Context) {
 
 	c.Status(http.StatusNoContent)
 }
+// GetBankAccountPatterns godoc
+// @Summary Patrones por cuenta bancaria
+// @Description Obtiene patrones asociados a una cuenta bancaria del usuario
+// @Tags notification-patterns
+// @Produce json
+// @Security BearerAuth
+// @Param bank_account_id path int true "ID de cuenta bancaria"
+// @Param active_only query bool false "Filtrar solo activos"
+// @Success 200 {array} entity.BankNotificationPattern
+// @Failure 400 {object} gin.H
+// @Failure 401 {object} gin.H
+// @Failure 500 {object} gin.H
+// @Router /notification-patterns/bank-account/{bank_account_id} [get]
 func (h *BankNotificationPatternHandler) GetBankAccountPatterns(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {

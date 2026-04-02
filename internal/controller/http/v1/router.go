@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
 
+	"github.com/nick130920/fintech-backend/configs"
 	"github.com/nick130920/fintech-backend/internal/usecase"
 	"github.com/nick130920/fintech-backend/internal/usecase/repo"
 	"github.com/nick130920/fintech-backend/pkg/auth"
@@ -71,6 +72,8 @@ func NewRouter(
 		authGroup.POST("/register", userHandler.Register)
 		authGroup.POST("/login", userHandler.Login)
 		authGroup.POST("/refresh", userHandler.RefreshToken)
+		authGroup.POST("/forgot-password", userHandler.ForgotPassword)
+		authGroup.POST("/reset-password", userHandler.ResetPassword)
 
 		// Rutas de auth que requieren token válido
 		authProtected := authGroup.Group("/")
@@ -90,6 +93,7 @@ func NewRouter(
 		{
 			usersGroup.GET("/profile", userHandler.GetProfile)
 			usersGroup.PUT("/profile", userHandler.UpdateProfile)
+			usersGroup.PUT("/preferences", userHandler.UpdatePreferences)
 		}
 
 		// Rutas de cuentas
@@ -230,6 +234,10 @@ func NewRouter(
 	// Rutas de webhooks (públicas - sin autenticación)
 	{
 		webhooksGroup := v1.Group("/webhooks")
+		cfg := configs.Get()
+		webhooksGroup.Use(WebhookAuthMiddleware(cfg.External.WebhookSecret))
+		webhookRateLimiter := NewRateLimiter(10, time.Minute)
+		webhooksGroup.Use(webhookRateLimiter.RateLimitMiddleware())
 
 		// Webhook principal para notificaciones bancarias
 		webhooksGroup.POST("/bank-notification", webhookHandler.ReceiveBankNotification)

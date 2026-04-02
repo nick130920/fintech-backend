@@ -170,6 +170,85 @@ func (h *UserHandler) RefreshToken(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+// ForgotPassword godoc
+// @Summary Solicitar recuperación de contraseña
+// @Description Inicia el flujo de recuperación enviando token/instrucciones al correo del usuario
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body dto.ForgotPasswordRequest true "Correo del usuario"
+// @Success 200 {object} dto.SuccessResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
+// @Router /auth/forgot-password [post]
+func (h *UserHandler) ForgotPassword(c *gin.Context) {
+	var req dto.ForgotPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{
+			Error:   "Invalid request format",
+			Message: err.Error(),
+		})
+		return
+	}
+	if err := h.validator.Validate(req); err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{
+			Error:   "Validation failed",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	if err := h.userUC.RequestPasswordReset(req.Email); err != nil {
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
+			Error:   "Failed to process forgot password",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.SuccessResponse{
+		Message: "Si el correo existe, se envió un enlace de recuperación",
+	})
+}
+
+// ResetPassword godoc
+// @Summary Restablecer contraseña
+// @Description Completa el flujo de recuperación usando token y nueva contraseña
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body dto.ResetPasswordRequest true "Token y nueva contraseña"
+// @Success 200 {object} dto.SuccessResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Router /auth/reset-password [post]
+func (h *UserHandler) ResetPassword(c *gin.Context) {
+	var req dto.ResetPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{
+			Error:   "Invalid request format",
+			Message: err.Error(),
+		})
+		return
+	}
+	if err := h.validator.Validate(req); err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{
+			Error:   "Validation failed",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	if err := h.userUC.ResetPassword(req.Token, req.NewPassword); err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{
+			Error:   "Reset password failed",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.SuccessResponse{Message: "Contraseña actualizada correctamente"})
+}
+
 // GetProfile obtiene el perfil del usuario autenticado
 // @Summary Obtener perfil del usuario
 // @Description Devuelve la información del perfil del usuario autenticado
@@ -265,6 +344,67 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 
 		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
 			Error:   "Failed to update profile",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, updatedUser.ToPublic())
+}
+
+// UpdatePreferences godoc
+// @Summary Actualizar preferencias del usuario
+// @Description Actualiza preferencias del usuario autenticado (por ejemplo, cuenta por defecto)
+// @Tags users
+// @Accept json
+// @Produce json
+// @Security Bearer
+// @Param request body dto.UpdateUserPreferencesRequest true "Preferencias del usuario"
+// @Success 200 {object} entity.UserPublic
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 404 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
+// @Router /users/preferences [put]
+func (h *UserHandler) UpdatePreferences(c *gin.Context) {
+	userID, exists := GetUserIDFromContext(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, dto.ErrorResponse{
+			Error:   "Unauthorized",
+			Message: "Valid authentication required",
+		})
+		return
+	}
+
+	var req dto.UpdateUserPreferencesRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{
+			Error:   "Invalid request format",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	if err := h.validator.Validate(req); err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{
+			Error:   "Validation failed",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	updatedUser, err := h.userUC.UpdatePreferences(userID, &req)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, dto.ErrorResponse{
+				Error:   "Usuario no encontrado",
+				Message: "User profile not found",
+			})
+			return
+		}
+
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
+			Error:   "Failed to update preferences",
 			Message: err.Error(),
 		})
 		return

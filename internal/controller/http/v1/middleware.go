@@ -3,6 +3,7 @@ package v1
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -113,8 +114,52 @@ func GetUserIDFromContext(c *gin.Context) (uint, bool) {
 		return 0, false
 	}
 
-	id, ok := userID.(uint)
-	return id, ok
+	switch v := userID.(type) {
+	case uint:
+		return v, true
+	case float64:
+		return uint(v), true
+	case int:
+		if v >= 0 {
+			return uint(v), true
+		}
+		return 0, false
+	default:
+		return 0, false
+	}
+}
+
+// MustGetUserIDFromContext retorna 0 cuando no existe; útil en handlers legacy.
+func MustGetUserIDFromContext(c *gin.Context) uint {
+	id, _ := GetUserIDFromContext(c)
+	return id
+}
+
+// ParsePaginationParams obtiene page/per_page con defaults.
+func ParsePaginationParams(c *gin.Context, defaultPerPage int) (page int, perPage int, offset int, hasPagination bool) {
+	page = 1
+	perPage = defaultPerPage
+	if perPage <= 0 {
+		perPage = 20
+	}
+
+	pageRaw := c.Query("page")
+	perPageRaw := c.Query("per_page")
+	hasPagination = pageRaw != "" || perPageRaw != ""
+
+	if pageRaw != "" {
+		if parsed, err := strconv.Atoi(pageRaw); err == nil && parsed > 0 {
+			page = parsed
+		}
+	}
+	if perPageRaw != "" {
+		if parsed, err := strconv.Atoi(perPageRaw); err == nil && parsed > 0 {
+			perPage = parsed
+		}
+	}
+
+	offset = (page - 1) * perPage
+	return page, perPage, offset, hasPagination
 }
 
 // GetUserEmailFromContext extrae el email del usuario del contexto de Gin

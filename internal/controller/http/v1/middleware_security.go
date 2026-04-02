@@ -1,6 +1,13 @@
 package v1
 
 import (
+	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/hex"
+	"io"
+	"strings"
 	"sync"
 	"time"
 
@@ -124,6 +131,56 @@ func (rl *RateLimiter) cleanup() {
 		}
 
 		rl.mu.Unlock()
+	}
+}
+
+// WebhookAuthMiddleware valida autenticación para endpoints de webhooks.
+// Soporta X-Webhook-Secret o X-Webhook-Signature (HMAC-SHA256 del body).
+func WebhookAuthMiddleware(secret string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if strings.TrimSpace(secret) == "" {
+			AbortWithAppError(c, apperrors.ErrInternal.WithDetails("webhook secret no configurado"))
+			return
+		}
+
+		webhookSecret := c.GetHeader("X-Webhook-Secret")
+		if webhookSecret != "" && subtle.ConstantTimeCompare([]byte(webhookSecret), []byte(secret)) == 1 {
+			c.Next()
+			return
+		}
+
+		signature := c.GetHeader("X-Webhook-Signature")
+		if signature == "" {
+			AbortWithAppError(c, apperrors.ErrUnauthorized.WithDetails("firma de webhook faltante"))
+			return
+		}
+
+		body, err := io.ReadAll(c.Request.Body)
+		if err != nil {
+			AbortWithAppError(c, apperrors.ErrInvalidRequest.WithDetails("no se pudo leer el body del webhook"))
+			return
+		}
+		c.Request.Body = io.NopCloser(bytes.NewBuffer(body))
+
+		sig := strings.TrimSpace(signature)
+		sig = strings.TrimPrefix(sig, "sha256=")
+
+		decodedSig, err := hex.DecodeString(sig)
+		if err != nil {
+			AbortWithAppError(c, apperrors.ErrUnauthorized.WithDetails("firma de webhook inválida"))
+			return
+		}
+
+		mac := hmac.New(sha256.New, []byte(secret))
+		mac.Write(body)
+		expected := mac.Sum(nil)
+
+		if subtle.ConstantTimeCompare(decodedSig, expected) != 1 {
+			AbortWithAppError(c, apperrors.ErrUnauthorized.WithDetails("firma de webhook no válida"))
+			return
+		}
+
+		c.Next()
 	}
 }
 

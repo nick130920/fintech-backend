@@ -1,7 +1,10 @@
 package usecase
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -16,6 +19,17 @@ import (
 type UserUseCase struct {
 	userRepo   repo.UserRepo
 	jwtManager *auth.JWTManager
+}
+
+func generateSecureToken(size int) (string, error) {
+	if size <= 0 {
+		return "", errors.New("token size must be positive")
+	}
+	b := make([]byte, size)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
 }
 
 // NewUserUseCase crea una nueva instancia de UserUseCase
@@ -146,6 +160,9 @@ func (uc *UserUseCase) Update(id uint, req *dto.UpdateUserRequest) (*entity.User
 	if req.Currency != "" {
 		user.Currency = req.Currency
 	}
+	if req.DefaultAccountID != nil {
+		user.DefaultAccountID = req.DefaultAccountID
+	}
 
 	// Parsear fecha de nacimiento si se proporciona
 	if req.DateOfBirth != "" {
@@ -153,6 +170,22 @@ func (uc *UserUseCase) Update(id uint, req *dto.UpdateUserRequest) (*entity.User
 			user.DateOfBirth = &dob
 		}
 	}
+
+	if err := uc.userRepo.Update(user); err != nil {
+		return nil, err
+	}
+
+	return user, nil
+}
+
+// UpdatePreferences actualiza preferencias específicas del usuario.
+func (uc *UserUseCase) UpdatePreferences(id uint, req *dto.UpdateUserPreferencesRequest) (*entity.User, error) {
+	user, err := uc.userRepo.GetByID(id)
+	if err != nil {
+		return nil, err
+	}
+
+	user.DefaultAccountID = &req.DefaultAccountID
 
 	if err := uc.userRepo.Update(user); err != nil {
 		return nil, err
@@ -202,6 +235,56 @@ func (uc *UserUseCase) RefreshToken(refreshToken string) (*dto.TokenResponse, er
 		RefreshToken: newRefreshToken,
 		ExpiresIn:    3600, // 1 hora
 	}, nil
+}
+
+// RequestPasswordReset genera token de recuperación y lo guarda en el usuario.
+func (uc *UserUseCase) RequestPasswordReset(email string) error {
+	user, err := uc.userRepo.GetByEmail(email)
+	if err != nil {
+		// Evitar enumeración de usuarios: misma respuesta si no existe.
+		return nil
+	}
+
+	token, err := generateSecureToken(16)
+	if err != nil {
+		return fmt.Errorf("failed to generate reset token: %w", err)
+	}
+
+	expiry := time.Now().Add(30 * time.Minute)
+	user.PasswordResetToken = token
+	user.PasswordResetExpiresAt = &expiry
+	return uc.userRepo.Update(user)
+}
+
+// ResetPassword aplica cambio de contraseña con token válido.
+func (uc *UserUseCase) ResetPassword(token, newPassword string) error {
+	// Reutilizamos repositorio básico buscando por email no aplica, así que hacemos barrido de usuarios activos.
+	users, err := uc.userRepo.GetActiveUsers()
+	if err != nil {
+		return err
+	}
+
+	var target *entity.User
+	now := time.Now()
+	for _, u := range users {
+		if u.PasswordResetToken == token && u.PasswordResetExpiresAt != nil && u.PasswordResetExpiresAt.After(now) {
+			target = u
+			break
+		}
+	}
+	if target == nil {
+		return errors.New("invalid or expired reset token")
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
+	target.Password = string(hashedPassword)
+	target.PasswordResetToken = ""
+	target.PasswordResetExpiresAt = nil
+	return uc.userRepo.Update(target)
 }
 
 // Deactivate desactiva una cuenta de usuario

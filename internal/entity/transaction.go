@@ -324,6 +324,7 @@ type TransactionFilter struct {
 	Source           *TransactionSource `json:"source"`
 	ValidationStatus *ValidationStatus  `json:"validation_status"`
 	CategoryID       *uint              `json:"category_id"`
+	CategoryIDs      []uint             `json:"category_ids"`
 	FromDate         *time.Time         `json:"from_date"`
 	ToDate           *time.Time         `json:"to_date"`
 	MinAmount        *float64           `json:"min_amount"`

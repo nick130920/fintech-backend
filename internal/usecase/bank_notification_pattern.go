@@ -21,6 +21,7 @@ import (
 // BankNotificationPatternUseCase contiene la lógica de negocio para patrones de notificación bancaria
 type BankNotificationPatternUseCase struct {
 	patternRepo       repo.BankNotificationPatternRepo
+	accountRepo       repo.AccountRepo
 	bankAccountRepo   repo.BankAccountRepo
 	userRepo          repo.UserRepo
 	transactionRepo   repo.TransactionRepo
@@ -36,6 +37,7 @@ type BankNotificationPatternUseCase struct {
 // NewBankNotificationPatternUseCase crea una nueva instancia de BankNotificationPatternUseCase
 func NewBankNotificationPatternUseCase(
 	patternRepo repo.BankNotificationPatternRepo,
+	accountRepo repo.AccountRepo,
 	bankAccountRepo repo.BankAccountRepo,
 	userRepo repo.UserRepo,
 	transactionRepo repo.TransactionRepo,
@@ -49,6 +51,7 @@ func NewBankNotificationPatternUseCase(
 ) *BankNotificationPatternUseCase {
 	return &BankNotificationPatternUseCase{
 		patternRepo:       patternRepo,
+		accountRepo:       accountRepo,
 		bankAccountRepo:   bankAccountRepo,
 		userRepo:          userRepo,
 		transactionRepo:   transactionRepo,
@@ -389,7 +392,25 @@ func (uc *BankNotificationPatternUseCase) ProcessNotificationWebhook(req dto.Pro
 
 	// Usar IA para procesar el mensaje directamente
 	ctx := context.Background()
-	return uc.ProcessSMSWithAI(ctx, userID, req.Message)
+	result, err := uc.ProcessSMSWithAI(ctx, userID, req.Message)
+	if err != nil {
+		return nil, err
+	}
+
+	// Persistir como pendiente cuando no se pudo crear transacción automática.
+	if !result.TransactionCreated || result.RequiresValidation {
+		_ = uc.patternRepo.CreatePendingNotification(&entity.PendingNotification{
+			UserID:     userID,
+			RawMessage: req.Message,
+			Channel:    req.Channel,
+			Phone:      req.Phone,
+			ReceivedAt: req.ReceivedAt,
+			LastError:  result.Reason,
+			Status:     entity.PendingNotificationStatusPending,
+		})
+	}
+
+	return result, nil
 }
 
 // ProcessSMSWithAI processes an SMS directly using AI without pattern matching.
@@ -649,10 +670,15 @@ func (uc *BankNotificationPatternUseCase) createTransactionFromNotification(
 	// Determinar tipo de transacción (por defecto gasto)
 	transactionType := entity.TransactionTypeExpense
 
+	accountID, err := uc.resolveUserAccountID(userID)
+	if err != nil {
+		return nil, err
+	}
+
 	// Crear transacción
 	transaction := &entity.Transaction{
 		UserID:           userID,
-		AccountID:        1, // TODO: Obtener cuenta por defecto del usuario
+		AccountID:        accountID,
 		BankAccountID:    &pattern.BankAccountID,
 		Type:             transactionType,
 		Amount:           amount,
@@ -680,6 +706,30 @@ func (uc *BankNotificationPatternUseCase) createTransactionFromNotification(
 	return transaction, nil
 }
 
+func (uc *BankNotificationPatternUseCase) resolveUserAccountID(userID uint) (uint, error) {
+	user, err := uc.userRepo.GetByID(userID)
+	if err != nil {
+		return 0, apperrors.ErrNotFound.WithDetails("No se pudo obtener el usuario para resolver la cuenta")
+	}
+
+	if user.DefaultAccountID != nil && *user.DefaultAccountID > 0 {
+		account, err := uc.accountRepo.GetByID(*user.DefaultAccountID)
+		if err == nil && account.UserID == userID {
+			return account.ID, nil
+		}
+	}
+
+	accounts, err := uc.accountRepo.GetByUserID(userID)
+	if err != nil {
+		return 0, apperrors.ErrInternal.WithInternal(err).WithDetails("Error al obtener cuentas del usuario")
+	}
+	if len(accounts) == 0 {
+		return 0, apperrors.ErrNotFound.WithDetails("El usuario no tiene cuentas disponibles")
+	}
+
+	return accounts[0].ID, nil
+}
+
 // findBankAccountByPhone busca una cuenta bancaria por teléfono de notificación
 func (uc *BankNotificationPatternUseCase) findBankAccountByPhone(phone string) (*entity.BankAccount, error) {
 	// Buscar cuentas que tengan este teléfono configurado para notificaciones
@@ -695,6 +745,15 @@ func (uc *BankNotificationPatternUseCase) findBankAccountByPhone(phone string) (
 	// Retornar la primera cuenta encontrada
 	// TODO: Mejorar lógica si hay múltiples cuentas con el mismo teléfono
 	return accounts[0], nil
+}
+
+// FindUserIDByPhone obtiene el usuario dueño del número de notificación.
+func (uc *BankNotificationPatternUseCase) FindUserIDByPhone(phone string) (uint, error) {
+	account, err := uc.findBankAccountByPhone(phone)
+	if err != nil {
+		return 0, err
+	}
+	return account.UserID, nil
 }
 
 // calculateConfidence calcula la confianza basada en los datos extraídos
@@ -749,9 +808,33 @@ func (uc *BankNotificationPatternUseCase) parseDate(dateStr string) (time.Time, 
 
 // GetPendingNotifications obtiene notificaciones pendientes de validación
 func (uc *BankNotificationPatternUseCase) GetPendingNotifications(userID uint, limit int) ([]*dto.PendingNotification, error) {
-	// TODO: Implementar tabla de notificaciones pendientes
-	// Por ahora retornamos una lista vacía
-	return []*dto.PendingNotification{}, nil
+	notifications, err := uc.patternRepo.GetPendingNotifications(userID, limit)
+	if err != nil {
+		return nil, apperrors.ErrInternal.WithInternal(err).WithDetails("Error al obtener notificaciones pendientes")
+	}
+
+	result := make([]*dto.PendingNotification, 0, len(notifications))
+	for _, n := range notifications {
+		result = append(result, &dto.PendingNotification{
+			ID:         n.ID,
+			RawMessage: n.RawMessage,
+			Channel:    n.Channel,
+			Phone:      n.Phone,
+			ReceivedAt: n.ReceivedAt,
+			Attempts:   n.Attempts,
+			LastError:  n.LastError,
+		})
+	}
+
+	return result, nil
+}
+
+func (uc *BankNotificationPatternUseCase) MarkPendingNotificationProcessed(id uint) error {
+	return uc.patternRepo.MarkPendingNotificationProcessed(id)
+}
+
+func (uc *BankNotificationPatternUseCase) IncrementPendingNotificationAttempt(id uint, lastError string) error {
+	return uc.patternRepo.IncrementPendingNotificationAttempt(id, lastError)
 }
 
 // ProcessSMSBatchForSuggestions analyzes multiple SMS with pocas llamadas a la IA (lotes), no una por SMS.
@@ -1145,21 +1228,133 @@ func sanitizeSMSLine(body string, maxRunes int) string {
 	return string(r[:maxRunes])
 }
 
+// AnalyzeStatementText procesa texto plano de extracto y reutiliza sugerencias por lotes.
+func (uc *BankNotificationPatternUseCase) AnalyzeStatementText(ctx context.Context, userID uint, statementText string) (*dto.AnalyzeSMSBatchResponse, error) {
+	rawLines := strings.Split(statementText, "\n")
+	messages := make([]dto.SMSMessageForAnalysis, 0, len(rawLines))
+
+	for _, line := range rawLines {
+		clean := strings.TrimSpace(line)
+		if clean == "" || !containsDigit(clean) {
+			continue
+		}
+		messages = append(messages, dto.SMSMessageForAnalysis{
+			Body: clean,
+			Date: time.Now().Format(time.RFC3339),
+		})
+	}
+
+	if len(messages) == 0 {
+		return &dto.AnalyzeSMSBatchResponse{
+			Suggestions: dto.BudgetSuggestions{
+				TotalExpense3m: 0,
+				ByCategory:     []dto.BudgetSuggestionCategory{},
+			},
+		}, nil
+	}
+
+	return uc.ProcessSMSBatchForSuggestions(ctx, userID, messages)
+}
+
+func containsDigit(s string) bool {
+	for _, r := range s {
+		if r >= '0' && r <= '9' {
+			return true
+		}
+	}
+	return false
+}
+
 // GetNotificationStats obtiene estadísticas de procesamiento de notificaciones
 func (uc *BankNotificationPatternUseCase) GetNotificationStats(userID *uint, days int) (*dto.NotificationStatsResponse, error) {
-	// TODO: Implementar estadísticas reales
-	// Por ahora retornamos estadísticas de ejemplo
-	stats := &dto.NotificationStatsResponse{
-		TotalReceived:     0,
-		TotalProcessed:    0,
-		TotalFailed:       0,
-		AutoCreated:       0,
-		PendingValidation: 0,
-		ByChannel:         make(map[string]int),
-		ByBank:            make(map[string]int),
-		ByDay:             []dto.DailyNotificationStat{},
-		AverageConfidence: 0.0,
+	if userID == nil || *userID == 0 {
+		return nil, apperrors.ErrInvalidRequest.WithDetails("user_id es requerido para estadísticas")
 	}
+	if days <= 0 {
+		days = 30
+	}
+
+	since := time.Now().AddDate(0, 0, -days)
+	stats := &dto.NotificationStatsResponse{
+		ByChannel: make(map[string]int),
+		ByBank:    make(map[string]int),
+		ByDay:     []dto.DailyNotificationStat{},
+	}
+
+	transactions, err := uc.transactionRepo.GetByUserID(*userID)
+	if err != nil {
+		return nil, apperrors.ErrInternal.WithInternal(err).WithDetails("No se pudieron cargar transacciones para estadísticas")
+	}
+
+	var confidenceSum float64
+	dayStats := make(map[string]*dto.DailyNotificationStat)
+	for _, tx := range transactions {
+		if tx.Source != entity.TransactionSourceNotification {
+			continue
+		}
+		if tx.CreatedAt.Before(since) {
+			continue
+		}
+
+		stats.TotalProcessed++
+		stats.AutoCreated++
+		stats.ByChannel["sms"]++
+
+		if tx.AIConfidence > 0 {
+			confidenceSum += tx.AIConfidence
+		}
+
+		dayKey := tx.CreatedAt.Format("2006-01-02")
+		current, exists := dayStats[dayKey]
+		if !exists {
+			current = &dto.DailyNotificationStat{Date: dayKey}
+			dayStats[dayKey] = current
+		}
+		current.Count++
+		current.Processed++
+		current.AvgAmount += tx.Amount
+	}
+
+	pending, err := uc.patternRepo.GetPendingNotifications(*userID, 0)
+	if err != nil {
+		return nil, apperrors.ErrInternal.WithInternal(err).WithDetails("No se pudieron cargar notificaciones pendientes")
+	}
+	for _, p := range pending {
+		if p.CreatedAt.Before(since) {
+			continue
+		}
+		stats.PendingValidation++
+		stats.ByChannel[p.Channel]++
+		if p.Attempts > 0 {
+			stats.TotalFailed++
+		}
+
+		dayKey := p.CreatedAt.Format("2006-01-02")
+		current, exists := dayStats[dayKey]
+		if !exists {
+			current = &dto.DailyNotificationStat{Date: dayKey}
+			dayStats[dayKey] = current
+		}
+		current.Count++
+		if p.Attempts > 0 {
+			current.Failed++
+		}
+	}
+
+	stats.TotalReceived = stats.TotalProcessed + stats.PendingValidation
+	if stats.TotalProcessed > 0 {
+		stats.AverageConfidence = confidenceSum / float64(stats.TotalProcessed)
+	}
+
+	byDay := make([]dto.DailyNotificationStat, 0, len(dayStats))
+	for _, d := range dayStats {
+		if d.Processed > 0 {
+			d.AvgAmount = d.AvgAmount / float64(d.Processed)
+		}
+		byDay = append(byDay, *d)
+	}
+	sort.Slice(byDay, func(i, j int) bool { return byDay[i].Date < byDay[j].Date })
+	stats.ByDay = byDay
 
 	return stats, nil
 }

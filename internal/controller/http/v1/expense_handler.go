@@ -66,7 +66,7 @@ func (h *ExpenseHandler) CreateExpense(c *gin.Context) {
 	}
 
 	// Obtener ID del usuario del contexto
-	userID := getUserIDFromContext(c)
+	userID := MustGetUserIDFromContext(c)
 
 	// Crear gasto con logging detallado
 	h.logger.Info().Uint("user_id", userID).Interface("request", req).Msg("Creating expense for user")
@@ -146,7 +146,7 @@ func (h *ExpenseHandler) CreateExpense(c *gin.Context) {
 // @Failure      500  {object}  dto.ErrorResponse
 // @Router       /api/v1/expenses [get]
 func (h *ExpenseHandler) GetExpenses(c *gin.Context) {
-	userID := getUserIDFromContext(c)
+	userID := MustGetUserIDFromContext(c)
 
 	// Obtener parámetros de query
 	var categoryID *uint
@@ -212,7 +212,7 @@ func (h *ExpenseHandler) GetExpenses(c *gin.Context) {
 // @Failure      500  {object}  dto.ErrorResponse
 // @Router       /api/v1/expenses/by-category [get]
 func (h *ExpenseHandler) GetExpensesByCategory(c *gin.Context) {
-	userID := getUserIDFromContext(c)
+	userID := MustGetUserIDFromContext(c)
 
 	summary, err := h.expenseUC.GetExpensesByCategory(userID)
 	if err != nil {
@@ -243,7 +243,7 @@ func (h *ExpenseHandler) GetExpensesByCategory(c *gin.Context) {
 // @Failure      500  {object}  dto.ErrorResponse
 // @Router       /api/v1/expenses/recent [get]
 func (h *ExpenseHandler) GetRecentExpenses(c *gin.Context) {
-	userID := getUserIDFromContext(c)
+	userID := MustGetUserIDFromContext(c)
 
 	limit := 10
 	if limitStr := c.Query("limit"); limitStr != "" {
@@ -285,7 +285,7 @@ func (h *ExpenseHandler) GetRecentExpenses(c *gin.Context) {
 // @Failure      500     {object}  dto.ErrorResponse
 // @Router       /api/v1/expenses/{id} [put]
 func (h *ExpenseHandler) UpdateExpense(c *gin.Context) {
-	userID := getUserIDFromContext(c)
+	userID := MustGetUserIDFromContext(c)
 
 	// Obtener ID del gasto
 	expenseID, err := strconv.ParseUint(c.Param("id"), 10, 32)
@@ -361,7 +361,7 @@ func (h *ExpenseHandler) UpdateExpense(c *gin.Context) {
 // @Failure      500 {object} dto.ErrorResponse
 // @Router       /api/v1/expenses/{id} [delete]
 func (h *ExpenseHandler) DeleteExpense(c *gin.Context) {
-	userID := getUserIDFromContext(c)
+	userID := MustGetUserIDFromContext(c)
 
 	// Obtener ID del gasto
 	expenseID, err := strconv.ParseUint(c.Param("id"), 10, 32)
@@ -415,7 +415,7 @@ func (h *ExpenseHandler) DeleteExpense(c *gin.Context) {
 // @Failure      500  {object}  dto.ErrorResponse
 // @Router       /api/v1/expenses/automatic [get]
 func (h *ExpenseHandler) GetAutomaticExpenses(c *gin.Context) {
-	userID := getUserIDFromContext(c)
+	userID := MustGetUserIDFromContext(c)
 
 	limit := 50
 	if limitStr := c.Query("limit"); limitStr != "" {
@@ -455,7 +455,7 @@ func (h *ExpenseHandler) GetAutomaticExpenses(c *gin.Context) {
 // @Failure      500  {object}  dto.ErrorResponse
 // @Router       /api/v1/expenses/{id}/confirm [post]
 func (h *ExpenseHandler) ConfirmExpense(c *gin.Context) {
-	userID := getUserIDFromContext(c)
+	userID := MustGetUserIDFromContext(c)
 
 	expenseID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
@@ -515,7 +515,7 @@ func (h *ExpenseHandler) ConfirmExpense(c *gin.Context) {
 // @Failure      500  {object}  dto.ErrorResponse
 // @Router       /api/v1/expenses/{id}/reject [post]
 func (h *ExpenseHandler) RejectExpense(c *gin.Context) {
-	userID := getUserIDFromContext(c)
+	userID := MustGetUserIDFromContext(c)
 
 	expenseID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {

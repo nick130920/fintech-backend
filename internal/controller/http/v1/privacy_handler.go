@@ -14,7 +14,13 @@ func NewPrivacyHandler() *PrivacyHandler {
 	return &PrivacyHandler{}
 }
 
-// GetPrivacyPolicy returns the privacy policy in HTML format
+// GetPrivacyPolicy godoc
+// @Summary Política de privacidad
+// @Description Devuelve la política de privacidad en formato HTML
+// @Tags legal
+// @Produce html
+// @Success 200 {string} string
+// @Router /privacy [get]
 func (h *PrivacyHandler) GetPrivacyPolicy(c *gin.Context) {
 	html := `
 <!DOCTYPE html>
@@ -131,7 +137,13 @@ func (h *PrivacyHandler) GetPrivacyPolicy(c *gin.Context) {
 	c.String(http.StatusOK, html)
 }
 
-// GetTermsOfService returns the terms of service in HTML format
+// GetTermsOfService godoc
+// @Summary Términos de servicio
+// @Description Devuelve los términos de servicio en formato HTML
+// @Tags legal
+// @Produce html
+// @Success 200 {string} string
+// @Router /terms [get]
 func (h *PrivacyHandler) GetTermsOfService(c *gin.Context) {
 	html := `
 <!DOCTYPE html>
@@ -195,7 +207,13 @@ func (h *PrivacyHandler) GetTermsOfService(c *gin.Context) {
 	c.String(http.StatusOK, html)
 }
 
-// GetAccountDeletion returns the account deletion page in HTML format
+// GetAccountDeletion godoc
+// @Summary Eliminación de cuenta
+// @Description Devuelve la página informativa para eliminación de cuenta en formato HTML
+// @Tags legal
+// @Produce html
+// @Success 200 {string} string
+// @Router /account-deletion [get]
 func (h *PrivacyHandler) GetAccountDeletion(c *gin.Context) {
 	html := `
 <!DOCTYPE html>

@@ -1,0 +1,1 @@
+-- Rollback del baseline inicial (sin cambios estructurales).

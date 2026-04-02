@@ -36,4 +36,10 @@ type BankNotificationPatternRepo interface {
 	GetSummaryByUserID(userID uint) ([]*entity.BankNotificationPatternSummary, error)
 	GetTopPerformingPatterns(userID uint, limit int) ([]*entity.BankNotificationPattern, error)
 	GetLearningPatterns(userID uint) ([]*entity.BankNotificationPattern, error)
+
+	// Persistencia de notificaciones pendientes
+	CreatePendingNotification(notification *entity.PendingNotification) error
+	GetPendingNotifications(userID uint, limit int) ([]*entity.PendingNotification, error)
+	MarkPendingNotificationProcessed(id uint) error
+	IncrementPendingNotificationAttempt(id uint, lastError string) error
 }

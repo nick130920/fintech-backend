@@ -325,3 +325,48 @@ func (r *BankNotificationPatternPostgres) GetLearningPatterns(userID uint) ([]*e
 	}
 	return patterns, nil
 }
+
+// CreatePendingNotification persiste una notificación pendiente.
+func (r *BankNotificationPatternPostgres) CreatePendingNotification(notification *entity.PendingNotification) error {
+	if err := r.db.Create(notification).Error; err != nil {
+		return fmt.Errorf("failed to create pending notification: %w", err)
+	}
+	return nil
+}
+
+// GetPendingNotifications obtiene notificaciones pendientes por usuario.
+func (r *BankNotificationPatternPostgres) GetPendingNotifications(userID uint, limit int) ([]*entity.PendingNotification, error) {
+	var notifications []*entity.PendingNotification
+	query := r.db.Where("user_id = ? AND status = ?", userID, entity.PendingNotificationStatusPending).
+		Order("created_at DESC")
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+	if err := query.Find(&notifications).Error; err != nil {
+		return nil, fmt.Errorf("failed to list pending notifications: %w", err)
+	}
+	return notifications, nil
+}
+
+// MarkPendingNotificationProcessed marca una notificación como procesada.
+func (r *BankNotificationPatternPostgres) MarkPendingNotificationProcessed(id uint) error {
+	if err := r.db.Model(&entity.PendingNotification{}).
+		Where("id = ?", id).
+		Update("status", entity.PendingNotificationStatusProcessed).Error; err != nil {
+		return fmt.Errorf("failed to mark pending notification as processed: %w", err)
+	}
+	return nil
+}
+
+// IncrementPendingNotificationAttempt incrementa intentos y guarda último error.
+func (r *BankNotificationPatternPostgres) IncrementPendingNotificationAttempt(id uint, lastError string) error {
+	if err := r.db.Model(&entity.PendingNotification{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"attempts":   gorm.Expr("attempts + 1"),
+			"last_error": lastError,
+		}).Error; err != nil {
+		return fmt.Errorf("failed to update pending notification attempt: %w", err)
+	}
+	return nil
+}

@@ -152,6 +152,38 @@ func (h *BankAccountHandler) GetUserBankAccounts(c *gin.Context) {
 
 	activeOnly := c.Query("active_only") == "true"
 
+	_, perPage, offset, hasPagination := ParsePaginationParams(c, 20)
+	if hasPagination {
+		filter := entity.BankAccountFilter{
+			IsActive: nil,
+			Limit:    perPage,
+			Offset:   offset,
+			OrderBy:  "created_at",
+			OrderDir: "DESC",
+		}
+		if activeOnly {
+			v := true
+			filter.IsActive = &v
+		}
+
+		response, err := h.bankAccountUC.SearchBankAccounts(userID.(uint), filter)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
+				Error:   "Internal server error",
+				Message: err.Error(),
+			})
+			return
+		}
+		c.JSON(http.StatusOK, dto.PaginatedResponse{
+			Data:       response.Data,
+			Total:      int64(response.Total),
+			Page:       response.Page,
+			PageSize:   response.PerPage,
+			TotalPages: response.TotalPages,
+		})
+		return
+	}
+
 	response, err := h.bankAccountUC.GetUserBankAccounts(userID.(uint), activeOnly)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{

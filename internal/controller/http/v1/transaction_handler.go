@@ -3,6 +3,7 @@ package v1
 import (
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -30,7 +31,28 @@ func NewTransactionHandler(transactionUC *usecase.TransactionUseCase, logger zer
 	}
 }
 
-// GetTransactions obtiene las transacciones del usuario con filtros
+// GetTransactions godoc
+// @Summary Listar transacciones
+// @Description Obtiene transacciones del usuario autenticado con filtros avanzados (fechas, montos, categoría, búsqueda y paginación)
+// @Tags transactions
+// @Produce json
+// @Security BearerAuth
+// @Param account_id query int false "ID de cuenta"
+// @Param type query string false "Tipo (income,expense,transfer)"
+// @Param status query string false "Estado (pending,completed,cancelled)"
+// @Param category_id query int false "ID de categoría"
+// @Param category_ids query string false "IDs de categorías separados por coma (ej: 1,2,3)"
+// @Param from_date query string false "Fecha inicio (YYYY-MM-DD)"
+// @Param to_date query string false "Fecha fin (YYYY-MM-DD)"
+// @Param amount_min query number false "Monto mínimo"
+// @Param amount_max query number false "Monto máximo"
+// @Param search query string false "Texto a buscar en descripción"
+// @Param limit query int false "Límite de resultados"
+// @Param offset query int false "Offset de resultados"
+// @Success 200 {array} entity.TransactionSummary
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
+// @Router /api/v1/transactions [get]
 func (h *TransactionHandler) GetTransactions(c *gin.Context) {
 	userID, exists := GetUserIDFromContext(c)
 	if !exists {
@@ -56,7 +78,19 @@ func (h *TransactionHandler) GetTransactions(c *gin.Context) {
 	c.JSON(http.StatusOK, transactions)
 }
 
-// CreateTransaction crea una nueva transacción
+// CreateTransaction godoc
+// @Summary Crear transacción
+// @Description Crea una nueva transacción para el usuario autenticado
+// @Tags transactions
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param transaction body dto.CreateTransactionRequest true "Datos de transacción"
+// @Success 201 {object} entity.Transaction
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
+// @Router /api/v1/transactions [post]
 func (h *TransactionHandler) CreateTransaction(c *gin.Context) {
 	userID, exists := GetUserIDFromContext(c)
 	if !exists {
@@ -112,7 +146,19 @@ func (h *TransactionHandler) CreateTransaction(c *gin.Context) {
 	c.JSON(http.StatusCreated, newTransaction)
 }
 
-// GetTransaction obtiene una transacción específica
+// GetTransaction godoc
+// @Summary Obtener transacción
+// @Description Obtiene una transacción específica del usuario autenticado
+// @Tags transactions
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "ID de transacción"
+// @Success 200 {object} entity.Transaction
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 404 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
+// @Router /api/v1/transactions/{id} [get]
 func (h *TransactionHandler) GetTransaction(c *gin.Context) {
 	userID, exists := GetUserIDFromContext(c)
 	if !exists {
@@ -153,7 +199,21 @@ func (h *TransactionHandler) GetTransaction(c *gin.Context) {
 	c.JSON(http.StatusOK, transaction)
 }
 
-// UpdateTransaction actualiza una transacción
+// UpdateTransaction godoc
+// @Summary Actualizar transacción
+// @Description Actualiza una transacción del usuario autenticado
+// @Tags transactions
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "ID de transacción"
+// @Param transaction body dto.UpdateTransactionRequest true "Datos a actualizar"
+// @Success 200 {object} entity.Transaction
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 404 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
+// @Router /api/v1/transactions/{id} [put]
 func (h *TransactionHandler) UpdateTransaction(c *gin.Context) {
 	userID, exists := GetUserIDFromContext(c)
 	if !exists {
@@ -211,7 +271,18 @@ func (h *TransactionHandler) UpdateTransaction(c *gin.Context) {
 	c.JSON(http.StatusOK, updatedTransaction)
 }
 
-// DeleteTransaction elimina una transacción
+// DeleteTransaction godoc
+// @Summary Eliminar transacción
+// @Description Elimina una transacción del usuario autenticado
+// @Tags transactions
+// @Security BearerAuth
+// @Param id path int true "ID de transacción"
+// @Success 204 "No Content"
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 404 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
+// @Router /api/v1/transactions/{id} [delete]
 func (h *TransactionHandler) DeleteTransaction(c *gin.Context) {
 	userID, exists := GetUserIDFromContext(c)
 	if !exists {
@@ -252,7 +323,17 @@ func (h *TransactionHandler) DeleteTransaction(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// CancelTransaction cancela una transacción
+// CancelTransaction godoc
+// @Summary Cancelar transacción
+// @Description Cancela una transacción del usuario autenticado
+// @Tags transactions
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "ID de transacción"
+// @Success 200 {object} dto.Response
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Router /api/v1/transactions/{id}/cancel [patch]
 func (h *TransactionHandler) CancelTransaction(c *gin.Context) {
 	userID, exists := GetUserIDFromContext(c)
 	if !exists {
@@ -288,7 +369,17 @@ func (h *TransactionHandler) CancelTransaction(c *gin.Context) {
 	})
 }
 
-// GetRecentTransactions obtiene transacciones recientes
+// GetRecentTransactions godoc
+// @Summary Transacciones recientes
+// @Description Obtiene las transacciones más recientes del usuario autenticado
+// @Tags transactions
+// @Produce json
+// @Security BearerAuth
+// @Param limit query int false "Límite de resultados"
+// @Success 200 {array} entity.TransactionSummary
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
+// @Router /api/v1/transactions/recent [get]
 func (h *TransactionHandler) GetRecentTransactions(c *gin.Context) {
 	userID, exists := GetUserIDFromContext(c)
 	if !exists {
@@ -317,7 +408,18 @@ func (h *TransactionHandler) GetRecentTransactions(c *gin.Context) {
 	c.JSON(http.StatusOK, transactions)
 }
 
-// GetTotalsByType obtiene totales por tipo de transacción
+// GetTotalsByType godoc
+// @Summary Totales por tipo
+// @Description Obtiene totales de transacciones por tipo para el usuario autenticado
+// @Tags transactions
+// @Produce json
+// @Security BearerAuth
+// @Param from_date query string false "Fecha inicio (YYYY-MM-DD)"
+// @Param to_date query string false "Fecha fin (YYYY-MM-DD)"
+// @Success 200 {object} map[string]number
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
+// @Router /api/v1/transactions/totals-by-type [get]
 func (h *TransactionHandler) GetTotalsByType(c *gin.Context) {
 	userID, exists := GetUserIDFromContext(c)
 	if !exists {
@@ -379,6 +481,62 @@ func (h *TransactionHandler) buildFilterFromQuery(c *gin.Context) *entity.Transa
 	if statusStr := c.Query("status"); statusStr != "" {
 		transStatus := entity.TransactionStatus(statusStr)
 		filter.Status = &transStatus
+	}
+
+	// Category ID (single)
+	if categoryIDStr := c.Query("category_id"); categoryIDStr != "" {
+		if categoryID, err := strconv.ParseUint(categoryIDStr, 10, 32); err == nil {
+			categoryIDUint := uint(categoryID)
+			filter.CategoryID = &categoryIDUint
+		}
+	}
+
+	// Category IDs (multiple)
+	if categoryIDsStr := c.Query("category_ids"); categoryIDsStr != "" {
+		parts := strings.Split(categoryIDsStr, ",")
+		for _, part := range parts {
+			v := strings.TrimSpace(part)
+			if v == "" {
+				continue
+			}
+			if id, err := strconv.ParseUint(v, 10, 32); err == nil {
+				filter.CategoryIDs = append(filter.CategoryIDs, uint(id))
+			}
+		}
+	}
+
+	// Date range
+	if fromDateStr := c.Query("from_date"); fromDateStr != "" {
+		if fromDate, err := time.Parse("2006-01-02", fromDateStr); err == nil {
+			filter.FromDate = &fromDate
+		}
+	}
+	if dateFromStr := c.Query("date_from"); dateFromStr != "" {
+		if fromDate, err := time.Parse("2006-01-02", dateFromStr); err == nil {
+			filter.FromDate = &fromDate
+		}
+	}
+	if toDateStr := c.Query("to_date"); toDateStr != "" {
+		if toDate, err := time.Parse("2006-01-02", toDateStr); err == nil {
+			filter.ToDate = &toDate
+		}
+	}
+	if dateToStr := c.Query("date_to"); dateToStr != "" {
+		if toDate, err := time.Parse("2006-01-02", dateToStr); err == nil {
+			filter.ToDate = &toDate
+		}
+	}
+
+	// Amount range
+	if minAmountStr := c.Query("amount_min"); minAmountStr != "" {
+		if minAmount, err := strconv.ParseFloat(minAmountStr, 64); err == nil {
+			filter.MinAmount = &minAmount
+		}
+	}
+	if maxAmountStr := c.Query("amount_max"); maxAmountStr != "" {
+		if maxAmount, err := strconv.ParseFloat(maxAmountStr, 64); err == nil {
+			filter.MaxAmount = &maxAmount
+		}
 	}
 
 	// Limit

@@ -29,6 +29,12 @@ type UpdateUserRequest struct {
 	Locale      string `json:"locale" validate:"omitempty,len=5"`  // Format: es-MX
 	Timezone    string `json:"timezone" validate:"omitempty"`      // Format: America/Mexico_City
 	Currency    string `json:"currency" validate:"omitempty,currency"`
+	DefaultAccountID *uint `json:"default_account_id,omitempty"`
+}
+
+// UpdateUserPreferencesRequest representa preferencias configurables del usuario.
+type UpdateUserPreferencesRequest struct {
+	DefaultAccountID uint `json:"default_account_id" validate:"required,gt=0"`
 }
 
 // ChangePasswordRequest representa la estructura para cambio de contraseña
@@ -40,6 +46,15 @@ type ChangePasswordRequest struct {
 // RefreshTokenRequest representa la estructura para refresh token
 type RefreshTokenRequest struct {
 	RefreshToken string `json:"refresh_token" validate:"required"`
+}
+
+type ForgotPasswordRequest struct {
+	Email string `json:"email" validate:"required,email"`
+}
+
+type ResetPasswordRequest struct {
+	Token       string `json:"token" validate:"required"`
+	NewPassword string `json:"new_password" validate:"required,min=8,max=50"`
 }
 
 // LoginResponse representa la respuesta de login exitoso
@@ -70,6 +85,7 @@ type UserPublicResponse struct {
 	Locale      string `json:"locale"`
 	Timezone    string `json:"timezone"`
 	Currency    string `json:"currency"`
+	DefaultAccountID *uint `json:"default_account_id,omitempty"`
 	IsActive    bool   `json:"is_active"`
 	IsVerified  bool   `json:"is_verified"`
 	CreatedAt   string `json:"created_at"`              // ISO format
@@ -114,6 +130,7 @@ func MapUserToPublicResponse(user *entity.User) *UserPublicResponse {
 		Locale:     user.Locale,
 		Timezone:   user.Timezone,
 		Currency:   user.Currency,
+		DefaultAccountID: user.DefaultAccountID,
 		IsActive:   user.IsActive,
 		IsVerified: user.IsVerified,
 		CreatedAt:  user.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),

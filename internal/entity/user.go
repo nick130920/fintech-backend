@@ -29,10 +29,13 @@ type User struct {
 	Locale     string `json:"locale" gorm:"default:'es'"`
 	Timezone   string `json:"timezone" gorm:"default:'America/Mexico_City'"`
 	Currency   string `json:"currency" gorm:"default:'USD'" validate:"len=3"`
+	DefaultAccountID *uint  `json:"default_account_id,omitempty" gorm:"index"`
 
 	// Campos de auditoría
 	LastLoginAt *time.Time `json:"last_login_at"`
 	LoginCount  int        `json:"login_count" gorm:"default:0"`
+	PasswordResetToken     string     `json:"-" gorm:"index"`
+	PasswordResetExpiresAt *time.Time `json:"-"`
 }
 
 // ToPublic convierte un User a información pública (sin datos sensibles)
@@ -48,6 +51,7 @@ func (u *User) ToPublic() *UserPublic {
 		Locale:     u.Locale,
 		Timezone:   u.Timezone,
 		Currency:   u.Currency,
+		DefaultAccountID: u.DefaultAccountID,
 		CreatedAt:  u.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 
@@ -99,6 +103,7 @@ type UserPublic struct {
 	Locale      string `json:"locale"`
 	Timezone    string `json:"timezone"`
 	Currency    string `json:"currency"`
+	DefaultAccountID *uint `json:"default_account_id,omitempty"`
 	CreatedAt   string `json:"created_at"`              // ISO format string
 	LastLoginAt string `json:"last_login_at,omitempty"` // ISO format string
 }

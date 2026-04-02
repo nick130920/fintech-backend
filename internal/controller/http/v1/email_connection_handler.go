@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/nick130920/fintech-backend/internal/controller/http/v1/dto"
 	"github.com/nick130920/fintech-backend/internal/usecase"
 	"github.com/rs/zerolog"
 )
@@ -28,27 +29,47 @@ func setGmailOAuthCallbackHTMLHeaders(c *gin.Context) {
 	c.Header("Content-Security-Policy", gmailOAuthCallbackCSP)
 }
 
-// GmailAuthorize GET devuelve URL para abrir en navegador.
+// GmailAuthorize godoc
+// @Summary Iniciar autorización Gmail
+// @Description Genera la URL OAuth para conectar Gmail con el usuario autenticado
+// @Tags email
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} map[string]string
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 503 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
+// @Router /email/gmail/authorize [get]
 func (h *EmailConnectionHandler) GmailAuthorize(c *gin.Context) {
 	userID, ok := c.Get("user_id")
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		c.JSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "unauthorized", Message: "unauthorized"})
 		return
 	}
 	if h.uc == nil || !h.uc.IsGmailConfigured() {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "gmail oauth no configurado"})
+		c.JSON(http.StatusServiceUnavailable, dto.ErrorResponse{Error: "service_unavailable", Message: "gmail oauth no configurado"})
 		return
 	}
 	out, err := h.uc.BuildGmailAuthorizeURL(userID.(uint))
 	if err != nil {
 		h.logger.Error().Err(err).Msg("gmail authorize url")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "internal_error", Message: err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, out)
 }
 
-// GmailOAuthCallback GET público: Google redirige aquí con ?code=&state=.
+// GmailOAuthCallback godoc
+// @Summary Callback OAuth de Gmail
+// @Description Endpoint público al que Google redirige tras autorización; completa el vínculo y muestra HTML
+// @Tags email
+// @Produce html
+// @Param code query string false "Código OAuth"
+// @Param state query string false "Estado OAuth"
+// @Success 200 {string} string
+// @Failure 400 {string} string
+// @Failure 503 {string} string
+// @Router /email/gmail/callback [get]
 func (h *EmailConnectionHandler) GmailOAuthCallback(c *gin.Context) {
 	if h.uc == nil || !h.uc.IsGmailConfigured() {
 		c.String(http.StatusServiceUnavailable, "Gmail no configurado en el servidor")
@@ -447,11 +468,20 @@ func gmailOAuthStatusIconSVG(kind string) string {
 	return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>`
 }
 
-// GetEmailConnectionStatus GET estado vinculación.
+// GetEmailConnectionStatus godoc
+// @Summary Estado de conexión de correo
+// @Description Obtiene el estado de conexión Gmail para el usuario autenticado
+// @Tags email
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{}
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
+// @Router /email/status [get]
 func (h *EmailConnectionHandler) GetEmailConnectionStatus(c *gin.Context) {
 	userID, ok := c.Get("user_id")
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		c.JSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "unauthorized", Message: "unauthorized"})
 		return
 	}
 	if h.uc == nil {
@@ -460,17 +490,25 @@ func (h *EmailConnectionHandler) GetEmailConnectionStatus(c *gin.Context) {
 	}
 	st, err := h.uc.GetEmailStatus(userID.(uint))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "internal_error", Message: err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, st)
 }
 
-// GmailDisconnect DELETE revoca conexión.
+// GmailDisconnect godoc
+// @Summary Desconectar Gmail
+// @Description Revoca la conexión Gmail del usuario autenticado
+// @Tags email
+// @Security BearerAuth
+// @Success 204 "No Content"
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
+// @Router /email/gmail/disconnect [delete]
 func (h *EmailConnectionHandler) GmailDisconnect(c *gin.Context) {
 	userID, ok := c.Get("user_id")
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		c.JSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "unauthorized", Message: "unauthorized"})
 		return
 	}
 	if h.uc == nil {
@@ -478,26 +516,36 @@ func (h *EmailConnectionHandler) GmailDisconnect(c *gin.Context) {
 		return
 	}
 	if err := h.uc.DisconnectGmail(c.Request.Context(), userID.(uint)); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "internal_error", Message: err.Error()})
 		return
 	}
 	c.Status(http.StatusNoContent)
 }
 
-// GmailSync POST sincroniza buzón ahora.
+// GmailSync godoc
+// @Summary Sincronizar Gmail
+// @Description Ejecuta una sincronización manual del buzón Gmail conectado
+// @Tags email
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{}
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 503 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
+// @Router /email/gmail/sync [post]
 func (h *EmailConnectionHandler) GmailSync(c *gin.Context) {
 	userID, ok := c.Get("user_id")
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		c.JSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "unauthorized", Message: "unauthorized"})
 		return
 	}
 	if h.uc == nil || !h.uc.IsGmailConfigured() {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "gmail no disponible"})
+		c.JSON(http.StatusServiceUnavailable, dto.ErrorResponse{Error: "service_unavailable", Message: "gmail no disponible"})
 		return
 	}
 	out, err := h.uc.SyncGmailForUser(c.Request.Context(), userID.(uint))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "internal_error", Message: err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, out)

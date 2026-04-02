@@ -2,6 +2,7 @@ package v1
 
 import (
 	"net/http"
+	"sort"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -12,6 +13,17 @@ import (
 	"github.com/nick130920/fintech-backend/internal/usecase/repo"
 	"github.com/nick130920/fintech-backend/pkg/validator"
 )
+
+func paginateCategories(items []dto.CategorySummaryResponse, offset, limit int) []dto.CategorySummaryResponse {
+	if offset >= len(items) {
+		return []dto.CategorySummaryResponse{}
+	}
+	end := offset + limit
+	if end > len(items) {
+		end = len(items)
+	}
+	return items[offset:end]
+}
 
 // CategoryHandler maneja las peticiones HTTP relacionadas con categorías
 type CategoryHandler struct {
@@ -40,7 +52,7 @@ func NewCategoryHandler(categoryRepo repo.CategoryRepo, logger zerolog.Logger) *
 // @Failure      500  {object}  dto.ErrorResponse
 // @Router       /api/v1/categories [get]
 func (h *CategoryHandler) GetCategories(c *gin.Context) {
-	userID := getUserIDFromContext(c)
+	userID := MustGetUserIDFromContext(c)
 
 	// Obtener categorías por defecto del sistema
 	defaultCategories, err := h.categoryRepo.GetDefaultCategories()
@@ -75,10 +87,34 @@ func (h *CategoryHandler) GetCategories(c *gin.Context) {
 		userCategoriesDTO[i] = mapCategoryToSummaryResponse(cat)
 	}
 
+	sort.SliceStable(defaultCategoriesDTO, func(i, j int) bool { return defaultCategoriesDTO[i].Name < defaultCategoriesDTO[j].Name })
+	sort.SliceStable(userCategoriesDTO, func(i, j int) bool { return userCategoriesDTO[i].Name < userCategoriesDTO[j].Name })
+
 	response := dto.CategoriesResponse{
 		DefaultCategories: defaultCategoriesDTO,
 		UserCategories:    userCategoriesDTO,
 		TotalCount:        len(defaultCategoriesDTO) + len(userCategoriesDTO),
+	}
+
+	page, perPage, offset, hasPagination := ParsePaginationParams(c, 20)
+	if hasPagination {
+		combined := make([]dto.CategorySummaryResponse, 0, response.TotalCount)
+		combined = append(combined, defaultCategoriesDTO...)
+		combined = append(combined, userCategoriesDTO...)
+		paged := paginateCategories(combined, offset, perPage)
+		total := int64(len(combined))
+		totalPages := int((total + int64(perPage) - 1) / int64(perPage))
+		if totalPages == 0 {
+			totalPages = 1
+		}
+		c.JSON(http.StatusOK, dto.PaginatedResponse{
+			Data:       paged,
+			Total:      total,
+			Page:       page,
+			PageSize:   perPage,
+			TotalPages: totalPages,
+		})
+		return
 	}
 
 	c.JSON(http.StatusOK, dto.Response{
@@ -102,7 +138,7 @@ func (h *CategoryHandler) GetCategories(c *gin.Context) {
 // @Failure      500  {object}  dto.ErrorResponse
 // @Router       /api/v1/categories [post]
 func (h *CategoryHandler) CreateCategory(c *gin.Context) {
-	userID := getUserIDFromContext(c)
+	userID := MustGetUserIDFromContext(c)
 
 	var req dto.CreateCategoryRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -178,7 +214,7 @@ func (h *CategoryHandler) CreateCategory(c *gin.Context) {
 // @Failure      500     {object}  dto.ErrorResponse
 // @Router       /api/v1/categories/{id} [put]
 func (h *CategoryHandler) UpdateCategory(c *gin.Context) {
-	userID := getUserIDFromContext(c)
+	userID := MustGetUserIDFromContext(c)
 
 	// Obtener ID de la categoría
 	categoryID, err := strconv.ParseUint(c.Param("id"), 10, 32)
@@ -280,7 +316,7 @@ func (h *CategoryHandler) UpdateCategory(c *gin.Context) {
 // @Failure      500 {object} dto.ErrorResponse
 // @Router       /api/v1/categories/{id} [delete]
 func (h *CategoryHandler) DeleteCategory(c *gin.Context) {
-	userID := getUserIDFromContext(c)
+	userID := MustGetUserIDFromContext(c)
 
 	// Obtener ID de la categoría
 	categoryID, err := strconv.ParseUint(c.Param("id"), 10, 32)

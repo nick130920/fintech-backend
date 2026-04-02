@@ -7,9 +7,21 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/nick130920/fintech-backend/internal/controller/http/v1/dto"
+	"github.com/nick130920/fintech-backend/internal/entity"
 	"github.com/nick130920/fintech-backend/internal/usecase"
 	"github.com/nick130920/fintech-backend/pkg/validator"
 )
+
+func paginateAccounts(items []*entity.Account, offset, limit int) []*entity.Account {
+	if offset >= len(items) {
+		return []*entity.Account{}
+	}
+	end := offset + limit
+	if end > len(items) {
+		end = len(items)
+	}
+	return items[offset:end]
+}
 
 // AccountHandler maneja las peticiones HTTP relacionadas con cuentas
 type AccountHandler struct {
@@ -25,7 +37,18 @@ func NewAccountHandler(accountUC *usecase.AccountUseCase) *AccountHandler {
 	}
 }
 
-// GetAccounts obtiene todas las cuentas del usuario
+// GetAccounts godoc
+// @Summary Obtener cuentas
+// @Description Obtiene las cuentas del usuario autenticado. Si envías page/per_page retorna respuesta paginada.
+// @Tags accounts
+// @Produce json
+// @Security BearerAuth
+// @Param page query int false "Página (opcional para paginación)"
+// @Param per_page query int false "Elementos por página (opcional para paginación)"
+// @Success 200 {object} dto.PaginatedResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
+// @Router /api/v1/accounts [get]
 func (h *AccountHandler) GetAccounts(c *gin.Context) {
 	userID, exists := GetUserIDFromContext(c)
 	if !exists {
@@ -45,10 +68,40 @@ func (h *AccountHandler) GetAccounts(c *gin.Context) {
 		return
 	}
 
+	page, perPage, offset, hasPagination := ParsePaginationParams(c, 20)
+	if hasPagination {
+		paged := paginateAccounts(accounts, offset, perPage)
+		total := int64(len(accounts))
+		totalPages := int((total + int64(perPage) - 1) / int64(perPage))
+		if totalPages == 0 {
+			totalPages = 1
+		}
+		c.JSON(http.StatusOK, dto.PaginatedResponse{
+			Data:       paged,
+			Total:      total,
+			Page:       page,
+			PageSize:   perPage,
+			TotalPages: totalPages,
+		})
+		return
+	}
+
 	c.JSON(http.StatusOK, accounts)
 }
 
-// CreateAccount crea una nueva cuenta
+// CreateAccount godoc
+// @Summary Crear cuenta
+// @Description Crea una nueva cuenta financiera para el usuario autenticado
+// @Tags accounts
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param account body dto.CreateAccountRequest true "Datos de la cuenta"
+// @Success 201 {object} entity.Account
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
+// @Router /api/v1/accounts [post]
 func (h *AccountHandler) CreateAccount(c *gin.Context) {
 	userID, exists := GetUserIDFromContext(c)
 	if !exists {
@@ -88,7 +141,19 @@ func (h *AccountHandler) CreateAccount(c *gin.Context) {
 	c.JSON(http.StatusCreated, newAccount)
 }
 
-// GetAccount obtiene una cuenta específica
+// GetAccount godoc
+// @Summary Obtener cuenta
+// @Description Obtiene una cuenta específica del usuario autenticado
+// @Tags accounts
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "ID de cuenta"
+// @Success 200 {object} entity.Account
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 404 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
+// @Router /api/v1/accounts/{id} [get]
 func (h *AccountHandler) GetAccount(c *gin.Context) {
 	userID, exists := GetUserIDFromContext(c)
 	if !exists {
@@ -129,7 +194,21 @@ func (h *AccountHandler) GetAccount(c *gin.Context) {
 	c.JSON(http.StatusOK, account)
 }
 
-// UpdateAccount actualiza una cuenta
+// UpdateAccount godoc
+// @Summary Actualizar cuenta
+// @Description Actualiza una cuenta del usuario autenticado
+// @Tags accounts
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "ID de cuenta"
+// @Param account body dto.UpdateAccountRequest true "Datos a actualizar"
+// @Success 200 {object} entity.Account
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 404 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
+// @Router /api/v1/accounts/{id} [put]
 func (h *AccountHandler) UpdateAccount(c *gin.Context) {
 	userID, exists := GetUserIDFromContext(c)
 	if !exists {
@@ -187,7 +266,19 @@ func (h *AccountHandler) UpdateAccount(c *gin.Context) {
 	c.JSON(http.StatusOK, updatedAccount)
 }
 
-// DeleteAccount elimina una cuenta
+// DeleteAccount godoc
+// @Summary Eliminar cuenta
+// @Description Elimina una cuenta del usuario autenticado
+// @Tags accounts
+// @Security BearerAuth
+// @Param id path int true "ID de cuenta"
+// @Success 204 "No Content"
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 404 {object} dto.ErrorResponse
+// @Failure 409 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
+// @Router /api/v1/accounts/{id} [delete]
 func (h *AccountHandler) DeleteAccount(c *gin.Context) {
 	userID, exists := GetUserIDFromContext(c)
 	if !exists {
@@ -236,7 +327,16 @@ func (h *AccountHandler) DeleteAccount(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// GetAccountSummaries obtiene resúmenes de cuentas
+// GetAccountSummaries godoc
+// @Summary Resumen de cuentas
+// @Description Obtiene un resumen compacto de cuentas del usuario autenticado
+// @Tags accounts
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {array} entity.AccountSummary
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
+// @Router /api/v1/accounts/summaries [get]
 func (h *AccountHandler) GetAccountSummaries(c *gin.Context) {
 	userID, exists := GetUserIDFromContext(c)
 	if !exists {
@@ -259,7 +359,16 @@ func (h *AccountHandler) GetAccountSummaries(c *gin.Context) {
 	c.JSON(http.StatusOK, summaries)
 }
 
-// GetTotalBalance obtiene el balance total
+// GetTotalBalance godoc
+// @Summary Balance total
+// @Description Obtiene el balance total consolidado de cuentas activas del usuario autenticado
+// @Tags accounts
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} map[string]number
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
+// @Router /api/v1/accounts/total-balance [get]
 func (h *AccountHandler) GetTotalBalance(c *gin.Context) {
 	userID, exists := GetUserIDFromContext(c)
 	if !exists {

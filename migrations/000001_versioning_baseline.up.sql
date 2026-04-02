@@ -1,0 +1,2 @@
+-- Baseline inicial para adopcion de golang-migrate.
+-- Mantener este archivo como marca de version inicial.

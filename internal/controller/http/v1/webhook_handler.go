@@ -195,12 +195,14 @@ func (h *WebhookHandler) ProcessPendingNotifications(c *gin.Context) {
 		_, err := h.bankNotificationUC.ProcessNotificationWebhook(processReq)
 		if err != nil {
 			failed++
+			_ = h.bankNotificationUC.IncrementPendingNotificationAttempt(notification.ID, err.Error())
 			log.Error().
 				Err(err).
 				Uint("notification_id", notification.ID).
 				Msg("Failed to process pending notification")
 		} else {
 			processed++
+			_ = h.bankNotificationUC.MarkPendingNotificationProcessed(notification.ID)
 		}
 	}
 
@@ -290,10 +292,11 @@ func (h *WebhookHandler) processBankNotificationInternal(c *gin.Context, req dto
 
 // findUserByPhone busca un usuario por número de teléfono
 func (h *WebhookHandler) findUserByPhone(phone string) uint {
-	// TODO: Implementar búsqueda de usuario por teléfono
-	// Por ahora retornamos 0, pero debería buscar en la base de datos
-	// o tener un mapeo de teléfonos a usuarios
-	return 0
+	userID, err := h.bankNotificationUC.FindUserIDByPhone(phone)
+	if err != nil {
+		return 0
+	}
+	return userID
 }
 
 // SimpleRecoveryMiddleware provides a simple panic recovery middleware for production.

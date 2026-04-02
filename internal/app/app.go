@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"errors"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -28,6 +30,8 @@ import (
 	"github.com/nick130920/fintech-backend/pkg/observability"
 	"github.com/nick130920/fintech-backend/pkg/repository"
 )
+
+var appDB *gorm.DB
 
 func startGmailSyncWorker(uc *usecase.EmailGmailUseCase) {
 	if uc == nil || !uc.IsGmailConfigured() {
@@ -71,6 +75,7 @@ func Run() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to initialize database")
 	}
+	appDB = db
 
 	// Crear datos de prueba si es necesario
 	if cfg.IsDevelopment() {
@@ -89,7 +94,7 @@ func Run() {
 	httpServer := initHTTPServer(cfg, deps, logger.Get())
 
 	// Ejecutar servidor
-	runServer(httpServer, cfg.Server.Port)
+	runServer(httpServer, db, cfg.Server.Port)
 }
 
 // Dependencies contiene todas las dependencias de la aplicación
@@ -159,6 +164,7 @@ func initDependencies(cfg *configs.Config, db *gorm.DB, jwtManager *auth.JWTMana
 	bankAccountUC := usecase.NewBankAccountUseCase(bankAccountRepo, userRepo)
 	bankNotificationPatternUC := usecase.NewBankNotificationPatternUseCase(
 		bankNotificationPatternRepo,
+		accountRepo,
 		bankAccountRepo,
 		userRepo,
 		transactionRepo,
@@ -255,9 +261,12 @@ func initHTTPServer(cfg *configs.Config, deps *Dependencies, log zerolog.Logger)
 }
 
 // runServer ejecuta el servidor con graceful shutdown
-func runServer(router *gin.Engine, port string) {
+func runServer(router *gin.Engine, db *gorm.DB, port string) {
 	log := logger.Get()
-	server := router
+	server := &http.Server{
+		Addr:    ":" + port,
+		Handler: router,
+	}
 
 	// Canal para señales del sistema
 	quit := make(chan os.Signal, 1)
@@ -268,7 +277,7 @@ func runServer(router *gin.Engine, port string) {
 		log.Info().Msgf("Server starting on port %s", port)
 		log.Info().Msgf("Environment: %s", gin.Mode())
 
-		if err := server.Run(":" + port); err != nil {
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatal().Err(err).Msg("Failed to start server")
 		}
 	}()
@@ -277,7 +286,26 @@ func runServer(router *gin.Engine, port string) {
 	<-quit
 	log.Info().Msg("Shutting down server...")
 
-	// TODO: Implementar graceful shutdown cuando sea necesario
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		log.Error().Err(err).Msg("Graceful shutdown failed")
+	} else {
+		log.Info().Msg("HTTP server shut down gracefully")
+	}
+
+	if db != nil {
+		sqlDB, err := db.DB()
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to access SQL DB during shutdown")
+		} else if err := sqlDB.Close(); err != nil {
+			log.Error().Err(err).Msg("Failed to close DB connection")
+		} else {
+			log.Info().Msg("Database connection closed")
+		}
+	}
+
 	log.Info().Msg("Server stopped")
 }
 
@@ -325,11 +353,34 @@ func corsMiddleware(corsConfig configs.CORSConfig) gin.HandlerFunc {
 
 // healthCheckHandler maneja el endpoint de health check
 func healthCheckHandler(c *gin.Context) {
-	c.JSON(200, gin.H{
-		"status":    "OK",
-		"timestamp": time.Now().Unix(),
-		"service":   "fintech-api",
-		"version":   "1.0.0",
+	dbStatus := "disconnected"
+	status := "degraded"
+	pingMs := int64(0)
+
+	if appDB != nil {
+		sqlDB, err := appDB.DB()
+		if err == nil {
+			start := time.Now()
+			if err := sqlDB.Ping(); err == nil {
+				dbStatus = "connected"
+				status = "healthy"
+			}
+			pingMs = time.Since(start).Milliseconds()
+		}
+	}
+
+	code := 200
+	if status != "healthy" {
+		code = 503
+	}
+
+	c.JSON(code, gin.H{
+		"status":       status,
+		"timestamp":    time.Now().Unix(),
+		"service":      "fintech-api",
+		"version":      "1.0.0",
+		"database":     dbStatus,
+		"db_ping_ms":   pingMs,
 	})
 }
 

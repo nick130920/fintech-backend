@@ -44,6 +44,8 @@ type DatabaseConfig struct {
 	TimeZone        string `json:"timezone"`
 	LogLevel        string `json:"log_level"`
 	AutoMigrate     bool   `json:"auto_migrate"`
+	MigrationEngine string `json:"migration_engine"` // gorm | golang-migrate
+	MigrationPath   string `json:"migration_path"`   // e.g. file://migrations
 	MaxIdleConns    int    `json:"max_idle_conns"`
 	MaxOpenConns    int    `json:"max_open_conns"`
 	ConnMaxLifetime int    `json:"conn_max_lifetime"`
@@ -87,6 +89,7 @@ type ExternalConfig struct {
 	PlaidEnvironment string `json:"plaid_environment"`
 	SentryDSN        string `json:"-"` // No exponer en JSON
 	SentryTestSecret string `json:"-"` // Secreto para POST /debug/sentry-test (solo desarrollo)
+	WebhookSecret    string `json:"-"` // Secreto para autenticación de webhooks
 	Gmail            GmailOAuthConfig `json:"-"`
 }
 
@@ -161,6 +164,7 @@ func Load() *Config {
 			PlaidEnvironment: getEnv("PLAID_ENVIRONMENT", "sandbox"),
 			SentryDSN:        getEnv("SENTRY_DSN", ""),
 			SentryTestSecret: getEnv("SENTRY_TEST_SECRET", ""),
+			WebhookSecret:    getEnv("WEBHOOK_SECRET", ""),
 			Gmail: GmailOAuthConfig{
 				ClientID:           getEnv("GMAIL_CLIENT_ID", ""),
 				ClientSecret:       getEnv("GMAIL_CLIENT_SECRET", ""),
@@ -256,6 +260,8 @@ func loadDatabaseConfig() DatabaseConfig {
 		TimeZone:        getEnv("DB_TIMEZONE", "America/Bogota"),
 		LogLevel:        getEnv("DB_LOG_LEVEL", "error"),
 		AutoMigrate:     getEnvAsBool("DB_AUTO_MIGRATE", true),
+		MigrationEngine: getEnv("DB_MIGRATION_ENGINE", "gorm"),
+		MigrationPath:   getEnv("DB_MIGRATION_PATH", "file://migrations"),
 		MaxIdleConns:    getEnvAsInt("DB_MAX_IDLE_CONNS", 10),
 		MaxOpenConns:    getEnvAsInt("DB_MAX_OPEN_CONNS", 100),
 		ConnMaxLifetime: getEnvAsInt("DB_CONN_MAX_LIFETIME", 60),
@@ -277,6 +283,8 @@ func parseDatabaseURL(databaseURL string) (DatabaseConfig, error) {
 		TimeZone:        getEnv("DB_TIMEZONE", "America/Bogota"),
 		LogLevel:        getEnv("DB_LOG_LEVEL", "error"),
 		AutoMigrate:     getEnvAsBool("DB_AUTO_MIGRATE", true),
+		MigrationEngine: getEnv("DB_MIGRATION_ENGINE", "gorm"),
+		MigrationPath:   getEnv("DB_MIGRATION_PATH", "file://migrations"),
 		MaxIdleConns:    getEnvAsInt("DB_MAX_IDLE_CONNS", 10),
 		MaxOpenConns:    getEnvAsInt("DB_MAX_OPEN_CONNS", 100),
 		ConnMaxLifetime: getEnvAsInt("DB_CONN_MAX_LIFETIME", 60),

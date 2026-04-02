@@ -109,6 +109,9 @@ func (r *TransactionPostgres) GetByUserIDWithFilter(userID uint, filter *entity.
 	if filter.CategoryID != nil {
 		query = query.Where("t.category_id = ?", *filter.CategoryID)
 	}
+	if len(filter.CategoryIDs) > 0 {
+		query = query.Where("t.category_id IN ?", filter.CategoryIDs)
+	}
 	if filter.FromDate != nil {
 		query = query.Where("t.transaction_date >= ?", *filter.FromDate)
 	}

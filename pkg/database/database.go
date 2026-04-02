@@ -1,10 +1,15 @@
 package database
 
 import (
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
-	"gorm.io/driver/postgres"
+	"github.com/golang-migrate/migrate/v4"
+	migratepostgres "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
+	gormpostgres "gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
 
@@ -43,7 +48,7 @@ func Initialize() (*gorm.DB, error) {
 	gormLogger := gormlogger.Default.LogMode(logLevel)
 
 	// Abrir conexión
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+	db, err := gorm.Open(gormpostgres.Open(dsn), &gorm.Config{
 		Logger: gormLogger,
 	})
 	if err != nil {
@@ -62,6 +67,12 @@ func Initialize() (*gorm.DB, error) {
 
 	// Ejecutar migraciones
 	if dbConfig.AutoMigrate {
+		// Transición gradual: habilita golang-migrate versionado sin romper compatibilidad.
+		if strings.EqualFold(dbConfig.MigrationEngine, "golang-migrate") {
+			if err := runVersionedMigrations(db, dbConfig.MigrationPath); err != nil {
+				return nil, fmt.Errorf("error al ejecutar migraciones versionadas: %v", err)
+			}
+		}
 		if err := runMigrations(db); err != nil {
 			return nil, fmt.Errorf("error al ejecutar migraciones: %v", err)
 		}
@@ -75,6 +86,36 @@ func Initialize() (*gorm.DB, error) {
 		Str("dbname", dbConfig.DBName).
 		Msg("Connected to database")
 	return db, nil
+}
+
+func runVersionedMigrations(db *gorm.DB, migrationPath string) error {
+	if migrationPath == "" {
+		migrationPath = "file://migrations"
+	}
+	if !strings.Contains(migrationPath, "://") {
+		migrationPath = "file://" + migrationPath
+	}
+
+	sqlDB, err := db.DB()
+	if err != nil {
+		return fmt.Errorf("error al obtener SQL DB para migraciones: %w", err)
+	}
+
+	driver, err := migratepostgres.WithInstance(sqlDB, &migratepostgres.Config{})
+	if err != nil {
+		return fmt.Errorf("error al inicializar driver postgres para migraciones: %w", err)
+	}
+
+	m, err := migrate.NewWithDatabaseInstance(migrationPath, "postgres", driver)
+	if err != nil {
+		return fmt.Errorf("error al inicializar golang-migrate: %w", err)
+	}
+
+	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+		return fmt.Errorf("error ejecutando golang-migrate up: %w", err)
+	}
+
+	return nil
 }
 
 // runMigrations ejecuta las migraciones de la base de datos
@@ -94,6 +135,7 @@ func runMigrations(db *gorm.DB) error {
 		&entity.BankNotificationPattern{},
 		&entity.BudgetSuggestionSlugStat{},
 		&entity.BudgetSuggestionJob{},
+		&entity.PendingNotification{},
 		&entity.UserEmailConnection{},
 		&entity.ProcessedEmailMessage{},
 	)
@@ -116,6 +158,7 @@ func DropTables(db *gorm.DB) error {
 	return db.Migrator().DropTable(
 		&entity.BudgetSuggestionJob{},
 		&entity.BudgetSuggestionSlugStat{},
+		&entity.PendingNotification{},
 		&entity.ProcessedEmailMessage{},
 		&entity.UserEmailConnection{},
 		// Eliminar en orden inverso por dependencias

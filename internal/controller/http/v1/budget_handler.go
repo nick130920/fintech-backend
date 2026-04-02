@@ -64,7 +64,7 @@ func (h *BudgetHandler) CreateBudget(c *gin.Context) {
 	}
 
 	// Obtener ID del usuario del contexto
-	userID := getUserIDFromContext(c)
+	userID := MustGetUserIDFromContext(c)
 
 	// Crear presupuesto
 	budget, err := h.budgetUC.CreateBudget(userID, &req)
@@ -92,7 +92,7 @@ func (h *BudgetHandler) CreateBudget(c *gin.Context) {
 // @Failure      500  {object}  dto.ErrorResponse
 // @Router       /api/v1/budgets/current [get]
 func (h *BudgetHandler) GetCurrentBudget(c *gin.Context) {
-	userID := getUserIDFromContext(c)
+	userID := MustGetUserIDFromContext(c)
 
 	budget, err := h.budgetUC.GetCurrentBudget(userID)
 	if err != nil {
@@ -122,7 +122,7 @@ func (h *BudgetHandler) GetCurrentBudget(c *gin.Context) {
 // @Failure      500  {object}  dto.ErrorResponse
 // @Router       /api/v1/budgets/month [get]
 func (h *BudgetHandler) GetBudgetByMonth(c *gin.Context) {
-	userID := getUserIDFromContext(c)
+	userID := MustGetUserIDFromContext(c)
 
 	// Obtener parámetros de query
 	yearStr := c.Query("year")
@@ -183,7 +183,7 @@ func (h *BudgetHandler) GetBudgetByMonth(c *gin.Context) {
 // @Failure      500     {object}  dto.ErrorResponse
 // @Router       /api/v1/budgets/{id} [put]
 func (h *BudgetHandler) UpdateBudget(c *gin.Context) {
-	userID := getUserIDFromContext(c)
+	userID := MustGetUserIDFromContext(c)
 
 	// Obtener ID del presupuesto
 	budgetID, err := strconv.ParseUint(c.Param("id"), 10, 32)
@@ -239,7 +239,7 @@ func (h *BudgetHandler) UpdateBudget(c *gin.Context) {
 // @Failure      500  {object}  dto.ErrorResponse
 // @Router       /api/v1/budgets/dashboard [get]
 func (h *BudgetHandler) GetDashboard(c *gin.Context) {
-	userID := getUserIDFromContext(c)
+	userID := MustGetUserIDFromContext(c)
 
 	dashboard, err := h.budgetUC.GetDashboard(userID)
 	if err != nil {
@@ -265,7 +265,7 @@ func (h *BudgetHandler) GetDashboard(c *gin.Context) {
 // @Failure      500  {object}  dto.ErrorResponse
 // @Router       /api/v1/budgets/rollover [post]
 func (h *BudgetHandler) ProcessDailyRollover(c *gin.Context) {
-	userID := getUserIDFromContext(c)
+	userID := MustGetUserIDFromContext(c)
 
 	err := h.budgetUC.ProcessDailyRollover(userID)
 	if err != nil {
@@ -296,7 +296,7 @@ func (h *BudgetHandler) ProcessDailyRollover(c *gin.Context) {
 // @Failure      500     {object}  dto.ErrorResponse
 // @Router       /api/v1/budgets/allocations/{id} [put]
 func (h *BudgetHandler) UpdateAllocation(c *gin.Context) {
-	userID := getUserIDFromContext(c)
+	userID := MustGetUserIDFromContext(c)
 
 	// Obtener ID de la asignación
 	allocationID, err := strconv.ParseUint(c.Param("id"), 10, 32)
@@ -341,23 +341,3 @@ func (h *BudgetHandler) UpdateAllocation(c *gin.Context) {
 	})
 }
 
-// Helper function para obtener el ID del usuario del contexto JWT
-func getUserIDFromContext(c *gin.Context) uint {
-	userID, exists := c.Get("user_id")
-	if !exists {
-		// En caso de que no exista (no debería pasar con el middleware correcto)
-		return 0
-	}
-
-	// Convertir a uint
-	if id, ok := userID.(uint); ok {
-		return id
-	}
-
-	// Si viene como float64 (típico de JWT claims)
-	if id, ok := userID.(float64); ok {
-		return uint(id)
-	}
-
-	return 0
-}

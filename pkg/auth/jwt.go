@@ -2,6 +2,7 @@ package auth
 
 import (
 	"errors"
+	"strconv"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -83,7 +84,7 @@ func (manager *JWTManager) GenerateRefreshToken(userID uint, email string) (stri
 		IssuedAt:  jwt.NewNumericDate(time.Now()),
 		NotBefore: jwt.NewNumericDate(time.Now()),
 		Issuer:    "fintech-api",
-		ID:        string(rune(userID)),
+		ID:        strconv.FormatUint(uint64(userID), 10),
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -112,8 +113,12 @@ func (manager *JWTManager) ValidateRefreshToken(tokenString string) (uint, strin
 		return 0, "", errors.New("refresh token inválido")
 	}
 
-	// Convertir ID de usuario desde string
-	userID := uint(claims.ID[0]) // Simplificado, en producción usar mejor conversión
+	parsedID, err := strconv.ParseUint(claims.ID, 10, 64)
+	if err != nil {
+		return 0, "", errors.New("refresh token inválido: user ID inválido")
+	}
+
+	userID := uint(parsedID)
 	email := claims.Subject
 
 	return userID, email, nil

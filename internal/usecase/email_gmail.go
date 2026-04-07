@@ -384,7 +384,15 @@ func (uc *EmailGmailUseCase) SyncAllGmailConnections(ctx context.Context) {
 		_, errS := uc.SyncGmailForUser(subCtx, conn.UserID)
 		cancel()
 		if errS != nil {
-			uc.log.Warn().Err(errS).Uint("user_id", conn.UserID).Msg("sync gmail usuario")
+			if strings.Contains(errS.Error(), "invalid_grant") {
+				if rErr := uc.connRepo.SoftRevoke(conn.UserID, emailProviderGmail); rErr != nil {
+					uc.log.Warn().Err(rErr).Uint("user_id", conn.UserID).Msg("revocar conexión gmail tras invalid_grant")
+				} else {
+					uc.log.Warn().Uint("user_id", conn.UserID).Msg("gmail token revocado automáticamente - el usuario debe reconectar")
+				}
+			} else {
+				uc.log.Warn().Err(errS).Uint("user_id", conn.UserID).Msg("sync gmail usuario")
+			}
 		}
 	}
 }

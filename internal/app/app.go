@@ -33,6 +33,19 @@ import (
 
 var appDB *gorm.DB
 
+func startRevokedTokenCleanupWorker(repo interface{ DeleteExpired() error }) {
+	go func() {
+		ticker := time.NewTicker(24 * time.Hour)
+		defer ticker.Stop()
+		for range ticker.C {
+			if err := repo.DeleteExpired(); err != nil {
+				// No es fatal, se reintenta en el siguiente ciclo
+				continue
+			}
+		}
+	}()
+}
+
 func startGmailSyncWorker(uc *usecase.EmailGmailUseCase) {
 	if uc == nil || !uc.IsGmailConfigured() {
 		return
@@ -115,7 +128,8 @@ type Dependencies struct {
 	ExchangeProvider exchange.Provider
 
 	// Repositories (necesarios para algunos handlers)
-	CategoryRepo repo.CategoryRepo
+	CategoryRepo     repo.CategoryRepo
+	RevokedTokenRepo repo.RevokedTokenRepo
 
 	// JWT Manager
 	JWTManager *auth.JWTManager
@@ -126,6 +140,7 @@ func initDependencies(cfg *configs.Config, db *gorm.DB, jwtManager *auth.JWTMana
 	log := logger.Get()
 
 	// Inicializar repositorios
+	revokedTokenRepo := repository.NewRevokedTokenPostgres(db)
 	userRepo := repository.NewUserPostgres(db)
 	accountRepo := repository.NewAccountPostgres(db)
 	transactionRepo := repository.NewTransactionPostgres(db)
@@ -155,7 +170,7 @@ func initDependencies(cfg *configs.Config, db *gorm.DB, jwtManager *auth.JWTMana
 	incomeRepo := repository.NewIncomePostgres(db)
 
 	// Inicializar casos de uso
-	userUC := usecase.NewUserUseCase(userRepo, jwtManager)
+	userUC := usecase.NewUserUseCase(userRepo, revokedTokenRepo, jwtManager)
 	accountUC := usecase.NewAccountUseCase(accountRepo, userRepo)
 	transactionUC := usecase.NewTransactionUseCase(transactionRepo, accountRepo, userRepo)
 	budgetUC := usecase.NewBudgetUseCase(budgetRepo, categoryRepo, expenseRepo, userRepo)
@@ -202,6 +217,7 @@ func initDependencies(cfg *configs.Config, db *gorm.DB, jwtManager *auth.JWTMana
 		AIService:                 aiService,
 		ExchangeProvider:          fxProvider,
 		CategoryRepo:              categoryRepo,
+		RevokedTokenRepo:          revokedTokenRepo,
 		JWTManager:                jwtManager,
 	}
 }
@@ -251,6 +267,7 @@ func initHTTPServer(cfg *configs.Config, deps *Dependencies, log zerolog.Logger)
 	v1.NewRouter(router, deps.UserUC, deps.AccountUC, deps.TransactionUC, deps.BudgetUC, deps.ExpenseUC, deps.IncomeUC, deps.BankAccountUC, deps.BankNotificationPatternUC, deps.EmailGmailUC, deps.CategoryRepo, deps.ExchangeProvider, deps.JWTManager, log)
 
 	startGmailSyncWorker(deps.EmailGmailUC)
+	startRevokedTokenCleanupWorker(deps.RevokedTokenRepo)
 
 	// Documentación Swagger (solo en desarrollo)
 	if cfg.Features.EnableSwagger {

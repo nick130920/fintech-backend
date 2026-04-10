@@ -121,6 +121,7 @@ func runVersionedMigrations(db *gorm.DB, migrationPath string) error {
 // runMigrations ejecuta las migraciones de la base de datos
 func runMigrations(db *gorm.DB) error {
 	return db.AutoMigrate(
+		&entity.RevokedToken{},
 		&entity.User{},
 		&entity.Category{},
 		&entity.Budget{},

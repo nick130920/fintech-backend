@@ -170,6 +170,28 @@ func (h *UserHandler) RefreshToken(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+// Logout invalida el refresh token en la blacklist de la base de datos.
+// El access token sigue siendo válido hasta su expiración natural (máx. 24h),
+// pero sin refresh token el usuario no podrá renovar la sesión.
+func (h *UserHandler) Logout(c *gin.Context) {
+	var req dto.RefreshTokenRequest
+	// El body es opcional: si no viene refresh_token, igual limpiamos lo que podamos.
+	_ = c.ShouldBindJSON(&req)
+
+	if req.RefreshToken != "" {
+		if err := h.userUC.Logout(req.RefreshToken); err != nil {
+			// Error interno: lo logueamos pero no fallamos el logout desde el cliente.
+			c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
+				Error:   "logout_error",
+				Message: "No se pudo revocar el token, intenta de nuevo",
+			})
+			return
+		}
+	}
+
+	c.JSON(http.StatusOK, dto.LogoutResponse{Message: "Sesión cerrada exitosamente"})
+}
+
 // ForgotPassword godoc
 // @Summary Solicitar recuperación de contraseña
 // @Description Inicia el flujo de recuperación enviando token/instrucciones al correo del usuario
@@ -413,23 +435,6 @@ func (h *UserHandler) UpdatePreferences(c *gin.Context) {
 	c.JSON(http.StatusOK, updatedUser.ToPublic())
 }
 
-// Logout maneja el cierre de sesión
-// @Summary Cerrar sesión
-// @Description Cierra la sesión del usuario (invalida tokens)
-// @Tags auth
-// @Produce json
-// @Security Bearer
-// @Success 200 {object} dto.LogoutResponse
-// @Failure 401 {object} dto.ErrorResponse
-// @Router /auth/logout [post]
-func (h *UserHandler) Logout(c *gin.Context) {
-	// En una implementación real, aquí invalidarías el token
-	// Por ahora, simplemente devolvemos un mensaje de éxito
-
-	c.JSON(http.StatusOK, dto.LogoutResponse{
-		Message: "Successfully logged out",
-	})
-}
 
 // ValidateToken valida el token de acceso
 // @Summary Validar token

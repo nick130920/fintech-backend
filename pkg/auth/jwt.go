@@ -91,6 +91,41 @@ func (manager *JWTManager) GenerateRefreshToken(userID uint, email string) (stri
 	return token.SignedString([]byte(manager.secretKey))
 }
 
+// ValidateRefreshTokenFull valida un refresh token y devuelve todos los campos necesarios
+// para revocar el token: userID, email, expiresAt, jti.
+func (manager *JWTManager) ValidateRefreshTokenFull(tokenString string) (uint, string, time.Time, string, error) {
+	token, err := jwt.ParseWithClaims(
+		tokenString,
+		&jwt.RegisteredClaims{},
+		func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, errors.New("método de firma inválido")
+			}
+			return []byte(manager.secretKey), nil
+		},
+	)
+	if err != nil {
+		return 0, "", time.Time{}, "", err
+	}
+
+	claims, ok := token.Claims.(*jwt.RegisteredClaims)
+	if !ok || !token.Valid {
+		return 0, "", time.Time{}, "", errors.New("refresh token inválido")
+	}
+
+	parsedID, err := strconv.ParseUint(claims.ID, 10, 64)
+	if err != nil {
+		return 0, "", time.Time{}, "", errors.New("refresh token inválido: user ID inválido")
+	}
+
+	var expiresAt time.Time
+	if claims.ExpiresAt != nil {
+		expiresAt = claims.ExpiresAt.Time
+	}
+
+	return uint(parsedID), claims.Subject, expiresAt, claims.ID, nil
+}
+
 // ValidateRefreshToken valida un refresh token
 func (manager *JWTManager) ValidateRefreshToken(tokenString string) (uint, string, error) {
 	token, err := jwt.ParseWithClaims(

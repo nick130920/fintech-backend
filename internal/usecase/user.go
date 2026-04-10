@@ -17,8 +17,9 @@ import (
 
 // UserUseCase contiene la lógica de negocio para usuarios
 type UserUseCase struct {
-	userRepo   repo.UserRepo
-	jwtManager *auth.JWTManager
+	userRepo         repo.UserRepo
+	revokedTokenRepo repo.RevokedTokenRepo
+	jwtManager       *auth.JWTManager
 }
 
 func generateSecureToken(size int) (string, error) {
@@ -33,11 +34,30 @@ func generateSecureToken(size int) (string, error) {
 }
 
 // NewUserUseCase crea una nueva instancia de UserUseCase
-func NewUserUseCase(userRepo repo.UserRepo, jwtManager *auth.JWTManager) *UserUseCase {
+func NewUserUseCase(userRepo repo.UserRepo, revokedTokenRepo repo.RevokedTokenRepo, jwtManager *auth.JWTManager) *UserUseCase {
 	return &UserUseCase{
-		userRepo:   userRepo,
-		jwtManager: jwtManager,
+		userRepo:         userRepo,
+		revokedTokenRepo: revokedTokenRepo,
+		jwtManager:       jwtManager,
 	}
+}
+
+// Logout invalida el refresh token en la blacklist.
+func (uc *UserUseCase) Logout(refreshToken string) error {
+	// Extraer el JTI y la expiración del refresh token para guardarlo en la blacklist.
+	// Si el token es inválido o ya expiró, igual borramos — no es un error para el usuario.
+	userID, _, expiresAt, jti, err := uc.jwtManager.ValidateRefreshTokenFull(refreshToken)
+	if err != nil {
+		// Token inválido o ya expirado: no hay nada que revocar.
+		return nil
+	}
+
+	return uc.revokedTokenRepo.Revoke(&entity.RevokedToken{
+		TokenJTI:  jti,
+		UserID:    userID,
+		RevokedAt: time.Now(),
+		ExpiresAt: expiresAt,
+	})
 }
 
 // Register registra un nuevo usuario
@@ -197,8 +217,17 @@ func (uc *UserUseCase) UpdatePreferences(id uint, req *dto.UpdateUserPreferences
 // RefreshToken renueva un token de acceso
 func (uc *UserUseCase) RefreshToken(refreshToken string) (*dto.TokenResponse, error) {
 	// Validar el refresh token
-	userID, email, err := uc.jwtManager.ValidateRefreshToken(refreshToken)
+	userID, email, _, jti, err := uc.jwtManager.ValidateRefreshTokenFull(refreshToken)
 	if err != nil {
+		return nil, errors.New("invalid refresh token")
+	}
+
+	// Verificar que el token no haya sido revocado por logout
+	revoked, err := uc.revokedTokenRepo.IsRevoked(jti)
+	if err != nil {
+		return nil, fmt.Errorf("error checking token revocation: %w", err)
+	}
+	if revoked {
 		return nil, errors.New("invalid refresh token")
 	}
 

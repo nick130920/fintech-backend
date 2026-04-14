@@ -60,6 +60,9 @@ func NewRouter(
 	v1.GET("/currencies", currencyHandler.GetCurrencies)
 	v1.GET("/exchange-rates", currencyHandler.GetExchangeRates)
 
+	// Geo: detecta país y moneda sugerida por IP del cliente (sin auth, sin permisos)
+	v1.GET("/geo/country", GetCountryFromIP)
+
 	// OAuth Gmail: callback público (sin JWT)
 	v1.GET("/email-connections/gmail/callback", emailConnectionHandler.GmailOAuthCallback)
 

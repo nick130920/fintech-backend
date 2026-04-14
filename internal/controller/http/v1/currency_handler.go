@@ -14,6 +14,15 @@ type CurrencyHandler struct {
 	exchangeProvider exchange.Provider
 }
 
+type currenciesCatalogResponse struct {
+	Data interface{} `json:"data"`
+}
+
+type exchangeRatesResponse struct {
+	Base  string          `json:"base"`
+	Rates []exchange.Rate `json:"rates"`
+}
+
 func NewCurrencyHandler(provider exchange.Provider) *CurrencyHandler {
 	return &CurrencyHandler{exchangeProvider: provider}
 }
@@ -26,9 +35,7 @@ func NewCurrencyHandler(provider exchange.Provider) *CurrencyHandler {
 // @Success 200 {object} map[string]interface{}
 // @Router /api/v1/currencies [get]
 func (h *CurrencyHandler) GetCurrencies(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"data": currency.All(),
-	})
+	c.JSON(http.StatusOK, currenciesCatalogResponse{Data: currency.All()})
 }
 
 // GetExchangeRates godoc
@@ -72,8 +79,5 @@ func (h *CurrencyHandler) GetExchangeRates(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"base":  base,
-		"rates": rates,
-	})
+	c.JSON(http.StatusOK, exchangeRatesResponse{Base: base, Rates: rates})
 }

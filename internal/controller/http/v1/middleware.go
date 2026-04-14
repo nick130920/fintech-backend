@@ -3,8 +3,9 @@ package v1
 import (
 	"errors"
 	"fmt"
-	"strconv"
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -182,12 +183,10 @@ func RequireUserID(c *gin.Context) (uint, error) {
 	return userID, nil
 }
 
-// RateLimitMiddleware middleware simple de rate limiting (placeholder)
+// RateLimitMiddleware retorna una implementación real de rate limiting por IP.
+// Se conserva por compatibilidad con código legado; internamente usa RateLimiter.
 func RateLimitMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// TODO: Implementar rate limiting real
-		c.Next()
-	}
+	return NewRateLimiter(100, time.Minute).RateLimitMiddleware()
 }
 
 // LoggingMiddleware middleware personalizado de logging

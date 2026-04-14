@@ -29,6 +29,10 @@ type AccountHandler struct {
 	validator *validator.Validator
 }
 
+type totalBalanceResponse struct {
+	TotalBalance float64 `json:"total_balance"`
+}
+
 // NewAccountHandler crea una nueva instancia de AccountHandler
 func NewAccountHandler(accountUC *usecase.AccountUseCase) *AccountHandler {
 	return &AccountHandler{
@@ -388,5 +392,5 @@ func (h *AccountHandler) GetTotalBalance(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"total_balance": total})
+	c.JSON(http.StatusOK, totalBalanceResponse{TotalBalance: total})
 }

@@ -23,6 +23,29 @@ type BankNotificationPatternHandler struct {
 	logger zerolog.Logger
 }
 
+func respondError(c *gin.Context, status int, errMsg string) {
+	c.JSON(status, dto.ErrorResponse{
+		Code:    strconv.Itoa(status),
+		Message: errMsg,
+		Error:   errMsg,
+	})
+}
+
+func paginatePatternResponses(items []*dto.BankNotificationPatternResponse, page, perPage int) []*dto.BankNotificationPatternResponse {
+	if len(items) == 0 {
+		return []*dto.BankNotificationPatternResponse{}
+	}
+	start := (page - 1) * perPage
+	if start >= len(items) {
+		return []*dto.BankNotificationPatternResponse{}
+	}
+	end := start + perPage
+	if end > len(items) {
+		end = len(items)
+	}
+	return items[start:end]
+}
+
 // NewBankNotificationPatternHandler creates a new bankNotificationPatternHandler.
 func NewBankNotificationPatternHandler(uc *usecase.BankNotificationPatternUseCase, logger zerolog.Logger) *BankNotificationPatternHandler {
 	return &BankNotificationPatternHandler{uc: uc, logger: logger}
@@ -34,21 +57,42 @@ func NewBankNotificationPatternHandler(uc *usecase.BankNotificationPatternUseCas
 // @Tags notification-patterns
 // @Produce json
 // @Security BearerAuth
-// @Success 200 {array} entity.BankNotificationPattern
-// @Failure 401 {object} gin.H
-// @Failure 500 {object} gin.H
+// @Param page query int false "Página (opcional)"
+// @Param per_page query int false "Elementos por página (opcional)"
+// @Success 200 {array} dto.BankNotificationPatternResponse
+// @Success 200 {object} dto.PaginatedBankNotificationPatternResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
 // @Router /notification-patterns [get]
 func (h *BankNotificationPatternHandler) GetUserPatterns(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		respondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	patterns, err := h.uc.GetUserPatterns(userID.(uint))
 	if err != nil {
 		h.logger.Error().Err(err).Msg("failed to get user patterns")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get user patterns"})
+		respondError(c, http.StatusInternalServerError, "failed to get user patterns")
+		return
+	}
+
+	page, perPage, _, hasPagination := ParsePaginationParams(c, 20)
+	if hasPagination {
+		total := len(patterns)
+		paged := paginatePatternResponses(patterns, page, perPage)
+		totalPages := 0
+		if total > 0 {
+			totalPages = (total + perPage - 1) / perPage
+		}
+		c.JSON(http.StatusOK, dto.PaginatedBankNotificationPatternResponse{
+			Data:       paged,
+			Total:      total,
+			Page:       page,
+			PerPage:    perPage,
+			TotalPages: totalPages,
+		})
 		return
 	}
 
@@ -64,21 +108,21 @@ func (h *BankNotificationPatternHandler) GetUserPatterns(c *gin.Context) {
 // @Security BearerAuth
 // @Param request body dto.CreateBankNotificationPatternRequest true "Datos del patrón"
 // @Success 201 {object} entity.BankNotificationPattern
-// @Failure 400 {object} gin.H
-// @Failure 401 {object} gin.H
-// @Failure 500 {object} gin.H
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
 // @Router /notification-patterns [post]
 func (h *BankNotificationPatternHandler) CreatePattern(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		respondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	var req dto.CreateBankNotificationPatternRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.logger.Error().Err(err).Msg("bad request on create pattern")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		respondError(c, http.StatusBadRequest, "invalid request body")
 		return
 	}
 	h.logger.Info().Str("pattern_name", req.Name).Msg("Received request to create a new pattern")
@@ -86,7 +130,7 @@ func (h *BankNotificationPatternHandler) CreatePattern(c *gin.Context) {
 	pattern, err := h.uc.CreatePattern(userID.(uint), &req)
 	if err != nil {
 		h.logger.Error().Err(err).Msg("failed to create pattern")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create pattern"})
+		respondError(c, http.StatusInternalServerError, "failed to create pattern")
 		return
 	}
 
@@ -100,20 +144,20 @@ func (h *BankNotificationPatternHandler) CreatePattern(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Success 200 {object} map[string]interface{}
-// @Failure 401 {object} gin.H
-// @Failure 500 {object} gin.H
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
 // @Router /notification-patterns/stats [get]
 func (h *BankNotificationPatternHandler) GetPatternStatistics(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		respondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	stats, err := h.uc.GetPatternStatistics(userID.(uint))
 	if err != nil {
 		h.logger.Error().Err(err).Msg("failed to get pattern statistics")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get pattern statistics"})
+		respondError(c, http.StatusInternalServerError, "failed to get pattern statistics")
 		return
 	}
 
@@ -129,15 +173,15 @@ func (h *BankNotificationPatternHandler) GetPatternStatistics(c *gin.Context) {
 // @Security BearerAuth
 // @Param request body dto.ProcessNotificationRequest true "Payload de notificación"
 // @Success 200 {object} dto.ProcessedNotificationResponse
-// @Failure 400 {object} gin.H
-// @Failure 401 {object} gin.H
-// @Failure 500 {object} gin.H
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
 // @Router /notification-patterns/process [post]
 func (h *BankNotificationPatternHandler) ProcessNotification(c *gin.Context) {
 	var req dto.ProcessNotificationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.logger.Error().Err(err).Msg("bad request on process notification")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		respondError(c, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
@@ -145,7 +189,7 @@ func (h *BankNotificationPatternHandler) ProcessNotification(c *gin.Context) {
 	if req.UserID == 0 {
 		userID, exists := c.Get("user_id")
 		if !exists {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			respondError(c, http.StatusUnauthorized, "unauthorized")
 			return
 		}
 		req.UserID = userID.(uint)
@@ -154,7 +198,7 @@ func (h *BankNotificationPatternHandler) ProcessNotification(c *gin.Context) {
 	result, err := h.uc.ProcessNotificationWebhook(req)
 	if err != nil {
 		h.logger.Error().Err(err).Msg("failed to process notification")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to process notification"})
+		respondError(c, http.StatusInternalServerError, "failed to process notification")
 		return
 	}
 
@@ -170,21 +214,21 @@ func (h *BankNotificationPatternHandler) ProcessNotification(c *gin.Context) {
 // @Produce      json
 // @Param        request body dto.ProcessSMSWithAIRequest true "SMS message to process"
 // @Success      200 {object} dto.ProcessedNotificationResponse
-// @Failure      400 {object} gin.H
-// @Failure      401 {object} gin.H
-// @Failure      500 {object} gin.H
+// @Failure      400 {object} dto.ErrorResponse
+// @Failure      401 {object} dto.ErrorResponse
+// @Failure      500 {object} dto.ErrorResponse
 // @Router       /notification-patterns/process-sms [post]
 func (h *BankNotificationPatternHandler) ProcessSMSWithAI(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		respondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	var req dto.ProcessSMSWithAIRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.logger.Error().Err(err).Msg("bad request on process SMS with AI")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		respondError(c, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
@@ -193,7 +237,7 @@ func (h *BankNotificationPatternHandler) ProcessSMSWithAI(c *gin.Context) {
 	result, err := h.uc.ProcessSMSWithAI(c.Request.Context(), userID.(uint), req.Message)
 	if err != nil {
 		h.logger.Error().Err(err).Msg("failed to process SMS with AI")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to process SMS with AI"})
+		respondError(c, http.StatusInternalServerError, "failed to process SMS with AI")
 		return
 	}
 
@@ -208,21 +252,21 @@ func (h *BankNotificationPatternHandler) ProcessSMSWithAI(c *gin.Context) {
 // @Produce      json
 // @Param        request body dto.AnalyzeSMSBatchRequest true "Batch of SMS messages"
 // @Success      200 {object} dto.AnalyzeSMSBatchResponse
-// @Failure      400 {object} gin.H
-// @Failure      401 {object} gin.H
-// @Failure      500 {object} gin.H
+// @Failure      400 {object} dto.ErrorResponse
+// @Failure      401 {object} dto.ErrorResponse
+// @Failure      500 {object} dto.ErrorResponse
 // @Router       /notification-patterns/analyze-sms-batch [post]
 func (h *BankNotificationPatternHandler) AnalyzeSMSBatch(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		respondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	var req dto.AnalyzeSMSBatchRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.logger.Error().Err(err).Msg("bad request on analyze SMS batch")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		respondError(c, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
@@ -240,7 +284,7 @@ func (h *BankNotificationPatternHandler) AnalyzeSMSBatch(c *gin.Context) {
 	result, err := h.uc.ProcessSMSBatchForSuggestions(ctx, userID.(uint), req.Messages)
 	if err != nil {
 		h.logger.Error().Err(err).Msg("failed to analyze SMS batch")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to analyze SMS batch"})
+		respondError(c, http.StatusInternalServerError, "failed to analyze SMS batch")
 		return
 	}
 
@@ -255,21 +299,21 @@ func (h *BankNotificationPatternHandler) AnalyzeSMSBatch(c *gin.Context) {
 // @Produce      json
 // @Param        request body dto.ProcessSMSBatchWithAIRequest true "Lista de SMS (body + date opcional)"
 // @Success      200 {object} dto.ProcessSMSBatchWithAIResponse
-// @Failure      400 {object} gin.H
-// @Failure      401 {object} gin.H
-// @Failure      500 {object} gin.H
+// @Failure      400 {object} dto.ErrorResponse
+// @Failure      401 {object} dto.ErrorResponse
+// @Failure      500 {object} dto.ErrorResponse
 // @Router       /notification-patterns/process-sms-batch [post]
 func (h *BankNotificationPatternHandler) ProcessSMSBatchWithAI(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		respondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	var req dto.ProcessSMSBatchWithAIRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.logger.Error().Err(err).Msg("bad request on process SMS batch with AI")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		respondError(c, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
@@ -300,28 +344,28 @@ func (h *BankNotificationPatternHandler) ProcessSMSBatchWithAI(c *gin.Context) {
 // @Security     BearerAuth
 // @Param        request body dto.AnalyzeSMSBatchRequest true "Lote de SMS"
 // @Success      202 {object} dto.AnalyzeSMSBatchJobResponse
-// @Failure      400 {object} gin.H
-// @Failure      401 {object} gin.H
-// @Failure      500 {object} gin.H
+// @Failure      400 {object} dto.ErrorResponse
+// @Failure      401 {object} dto.ErrorResponse
+// @Failure      500 {object} dto.ErrorResponse
 // @Router       /notification-patterns/analyze-sms-batch/jobs [post]
 func (h *BankNotificationPatternHandler) StartAnalyzeSMSBatchJob(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		respondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	var req dto.AnalyzeSMSBatchRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.logger.Error().Err(err).Msg("bad request on start analyze SMS batch job")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		respondError(c, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	out, err := h.uc.StartSMSBatchSuggestionJob(userID.(uint), req.Messages)
 	if err != nil {
 		h.logger.Error().Err(err).Msg("failed to start SMS batch suggestion job")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		respondError(c, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -347,13 +391,13 @@ func (h *BankNotificationPatternHandler) StartAnalyzeSMSBatchJob(c *gin.Context)
 func (h *BankNotificationPatternHandler) GetAnalyzeSMSBatchJobStatus(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		respondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	jobID := c.Param("jobId")
 	if jobID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "missing job id"})
+		respondError(c, http.StatusBadRequest, "missing job id")
 		return
 	}
 
@@ -367,33 +411,33 @@ func (h *BankNotificationPatternHandler) GetAnalyzeSMSBatchJobStatus(c *gin.Cont
 
 // AnalyzeStatement analyzes an uploaded bank statement (PDF or image) for budget suggestions (stub: returns empty for now).
 // @Summary      Analyze bank statement for budget suggestions
-// @Description  Accepts a PDF or image file and returns aggregated budget suggestions. File is not stored. Stub implementation.
+// @Description  Accepts a PDF/image/TXT/CSV and returns aggregated budget suggestions. PDF/image are processed through OCR provider.
 // @Tags         notification-patterns
 // @Accept       multipart/form-data
 // @Produce      json
 // @Param        file formData file true "PDF or image (JPEG/PNG)"
 // @Success      200 {object} dto.AnalyzeSMSBatchResponse
-// @Failure      400 {object} gin.H
-// @Failure      401 {object} gin.H
-// @Failure      500 {object} gin.H
+// @Failure      400 {object} dto.ErrorResponse
+// @Failure      401 {object} dto.ErrorResponse
+// @Failure      500 {object} dto.ErrorResponse
 // @Router       /notification-patterns/analyze-statement [post]
 func (h *BankNotificationPatternHandler) AnalyzeStatement(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		respondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	file, err := c.FormFile("file")
 	if err != nil {
 		h.logger.Error().Err(err).Msg("analyze-statement: missing file")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "missing file"})
+		respondError(c, http.StatusBadRequest, "missing file")
 		return
 	}
 
 	const maxSize = 10 << 20 // 10 MB
 	if file.Size > maxSize {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "file too large (max 10 MB)"})
+		respondError(c, http.StatusBadRequest, "file too large (max 10 MB)")
 		return
 	}
 
@@ -409,37 +453,40 @@ func (h *BankNotificationPatternHandler) AnalyzeStatement(c *gin.Context) {
 		}
 	}
 	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported format (use PDF, PNG, JPEG, TXT or CSV)"})
+		respondError(c, http.StatusBadRequest, "unsupported format (use PDF, PNG, JPEG, TXT or CSV)")
 		return
 	}
 
 	src, err := file.Open()
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to open file"})
+		respondError(c, http.StatusBadRequest, "failed to open file")
 		return
 	}
 	defer src.Close()
 
 	content, err := io.ReadAll(src)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to read file"})
+		respondError(c, http.StatusBadRequest, "failed to read file")
 		return
 	}
 
-	// Paso intermedio: soportamos análisis real para texto/csv.
 	if strings.HasSuffix(lower, ".txt") || strings.HasSuffix(lower, ".csv") {
 		resp, err := h.uc.AnalyzeStatementText(c.Request.Context(), userID.(uint), string(content))
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to analyze statement"})
+			respondError(c, http.StatusInternalServerError, "failed to analyze statement")
 			return
 		}
 		c.JSON(http.StatusOK, resp)
 		return
 	}
 
-	c.JSON(http.StatusBadRequest, gin.H{
-		"error": "image/pdf analysis not enabled yet; please upload TXT/CSV as intermediate format",
-	})
+	resp, err := h.uc.AnalyzeStatementDocument(c.Request.Context(), userID.(uint), lower, content)
+	if err != nil {
+		h.logger.Error().Err(err).Str("filename", file.Filename).Msg("failed to analyze statement document with OCR")
+		respondError(c, http.StatusInternalServerError, "failed to analyze statement document")
+		return
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 // truncateString truncates a string to a maximum length
@@ -458,27 +505,27 @@ func truncateString(s string, maxLen int) string {
 // @Security BearerAuth
 // @Param id path int true "ID del patrón"
 // @Success 200 {object} entity.BankNotificationPattern
-// @Failure 400 {object} gin.H
-// @Failure 401 {object} gin.H
-// @Failure 404 {object} gin.H
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 404 {object} dto.ErrorResponse
 // @Router /notification-patterns/{id} [get]
 func (h *BankNotificationPatternHandler) GetPattern(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		respondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	patternID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid pattern ID"})
+		respondError(c, http.StatusBadRequest, "invalid pattern ID")
 		return
 	}
 
 	pattern, err := h.uc.GetPattern(userID.(uint), uint(patternID))
 	if err != nil {
 		h.logger.Error().Err(err).Uint64("pattern_id", patternID).Msg("failed to get pattern")
-		c.JSON(http.StatusNotFound, gin.H{"error": "pattern not found"})
+		respondError(c, http.StatusNotFound, "pattern not found")
 		return
 	}
 
@@ -494,34 +541,34 @@ func (h *BankNotificationPatternHandler) GetPattern(c *gin.Context) {
 // @Param id path int true "ID del patrón"
 // @Param request body dto.UpdateBankNotificationPatternRequest true "Datos a actualizar"
 // @Success 200 {object} entity.BankNotificationPattern
-// @Failure 400 {object} gin.H
-// @Failure 401 {object} gin.H
-// @Failure 500 {object} gin.H
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
 // @Router /notification-patterns/{id} [put]
 func (h *BankNotificationPatternHandler) UpdatePattern(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		respondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	patternID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid pattern ID"})
+		respondError(c, http.StatusBadRequest, "invalid pattern ID")
 		return
 	}
 
 	var req dto.UpdateBankNotificationPatternRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.logger.Error().Err(err).Msg("bad request on update pattern")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		respondError(c, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	pattern, err := h.uc.UpdatePattern(userID.(uint), uint(patternID), &req)
 	if err != nil {
 		h.logger.Error().Err(err).Uint64("pattern_id", patternID).Msg("failed to update pattern")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update pattern"})
+		respondError(c, http.StatusInternalServerError, "failed to update pattern")
 		return
 	}
 
@@ -534,26 +581,26 @@ func (h *BankNotificationPatternHandler) UpdatePattern(c *gin.Context) {
 // @Security BearerAuth
 // @Param id path int true "ID del patrón"
 // @Success 204 "No Content"
-// @Failure 400 {object} gin.H
-// @Failure 401 {object} gin.H
-// @Failure 500 {object} gin.H
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
 // @Router /notification-patterns/{id} [delete]
 func (h *BankNotificationPatternHandler) DeletePattern(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		respondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	patternID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid pattern ID"})
+		respondError(c, http.StatusBadRequest, "invalid pattern ID")
 		return
 	}
 
 	if err := h.uc.DeletePattern(userID.(uint), uint(patternID)); err != nil {
 		h.logger.Error().Err(err).Uint64("pattern_id", patternID).Msg("failed to delete pattern")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete pattern"})
+		respondError(c, http.StatusInternalServerError, "failed to delete pattern")
 		return
 	}
 
@@ -568,33 +615,33 @@ func (h *BankNotificationPatternHandler) DeletePattern(c *gin.Context) {
 // @Param id path int true "ID del patrón"
 // @Param request body dto.SetPatternStatusRequest true "Nuevo estado"
 // @Success 204 "No Content"
-// @Failure 400 {object} gin.H
-// @Failure 401 {object} gin.H
-// @Failure 500 {object} gin.H
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
 // @Router /notification-patterns/{id}/status [patch]
 func (h *BankNotificationPatternHandler) SetPatternStatus(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		respondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	patternID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid pattern ID"})
+		respondError(c, http.StatusBadRequest, "invalid pattern ID")
 		return
 	}
 
 	var req dto.SetPatternStatusRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.logger.Error().Err(err).Msg("bad request on set pattern status")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		respondError(c, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	if err := h.uc.SetPatternStatus(userID.(uint), uint(patternID), req.Status); err != nil {
 		h.logger.Error().Err(err).Uint64("pattern_id", patternID).Msg("failed to set pattern status")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to set pattern status"})
+		respondError(c, http.StatusInternalServerError, "failed to set pattern status")
 		return
 	}
 
@@ -608,21 +655,24 @@ func (h *BankNotificationPatternHandler) SetPatternStatus(c *gin.Context) {
 // @Security BearerAuth
 // @Param bank_account_id path int true "ID de cuenta bancaria"
 // @Param active_only query bool false "Filtrar solo activos"
-// @Success 200 {array} entity.BankNotificationPattern
-// @Failure 400 {object} gin.H
-// @Failure 401 {object} gin.H
-// @Failure 500 {object} gin.H
+// @Param page query int false "Página (opcional)"
+// @Param per_page query int false "Elementos por página (opcional)"
+// @Success 200 {array} dto.BankNotificationPatternResponse
+// @Success 200 {object} dto.PaginatedBankNotificationPatternResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
 // @Router /notification-patterns/bank-account/{bank_account_id} [get]
 func (h *BankNotificationPatternHandler) GetBankAccountPatterns(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		respondError(c, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	bankAccountID, err := strconv.ParseUint(c.Param("bank_account_id"), 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid bank account ID"})
+		respondError(c, http.StatusBadRequest, "invalid bank account ID")
 		return
 	}
 
@@ -631,7 +681,25 @@ func (h *BankNotificationPatternHandler) GetBankAccountPatterns(c *gin.Context) 
 	patterns, err := h.uc.GetBankAccountPatterns(userID.(uint), uint(bankAccountID), activeOnly)
 	if err != nil {
 		h.logger.Error().Err(err).Uint64("bank_account_id", bankAccountID).Msg("failed to get bank account patterns")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get bank account patterns"})
+		respondError(c, http.StatusInternalServerError, "failed to get bank account patterns")
+		return
+	}
+
+	page, perPage, _, hasPagination := ParsePaginationParams(c, 20)
+	if hasPagination {
+		total := len(patterns)
+		paged := paginatePatternResponses(patterns, page, perPage)
+		totalPages := 0
+		if total > 0 {
+			totalPages = (total + perPage - 1) / perPage
+		}
+		c.JSON(http.StatusOK, dto.PaginatedBankNotificationPatternResponse{
+			Data:       paged,
+			Total:      total,
+			Page:       page,
+			PerPage:    perPage,
+			TotalPages: totalPages,
+		})
 		return
 	}
 

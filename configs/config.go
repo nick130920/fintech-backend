@@ -90,6 +90,8 @@ type ExternalConfig struct {
 	SentryDSN        string `json:"-"` // No exponer en JSON
 	SentryTestSecret string `json:"-"` // Secreto para POST /debug/sentry-test (solo desarrollo)
 	WebhookSecret    string `json:"-"` // Secreto para autenticación de webhooks
+	OCRAPIKey        string `json:"-"` // API key del proveedor OCR
+	OCRProviderURL   string `json:"ocr_provider_url"`
 	Gmail            GmailOAuthConfig `json:"-"`
 }
 
@@ -165,6 +167,8 @@ func Load() *Config {
 			SentryDSN:        getEnv("SENTRY_DSN", ""),
 			SentryTestSecret: getEnv("SENTRY_TEST_SECRET", ""),
 			WebhookSecret:    getEnv("WEBHOOK_SECRET", ""),
+			OCRAPIKey:        getEnv("OCR_API_KEY", ""),
+			OCRProviderURL:   getEnv("OCR_PROVIDER_URL", "https://api.ocr.space/parse/image"),
 			Gmail: GmailOAuthConfig{
 				ClientID:           getEnv("GMAIL_CLIENT_ID", ""),
 				ClientSecret:       getEnv("GMAIL_CLIENT_SECRET", ""),

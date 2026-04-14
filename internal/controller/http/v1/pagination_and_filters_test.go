@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/nick130920/fintech-backend/internal/controller/http/v1/dto"
 )
 
 func TestParsePaginationParams_Defaults(t *testing.T) {
@@ -55,5 +56,26 @@ func TestBuildFilterFromQuery_AdvancedFilters(t *testing.T) {
 	}
 	if filter.MinAmount == nil || filter.MaxAmount == nil {
 		t.Fatalf("expected amount range to be parsed")
+	}
+}
+
+func TestPaginatePatternResponses(t *testing.T) {
+	items := []*dto.BankNotificationPatternResponse{
+		{ID: 1}, {ID: 2}, {ID: 3}, {ID: 4},
+	}
+
+	page1 := paginatePatternResponses(items, 1, 2)
+	if len(page1) != 2 || page1[0].ID != 1 || page1[1].ID != 2 {
+		t.Fatalf("unexpected page 1 results: %#v", page1)
+	}
+
+	page2 := paginatePatternResponses(items, 2, 2)
+	if len(page2) != 2 || page2[0].ID != 3 || page2[1].ID != 4 {
+		t.Fatalf("unexpected page 2 results: %#v", page2)
+	}
+
+	page3 := paginatePatternResponses(items, 3, 2)
+	if len(page3) != 0 {
+		t.Fatalf("expected empty page out of range, got %#v", page3)
 	}
 }

@@ -459,8 +459,6 @@ func (h *UserHandler) ValidateToken(c *gin.Context) {
 	c.JSON(http.StatusOK, dto.Response{
 		Code:    "SUCCESS",
 		Message: "Token is valid",
-		Data: gin.H{
-			"user_id": userID,
-		},
+		Data: dto.IDResponse{ID: userID},
 	})
 }

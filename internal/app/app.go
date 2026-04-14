@@ -160,6 +160,14 @@ func initDependencies(cfg *configs.Config, db *gorm.DB, jwtManager *auth.JWTMana
 		log.Info().Msg("Servicio de IA configurado con fallback")
 	}
 
+	ocrService, err := webapi.NewOCRServiceFromEnv()
+	if err != nil {
+		log.Warn().Err(err).Msg("No se pudo inicializar OCR service")
+	}
+	if ocrService == nil {
+		log.Warn().Msg("OCR service no configurado (OCR_API_KEY vacío)")
+	}
+
 	// Asegurar que existan las categorías por defecto
 	if err := categoryRepo.EnsureDefaultCategoriesExist(); err != nil {
 		log.Warn().Err(err).Msg("Failed to ensure default categories exist")
@@ -190,6 +198,7 @@ func initDependencies(cfg *configs.Config, db *gorm.DB, jwtManager *auth.JWTMana
 		slugStatsRepo,
 		budgetSuggestionJobRepo,
 		aiService,
+		ocrService,
 	)
 
 	fxProvider := exchange.NewCachedProvider(

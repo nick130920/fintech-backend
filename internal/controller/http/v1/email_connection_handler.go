@@ -16,6 +16,10 @@ type EmailConnectionHandler struct {
 	logger zerolog.Logger
 }
 
+type emailStatusFallbackResponse struct {
+	Connected bool `json:"connected"`
+}
+
 // NewEmailConnectionHandler constructor.
 func NewEmailConnectionHandler(uc *usecase.EmailGmailUseCase, logger zerolog.Logger) *EmailConnectionHandler {
 	return &EmailConnectionHandler{uc: uc, logger: logger}
@@ -485,7 +489,7 @@ func (h *EmailConnectionHandler) GetEmailConnectionStatus(c *gin.Context) {
 		return
 	}
 	if h.uc == nil {
-		c.JSON(http.StatusOK, gin.H{"connected": false})
+		c.JSON(http.StatusOK, emailStatusFallbackResponse{Connected: false})
 		return
 	}
 	st, err := h.uc.GetEmailStatus(userID.(uint))

@@ -32,6 +32,7 @@ type BankNotificationPatternUseCase struct {
 	slugStatsRepo     repo.BudgetSuggestionSlugStatsRepo
 	suggestionJobRepo repo.BudgetSuggestionJobRepo
 	aiService         *webapi.AIServiceWithFallback
+	ocrService        webapi.OCRExtractor
 }
 
 // NewBankNotificationPatternUseCase crea una nueva instancia de BankNotificationPatternUseCase
@@ -48,6 +49,7 @@ func NewBankNotificationPatternUseCase(
 	slugStatsRepo repo.BudgetSuggestionSlugStatsRepo,
 	suggestionJobRepo repo.BudgetSuggestionJobRepo,
 	aiService *webapi.AIServiceWithFallback,
+	ocrService webapi.OCRExtractor,
 ) *BankNotificationPatternUseCase {
 	return &BankNotificationPatternUseCase{
 		patternRepo:       patternRepo,
@@ -62,6 +64,7 @@ func NewBankNotificationPatternUseCase(
 		slugStatsRepo:     slugStatsRepo,
 		suggestionJobRepo: suggestionJobRepo,
 		aiService:         aiService,
+		ocrService:        ocrService,
 	}
 }
 
@@ -1254,6 +1257,21 @@ func (uc *BankNotificationPatternUseCase) AnalyzeStatementText(ctx context.Conte
 	}
 
 	return uc.ProcessSMSBatchForSuggestions(ctx, userID, messages)
+}
+
+// AnalyzeStatementDocument procesa PDF/imagen con OCR y reutiliza el pipeline de texto.
+func (uc *BankNotificationPatternUseCase) AnalyzeStatementDocument(ctx context.Context, userID uint, filename string, content []byte) (*dto.AnalyzeSMSBatchResponse, error) {
+	if uc.ocrService == nil {
+		return nil, apperrors.ErrInternal.WithDetails("OCR provider not configured in server")
+	}
+	ocrCtx, cancel := context.WithTimeout(ctx, 90*time.Second)
+	defer cancel()
+
+	extractedText, err := uc.ocrService.ExtractText(ocrCtx, filename, content)
+	if err != nil {
+		return nil, apperrors.ErrInternal.WithInternal(err).WithDetails("failed extracting text with OCR provider")
+	}
+	return uc.AnalyzeStatementText(ctx, userID, extractedText)
 }
 
 func containsDigit(s string) bool {

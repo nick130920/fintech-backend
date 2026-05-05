@@ -1,12 +1,22 @@
 package auth
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"strconv"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
+
+// refreshTokenClaims incluye user_id explícito y un jti (RegisteredClaims.ID) único
+// por emisión. Antes el jti era el id numérico de usuario: un logout revocaba ese
+// "jti" y el servidor rechazaba cualquier refresh nuevo del mismo usuario.
+type refreshTokenClaims struct {
+	UserID uint `json:"user_id,omitempty"`
+	jwt.RegisteredClaims
+}
 
 // JWTManager maneja la generación y validación de tokens JWT
 type JWTManager struct {
@@ -78,16 +88,25 @@ func (manager *JWTManager) ValidateToken(tokenString string) (*UserClaims, error
 
 // GenerateRefreshToken genera un refresh token con mayor duración
 func (manager *JWTManager) GenerateRefreshToken(userID uint, email string) (string, error) {
-	claims := jwt.RegisteredClaims{
-		Subject:   email,
-		ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour * 30)), // 30 días (sesión en app móvil)
-		IssuedAt:  jwt.NewNumericDate(time.Now()),
-		NotBefore: jwt.NewNumericDate(time.Now()),
-		Issuer:    "fintech-api",
-		ID:        strconv.FormatUint(uint64(userID), 10),
+	jtiBytes := make([]byte, 16)
+	if _, err := rand.Read(jtiBytes); err != nil {
+		return "", err
+	}
+	jti := hex.EncodeToString(jtiBytes)
+
+	claims := refreshTokenClaims{
+		UserID: userID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   email,
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour * 30)), // 30 días (sesión en app móvil)
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			NotBefore: jwt.NewNumericDate(time.Now()),
+			Issuer:    "fintech-api",
+			ID:        jti,
+		},
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, &claims)
 	return token.SignedString([]byte(manager.secretKey))
 }
 
@@ -96,7 +115,7 @@ func (manager *JWTManager) GenerateRefreshToken(userID uint, email string) (stri
 func (manager *JWTManager) ValidateRefreshTokenFull(tokenString string) (uint, string, time.Time, string, error) {
 	token, err := jwt.ParseWithClaims(
 		tokenString,
-		&jwt.RegisteredClaims{},
+		&refreshTokenClaims{},
 		func(token *jwt.Token) (interface{}, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, errors.New("método de firma inválido")
@@ -108,14 +127,24 @@ func (manager *JWTManager) ValidateRefreshTokenFull(tokenString string) (uint, s
 		return 0, "", time.Time{}, "", err
 	}
 
-	claims, ok := token.Claims.(*jwt.RegisteredClaims)
+	claims, ok := token.Claims.(*refreshTokenClaims)
 	if !ok || !token.Valid {
 		return 0, "", time.Time{}, "", errors.New("refresh token inválido")
 	}
 
-	parsedID, err := strconv.ParseUint(claims.ID, 10, 64)
-	if err != nil {
+	userID := claims.UserID
+	if userID == 0 && claims.ID != "" {
+		if legacyID, err := strconv.ParseUint(claims.ID, 10, 64); err == nil {
+			userID = uint(legacyID)
+		}
+	}
+	if userID == 0 {
 		return 0, "", time.Time{}, "", errors.New("refresh token inválido: user ID inválido")
+	}
+
+	jti := claims.ID
+	if jti == "" {
+		return 0, "", time.Time{}, "", errors.New("refresh token inválido: sin jti")
 	}
 
 	var expiresAt time.Time
@@ -123,40 +152,13 @@ func (manager *JWTManager) ValidateRefreshTokenFull(tokenString string) (uint, s
 		expiresAt = claims.ExpiresAt.Time
 	}
 
-	return uint(parsedID), claims.Subject, expiresAt, claims.ID, nil
+	return userID, claims.Subject, expiresAt, jti, nil
 }
 
 // ValidateRefreshToken valida un refresh token
 func (manager *JWTManager) ValidateRefreshToken(tokenString string) (uint, string, error) {
-	token, err := jwt.ParseWithClaims(
-		tokenString,
-		&jwt.RegisteredClaims{},
-		func(token *jwt.Token) (interface{}, error) {
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, errors.New("método de firma inválido")
-			}
-			return []byte(manager.secretKey), nil
-		},
-	)
-
-	if err != nil {
-		return 0, "", err
-	}
-
-	claims, ok := token.Claims.(*jwt.RegisteredClaims)
-	if !ok || !token.Valid {
-		return 0, "", errors.New("refresh token inválido")
-	}
-
-	parsedID, err := strconv.ParseUint(claims.ID, 10, 64)
-	if err != nil {
-		return 0, "", errors.New("refresh token inválido: user ID inválido")
-	}
-
-	userID := uint(parsedID)
-	email := claims.Subject
-
-	return userID, email, nil
+	userID, email, _, _, err := manager.ValidateRefreshTokenFull(tokenString)
+	return userID, email, err
 }
 
 // ExtractTokenFromHeader extrae el token del header Authorization

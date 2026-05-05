@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -237,8 +238,8 @@ func (uc *UserUseCase) RefreshToken(refreshToken string) (*dto.TokenResponse, er
 		return nil, errors.New("user not found")
 	}
 
-	// Verificar que el email coincida
-	if user.Email != email {
+	// Verificar que el email coincida (JWT sub vs BD; sin sensibilidad a mayúsculas)
+	if !strings.EqualFold(strings.TrimSpace(user.Email), strings.TrimSpace(email)) {
 		return nil, errors.New("invalid refresh token")
 	}
 

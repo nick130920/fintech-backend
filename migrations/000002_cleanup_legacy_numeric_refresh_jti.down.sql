@@ -1,0 +1,1 @@
+-- No se pueden restaurar filas borradas; migración irreversible a nivel de datos.

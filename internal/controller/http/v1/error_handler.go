@@ -14,6 +14,16 @@ func handleErrorResponse(c *gin.Context, err error) {
 	var message string
 	var status int
 
+	// Si es un AppError, respetamos su StatusCode declarado
+	if appErr, ok := apperrors.IsAppError(err); ok {
+		c.JSON(appErr.StatusCode, dto.ErrorResponse{
+			Code:    string(appErr.Code),
+			Message: appErr.Message,
+			Details: appErr.Details,
+		})
+		return
+	}
+
 	switch {
 	// 400 Bad Request
 	case errors.Is(err, apperrors.ErrInvalidRequest),

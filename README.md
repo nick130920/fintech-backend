@@ -190,6 +190,48 @@ CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:4200
 - `PUT /api/v1/transactions/:id` - Actualizar transacción
 - `DELETE /api/v1/transactions/:id` - Eliminar transacción
 
+### Viajes (Trips)
+
+Módulo para planificar viajes con presupuesto estimado, gastos compartidos
+estilo Splitwise (con miembros reales o "fantasmas"), simplificación de
+deudas, settlements, itinerario y reportes exportables.
+
+- `GET /api/v1/trips` — Listar viajes (filtra por `?status=`)
+- `POST /api/v1/trips` — Crear viaje
+- `GET /api/v1/trips/:id` — Obtener viaje
+- `PUT /api/v1/trips/:id` — Actualizar viaje
+- `DELETE /api/v1/trips/:id` — Eliminar viaje
+- `POST /api/v1/trips/:id/start|complete|cancel` — Cambiar estado
+
+#### Miembros e invitaciones
+- `GET/POST /api/v1/trips/:id/members`
+- `PUT/DELETE /api/v1/trips/:id/members/:memberId`
+- `GET/POST /api/v1/trips/:id/invitations`
+- `POST /api/v1/trips/invitations/accept` — Aceptar token (auth)
+
+#### Presupuesto y gastos
+- `GET/PUT /api/v1/trips/:id/budget`
+- `GET/POST /api/v1/trips/:id/expenses`
+- `PUT/DELETE /api/v1/trips/:id/expenses/:expenseId`
+
+#### Balance y settlements
+- `GET /api/v1/trips/:id/balance` — Saldo neto + transferencias sugeridas
+- `GET/POST /api/v1/trips/:id/settlements`
+- `DELETE /api/v1/trips/:id/settlements/:settlementId`
+
+#### Itinerario
+- `GET/POST /api/v1/trips/:id/itinerary`
+- `PUT/DELETE /api/v1/trips/:id/itinerary/:itemId`
+- `POST /api/v1/trips/:id/itinerary/:itemId/link-expense`
+
+#### Reportes e importación
+- `GET /api/v1/trips/:id/report` — Reporte estructurado
+- `GET /api/v1/trips/:id/report/export?format=csv|pdf` — Descargar
+- `GET/POST /api/v1/trips/:id/import-suggestions` — Asignar gastos del banco
+
+La simplificación de deudas vive en `pkg/finance/debtsimplify/` y los
+totales/balances usan `pkg/exchange` para conversión multi-moneda.
+
 ## Desarrollo
 
 ### Generar documentación Swagger

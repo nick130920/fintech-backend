@@ -123,6 +123,17 @@ type Dependencies struct {
 	BankNotificationPatternUC *usecase.BankNotificationPatternUseCase
 	EmailGmailUC              *usecase.EmailGmailUseCase
 
+	// Modulo de viajes (turismo)
+	TripUC          *usecase.TripUseCase
+	TripMemberUC    *usecase.TripMemberUseCase
+	TripBudgetUC    *usecase.TripBudgetUseCase
+	TripExpenseUC   *usecase.TripExpenseUseCase
+	TripBalanceUC   *usecase.TripBalanceUseCase
+	SettlementUC    *usecase.SettlementUseCase
+	TripItineraryUC *usecase.TripItineraryUseCase
+	TripImportUC    *usecase.TripImportUseCase
+	TripReportUC    *usecase.TripReportUseCase
+
 	// Servicios externos
 	AIService        *webapi.AIServiceWithFallback
 	ExchangeProvider exchange.Provider
@@ -213,6 +224,29 @@ func initDependencies(cfg *configs.Config, db *gorm.DB, jwtManager *auth.JWTMana
 		log.Fatal().Err(err).Msg("failed to init EmailGmailUseCase")
 	}
 
+	// Modulo de viajes
+	tripRepo := repository.NewTripPostgres(db)
+	tripMemberRepo := repository.NewTripMemberPostgres(db)
+	tripInvitationRepo := repository.NewTripInvitationPostgres(db)
+	tripAllocationRepo := repository.NewTripBudgetAllocationPostgres(db)
+	expenseSplitRepo := repository.NewExpenseSplitPostgres(db)
+	settlementRepo := repository.NewSettlementPostgres(db)
+	tripItineraryRepo := repository.NewTripItineraryPostgres(db)
+
+	if err := categoryRepo.EnsureDefaultTripCategoriesExist(); err != nil {
+		log.Warn().Err(err).Msg("Failed to ensure default trip categories exist")
+	}
+
+	tripUC := usecase.NewTripUseCase(tripRepo, tripMemberRepo, tripAllocationRepo, tripItineraryRepo, userRepo, fxProvider)
+	tripMemberUC := usecase.NewTripMemberUseCase(tripRepo, tripMemberRepo, tripInvitationRepo, userRepo)
+	tripBudgetUC := usecase.NewTripBudgetUseCase(tripRepo, tripMemberRepo, tripAllocationRepo, categoryRepo)
+	tripExpenseUC := usecase.NewTripExpenseUseCase(tripRepo, tripMemberRepo, expenseRepo, expenseSplitRepo, tripAllocationRepo, categoryRepo, fxProvider)
+	tripBalanceUC := usecase.NewTripBalanceUseCase(tripRepo, tripMemberRepo, expenseRepo, expenseSplitRepo, settlementRepo)
+	settlementUC := usecase.NewSettlementUseCase(tripRepo, tripMemberRepo, expenseSplitRepo, settlementRepo, expenseRepo, fxProvider)
+	tripItineraryUC := usecase.NewTripItineraryUseCase(tripRepo, tripMemberRepo, tripItineraryRepo, expenseRepo)
+	tripImportUC := usecase.NewTripImportUseCase(tripRepo, tripMemberRepo, expenseRepo, tripAllocationRepo)
+	tripReportUC := usecase.NewTripReportUseCase(tripRepo, tripMemberRepo, tripAllocationRepo, expenseRepo, expenseSplitRepo, settlementRepo, tripItineraryRepo)
+
 	return &Dependencies{
 		UserUC:                    userUC,
 		AccountUC:                 accountUC,
@@ -223,6 +257,15 @@ func initDependencies(cfg *configs.Config, db *gorm.DB, jwtManager *auth.JWTMana
 		BankAccountUC:             bankAccountUC,
 		BankNotificationPatternUC: bankNotificationPatternUC,
 		EmailGmailUC:              emailGmailUC,
+		TripUC:                    tripUC,
+		TripMemberUC:              tripMemberUC,
+		TripBudgetUC:              tripBudgetUC,
+		TripExpenseUC:             tripExpenseUC,
+		TripBalanceUC:             tripBalanceUC,
+		SettlementUC:              settlementUC,
+		TripItineraryUC:           tripItineraryUC,
+		TripImportUC:              tripImportUC,
+		TripReportUC:              tripReportUC,
 		AIService:                 aiService,
 		ExchangeProvider:          fxProvider,
 		CategoryRepo:              categoryRepo,
@@ -273,7 +316,14 @@ func initHTTPServer(cfg *configs.Config, deps *Dependencies, log zerolog.Logger)
 	}
 
 	// Inicializar rutas API v1
-	v1.NewRouter(router, deps.UserUC, deps.AccountUC, deps.TransactionUC, deps.BudgetUC, deps.ExpenseUC, deps.IncomeUC, deps.BankAccountUC, deps.BankNotificationPatternUC, deps.EmailGmailUC, deps.CategoryRepo, deps.ExchangeProvider, deps.JWTManager, log)
+	v1.NewRouter(
+		router,
+		deps.UserUC, deps.AccountUC, deps.TransactionUC, deps.BudgetUC, deps.ExpenseUC,
+		deps.IncomeUC, deps.BankAccountUC, deps.BankNotificationPatternUC, deps.EmailGmailUC,
+		deps.TripUC, deps.TripMemberUC, deps.TripBudgetUC, deps.TripExpenseUC,
+		deps.TripBalanceUC, deps.SettlementUC, deps.TripItineraryUC, deps.TripImportUC, deps.TripReportUC,
+		deps.CategoryRepo, deps.ExchangeProvider, deps.JWTManager, log,
+	)
 
 	startGmailSyncWorker(deps.EmailGmailUC)
 	startRevokedTokenCleanupWorker(deps.RevokedTokenRepo)

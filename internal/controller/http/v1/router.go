@@ -25,6 +25,15 @@ func NewRouter(
 	bankAccountUC *usecase.BankAccountUseCase,
 	bankNotificationPatternUC *usecase.BankNotificationPatternUseCase,
 	emailGmailUC *usecase.EmailGmailUseCase,
+	tripUC *usecase.TripUseCase,
+	tripMemberUC *usecase.TripMemberUseCase,
+	tripBudgetUC *usecase.TripBudgetUseCase,
+	tripExpenseUC *usecase.TripExpenseUseCase,
+	tripBalanceUC *usecase.TripBalanceUseCase,
+	settlementUC *usecase.SettlementUseCase,
+	tripItineraryUC *usecase.TripItineraryUseCase,
+	tripImportUC *usecase.TripImportUseCase,
+	tripReportUC *usecase.TripReportUseCase,
 	categoryRepo repo.CategoryRepo,
 	exchangeProvider exchange.Provider,
 	jwtManager *auth.JWTManager,
@@ -55,6 +64,10 @@ func NewRouter(
 	webhookHandler := NewWebhookHandler(bankNotificationPatternUC, transactionUC, logger)
 	categoryHandler := NewCategoryHandler(categoryRepo, logger)
 	currencyHandler := NewCurrencyHandler(exchangeProvider)
+	tripHandler := NewTripHandler(
+		tripUC, tripMemberUC, tripBudgetUC, tripExpenseUC, tripBalanceUC,
+		settlementUC, tripItineraryUC, tripImportUC, tripReportUC, logger,
+	)
 
 	// Public currency endpoints (no auth required, cacheable)
 	v1.GET("/currencies", currencyHandler.GetCurrencies)
@@ -231,6 +244,53 @@ func NewRouter(
 			emailConnGroup.GET("", emailConnectionHandler.GetEmailConnectionStatus)
 			emailConnGroup.DELETE("/gmail", emailConnectionHandler.GmailDisconnect)
 			emailConnGroup.POST("/gmail/sync", emailConnectionHandler.GmailSync)
+		}
+
+		// Modulo de viajes (turismo)
+		tripsGroup := protectedGroup.Group("/trips")
+		{
+			tripsGroup.GET("", tripHandler.ListTrips)
+			tripsGroup.POST("", tripHandler.CreateTrip)
+			tripsGroup.POST("/invitations/accept", tripHandler.AcceptInvitation)
+
+			tripsGroup.GET("/:id", tripHandler.GetTrip)
+			tripsGroup.PUT("/:id", tripHandler.UpdateTrip)
+			tripsGroup.DELETE("/:id", tripHandler.DeleteTrip)
+			tripsGroup.POST("/:id/start", tripHandler.StartTrip)
+			tripsGroup.POST("/:id/complete", tripHandler.CompleteTrip)
+			tripsGroup.POST("/:id/cancel", tripHandler.CancelTrip)
+
+			tripsGroup.GET("/:id/members", tripHandler.ListMembers)
+			tripsGroup.POST("/:id/members", tripHandler.AddMember)
+			tripsGroup.PUT("/:id/members/:memberId", tripHandler.UpdateMember)
+			tripsGroup.DELETE("/:id/members/:memberId", tripHandler.RemoveMember)
+
+			tripsGroup.GET("/:id/invitations", tripHandler.ListInvitations)
+			tripsGroup.POST("/:id/invitations", tripHandler.CreateInvitation)
+
+			tripsGroup.GET("/:id/budget", tripHandler.GetBudget)
+			tripsGroup.PUT("/:id/budget", tripHandler.UpsertBudget)
+
+			tripsGroup.GET("/:id/expenses", tripHandler.ListExpenses)
+			tripsGroup.POST("/:id/expenses", tripHandler.CreateExpense)
+			tripsGroup.PUT("/:id/expenses/:expenseId", tripHandler.UpdateExpense)
+			tripsGroup.DELETE("/:id/expenses/:expenseId", tripHandler.DeleteExpense)
+
+			tripsGroup.GET("/:id/balance", tripHandler.GetBalance)
+			tripsGroup.GET("/:id/settlements", tripHandler.ListSettlements)
+			tripsGroup.POST("/:id/settlements", tripHandler.CreateSettlement)
+			tripsGroup.DELETE("/:id/settlements/:settlementId", tripHandler.DeleteSettlement)
+
+			tripsGroup.GET("/:id/itinerary", tripHandler.ListItinerary)
+			tripsGroup.POST("/:id/itinerary", tripHandler.CreateItinerary)
+			tripsGroup.PUT("/:id/itinerary/:itemId", tripHandler.UpdateItinerary)
+			tripsGroup.DELETE("/:id/itinerary/:itemId", tripHandler.DeleteItinerary)
+			tripsGroup.POST("/:id/itinerary/:itemId/link-expense", tripHandler.LinkItineraryExpense)
+
+			tripsGroup.GET("/:id/report", tripHandler.GetReport)
+			tripsGroup.GET("/:id/report/export", tripHandler.ExportReport)
+			tripsGroup.GET("/:id/import-suggestions", tripHandler.SuggestImport)
+			tripsGroup.POST("/:id/import-suggestions", tripHandler.AssignImport)
 		}
 	}
 

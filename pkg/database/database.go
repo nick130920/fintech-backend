@@ -139,6 +139,14 @@ func runMigrations(db *gorm.DB) error {
 		&entity.PendingNotification{},
 		&entity.UserEmailConnection{},
 		&entity.ProcessedEmailMessage{},
+		// Modulo de viajes (turismo)
+		&entity.Trip{},
+		&entity.TripMember{},
+		&entity.TripInvitation{},
+		&entity.TripBudgetAllocation{},
+		&entity.ExpenseSplit{},
+		&entity.Settlement{},
+		&entity.TripItineraryItem{},
 	)
 }
 
@@ -157,6 +165,13 @@ func CreateTables(db *gorm.DB) error {
 // DropTables elimina todas las tablas (usar con cuidado)
 func DropTables(db *gorm.DB) error {
 	return db.Migrator().DropTable(
+		&entity.TripItineraryItem{},
+		&entity.Settlement{},
+		&entity.ExpenseSplit{},
+		&entity.TripBudgetAllocation{},
+		&entity.TripInvitation{},
+		&entity.TripMember{},
+		&entity.Trip{},
 		&entity.BudgetSuggestionJob{},
 		&entity.BudgetSuggestionSlugStat{},
 		&entity.PendingNotification{},

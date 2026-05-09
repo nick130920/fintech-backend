@@ -572,12 +572,14 @@ func (uc *BankNotificationPatternUseCase) createTransactionFromAIExtraction(
 		}
 	}
 
+	budgetID := budget.ID
+	allocationID := allocation.ID
 	// Create expense
 	expense := &entity.Expense{
 		UserID:       userID,
-		BudgetID:     budget.ID,
+		BudgetID:     &budgetID,
 		CategoryID:   defaultCategory.ID,
-		AllocationID: allocation.ID,
+		AllocationID: &allocationID,
 		Amount:       extraction.Amount,
 		Description:  description,
 		Date:         transactionDate,

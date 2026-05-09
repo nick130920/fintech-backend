@@ -62,4 +62,9 @@ type ExpenseRepo interface {
 	// Operaciones de mantenimiento
 	CleanupCancelledExpenses(olderThan time.Duration) error
 	UpdateCurrency(fromCurrency, toCurrency string, exchangeRate float64) error
+
+	// Operaciones para el modulo de viajes
+	GetByTripID(tripID uint) ([]*entity.Expense, error)
+	GetUnassignedTripCandidates(userID uint, fromDate, toDate time.Time) ([]*entity.Expense, error)
+	AssignToTrip(expenseIDs []uint, tripID uint, userID uint) error
 }

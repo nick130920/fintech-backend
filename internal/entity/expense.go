@@ -37,10 +37,14 @@ type Expense struct {
 	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
 
 	// Relaciones
-	UserID       uint `json:"user_id" gorm:"not null;index"`
-	BudgetID     uint `json:"budget_id" gorm:"not null;index"`
-	CategoryID   uint `json:"category_id" gorm:"not null;index"`
-	AllocationID uint `json:"allocation_id" gorm:"not null;index"`
+	UserID       uint  `json:"user_id" gorm:"not null;index"`
+	BudgetID     *uint `json:"budget_id,omitempty" gorm:"index"`
+	CategoryID   uint  `json:"category_id" gorm:"not null;index"`
+	AllocationID *uint `json:"allocation_id,omitempty" gorm:"index"`
+
+	// Vinculación opcional a viajes (módulo de turismo)
+	TripID         *uint `json:"trip_id,omitempty" gorm:"index"`
+	PaidByMemberID *uint `json:"paid_by_member_id,omitempty" gorm:"index"`
 
 	// Información del gasto
 	Amount      float64       `json:"amount" gorm:"not null;type:decimal(15,2)" validate:"required,gt=0"`
@@ -70,10 +74,38 @@ type Expense struct {
 	AlertSent      bool `json:"alert_sent" gorm:"default:false"`      // Si se envió la alerta
 
 	// Relaciones
-	User       User             `json:"user" gorm:"foreignKey:UserID"`
-	Budget     Budget           `json:"budget" gorm:"foreignKey:BudgetID"`
-	Category   Category         `json:"category" gorm:"foreignKey:CategoryID"`
-	Allocation BudgetAllocation `json:"allocation" gorm:"foreignKey:AllocationID"`
+	User       User              `json:"user" gorm:"foreignKey:UserID"`
+	Budget     *Budget           `json:"budget,omitempty" gorm:"foreignKey:BudgetID"`
+	Category   Category          `json:"category" gorm:"foreignKey:CategoryID"`
+	Allocation *BudgetAllocation `json:"allocation,omitempty" gorm:"foreignKey:AllocationID"`
+	Trip       *Trip            `json:"trip,omitempty" gorm:"foreignKey:TripID"`
+	PaidBy     *TripMember      `json:"paid_by,omitempty" gorm:"foreignKey:PaidByMemberID"`
+	Splits     []ExpenseSplit   `json:"splits,omitempty" gorm:"foreignKey:ExpenseID"`
+}
+
+// IsTripExpense indica si el gasto pertenece a un viaje
+func (e *Expense) IsTripExpense() bool {
+	return e.TripID != nil
+}
+
+// TotalSplits retorna la suma de los share amounts de los splits del gasto
+func (e *Expense) TotalSplits() float64 {
+	total := 0.0
+	for _, split := range e.Splits {
+		total += split.ShareAmount
+	}
+	return total
+}
+
+// OwedByMember devuelve el monto pendiente que un miembro debe del gasto
+func (e *Expense) OwedByMember(memberID uint) float64 {
+	owed := 0.0
+	for _, split := range e.Splits {
+		if split.MemberID == memberID && !split.IsPaid {
+			owed += split.ShareAmount
+		}
+	}
+	return owed
 }
 
 // GetTags convierte el campo Tags (JSON string) a slice de strings

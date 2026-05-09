@@ -20,9 +20,10 @@ type Category struct {
 	Color       string `json:"color" gorm:"default:'#007bff'" validate:"hexcolor"`
 
 	// Configuración
-	IsActive  bool `json:"is_active" gorm:"default:true"`
-	IsDefault bool `json:"is_default" gorm:"default:false"` // Categorías predefinidas del sistema
-	SortOrder int  `json:"sort_order" gorm:"default:0"`
+	IsActive       bool `json:"is_active" gorm:"default:true"`
+	IsDefault      bool `json:"is_default" gorm:"default:false"`               // Categorías predefinidas del sistema
+	IsTripCategory bool `json:"is_trip_category" gorm:"default:false;index"`  // Categorías para presupuesto de viajes
+	SortOrder      int  `json:"sort_order" gorm:"default:0"`
 
 	// Relación con usuario (null para categorías del sistema)
 	UserID *uint `json:"user_id" gorm:"index"`
@@ -53,6 +54,19 @@ func DefaultCategories() []Category {
 		{Name: "Compras", Description: "Ropa, electrónicos, compras varias", Icon: "shopping_bag", Color: "#DDA0DD", IsDefault: true, SortOrder: 6},
 		{Name: "Educación", Description: "Cursos, libros, capacitación", Icon: "school", Color: "#74B9FF", IsDefault: true, SortOrder: 7},
 		{Name: "Otros", Description: "Gastos varios no clasificados", Icon: "category", Color: "#FDCB6E", IsDefault: true, SortOrder: 8},
+	}
+}
+
+// DefaultTripCategories retorna las categorías predefinidas específicas para viajes
+func DefaultTripCategories() []Category {
+	return []Category{
+		{Name: "Alojamiento", Description: "Hoteles, hostales, Airbnb", Icon: "hotel", Color: "#6C5CE7", IsDefault: true, IsTripCategory: true, SortOrder: 101},
+		{Name: "Vuelos", Description: "Boletos de avión, equipaje", Icon: "flight", Color: "#0984E3", IsDefault: true, IsTripCategory: true, SortOrder: 102},
+		{Name: "Transporte local", Description: "Taxis, metro, alquiler de auto", Icon: "directions_bus", Color: "#00B894", IsDefault: true, IsTripCategory: true, SortOrder: 103},
+		{Name: "Comida (viaje)", Description: "Restaurantes y comidas durante el viaje", Icon: "restaurant_menu", Color: "#E17055", IsDefault: true, IsTripCategory: true, SortOrder: 104},
+		{Name: "Actividades", Description: "Tours, entradas, excursiones", Icon: "local_activity", Color: "#FDCB6E", IsDefault: true, IsTripCategory: true, SortOrder: 105},
+		{Name: "Souvenirs", Description: "Recuerdos y compras del destino", Icon: "card_giftcard", Color: "#FF7675", IsDefault: true, IsTripCategory: true, SortOrder: 106},
+		{Name: "Imprevistos", Description: "Gastos extra no planeados", Icon: "warning", Color: "#A29BFE", IsDefault: true, IsTripCategory: true, SortOrder: 107},
 	}
 }
 

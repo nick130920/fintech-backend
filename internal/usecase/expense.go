@@ -130,12 +130,14 @@ func (uc *ExpenseUseCase) CreateExpense(userID uint, req *dto.CreateExpenseReque
 		Float64("spent", allocation.SpentAmount).
 		Msg("Allocation found")
 
+	budgetID := budget.ID
+	allocationID := allocation.ID
 	// Crear el gasto
 	expense := &entity.Expense{
 		UserID:       userID,
-		BudgetID:     budget.ID,
+		BudgetID:     &budgetID,
 		CategoryID:   category.ID,
-		AllocationID: allocation.ID,
+		AllocationID: &allocationID,
 		Amount:       req.Amount,
 		Description:  req.Description,
 		Date:         expenseDate,
@@ -351,13 +353,17 @@ func (uc *ExpenseUseCase) UpdateExpense(userID, expenseID uint, req *dto.UpdateE
 		return nil, err
 	}
 
-	// Actualizar montos gastados
-	if err := uc.budgetRepo.UpdateAllocationSpentAmount(expense.AllocationID); err != nil {
-		return nil, err
+	// Actualizar montos gastados (si el gasto está vinculado a un presupuesto mensual)
+	if expense.AllocationID != nil {
+		if err := uc.budgetRepo.UpdateAllocationSpentAmount(*expense.AllocationID); err != nil {
+			return nil, err
+		}
 	}
 
-	if err := uc.budgetRepo.UpdateBudgetSpentAmount(expense.BudgetID); err != nil {
-		return nil, err
+	if expense.BudgetID != nil {
+		if err := uc.budgetRepo.UpdateBudgetSpentAmount(*expense.BudgetID); err != nil {
+			return nil, err
+		}
 	}
 
 	// Recargar con relaciones
@@ -390,13 +396,16 @@ func (uc *ExpenseUseCase) DeleteExpense(userID, expenseID uint) error {
 		return err
 	}
 
-	// Actualizar montos gastados
-	if err := uc.budgetRepo.UpdateAllocationSpentAmount(expense.AllocationID); err != nil {
-		return err
+	if expense.AllocationID != nil {
+		if err := uc.budgetRepo.UpdateAllocationSpentAmount(*expense.AllocationID); err != nil {
+			return err
+		}
 	}
 
-	if err := uc.budgetRepo.UpdateBudgetSpentAmount(expense.BudgetID); err != nil {
-		return err
+	if expense.BudgetID != nil {
+		if err := uc.budgetRepo.UpdateBudgetSpentAmount(*expense.BudgetID); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -510,8 +519,11 @@ func (uc *ExpenseUseCase) ConfirmExpense(userID, expenseID uint) (*dto.ExpenseSu
 	expense.Status = entity.ExpenseStatusConfirmed
 
 	// Actualizar el monto gastado en la asignación
-	if err := uc.budgetRepo.UpdateAllocationSpentAmount(expense.AllocationID); err != nil {
-		// Log pero no fallar
+	if expense.AllocationID != nil {
+		if err := uc.budgetRepo.UpdateAllocationSpentAmount(*expense.AllocationID); err != nil {
+			// Log pero no fallar
+			_ = err
+		}
 	}
 
 	return uc.mapExpenseToSummaryResponse(expense), nil

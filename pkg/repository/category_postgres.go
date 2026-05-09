@@ -244,16 +244,52 @@ func (r *CategoryPostgres) CreateDefaultCategories() error {
 
 // EnsureDefaultCategoriesExist verifica y crea las categorías por defecto si no existen
 func (r *CategoryPostgres) EnsureDefaultCategoriesExist() error {
-	// Verificar si ya existen categorías por defecto
+	// Verificar si ya existen categorías por defecto generales
 	var count int64
-	r.db.Model(&entity.Category{}).Where("is_default = ? AND user_id IS NULL", true).Count(&count)
+	r.db.Model(&entity.Category{}).
+		Where("is_default = ? AND user_id IS NULL AND is_trip_category = ?", true, false).
+		Count(&count)
 
-	if count > 0 {
-		return nil // Ya están inicializadas
+	if count == 0 {
+		if err := r.CreateDefaultCategories(); err != nil {
+			return err
+		}
 	}
 
-	// Crear categorías por defecto
-	return r.CreateDefaultCategories()
+	return r.EnsureDefaultTripCategoriesExist()
+}
+
+// EnsureDefaultTripCategoriesExist crea las categorías de viaje por defecto
+func (r *CategoryPostgres) EnsureDefaultTripCategoriesExist() error {
+	var count int64
+	r.db.Model(&entity.Category{}).
+		Where("is_default = ? AND user_id IS NULL AND is_trip_category = ?", true, true).
+		Count(&count)
+
+	if count > 0 {
+		return nil
+	}
+
+	tripCategories := entity.DefaultTripCategories()
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		for _, category := range tripCategories {
+			if err := tx.Create(&category).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// GetTripCategoriesForUser retorna las categorías disponibles para presupuestos de viaje
+func (r *CategoryPostgres) GetTripCategoriesForUser(userID uint) ([]*entity.Category, error) {
+	var categories []*entity.Category
+	err := r.db.Where("(user_id IS NULL AND is_default = ? AND is_trip_category = ?) OR user_id = ?",
+		true, true, userID).
+		Where("is_active = ?", true).
+		Order("sort_order ASC, name ASC").
+		Find(&categories).Error
+	return categories, err
 }
 
 // GetCategoriesWithBudgetInfo obtiene categorías con información de presupuesto para un mes específico

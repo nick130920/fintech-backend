@@ -31,4 +31,8 @@ type CategoryRepo interface {
 	// Inicialización del sistema
 	CreateDefaultCategories() error
 	EnsureDefaultCategoriesExist() error
+
+	// Operaciones específicas de viajes (turismo)
+	EnsureDefaultTripCategoriesExist() error
+	GetTripCategoriesForUser(userID uint) ([]*entity.Category, error)
 }

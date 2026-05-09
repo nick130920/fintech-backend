@@ -533,3 +533,39 @@ func (r *ExpensePostgres) UpdateCurrency(fromCurrency, toCurrency string, exchan
 			"amount":   gorm.Expr("amount * ?", exchangeRate),
 		}).Error
 }
+
+// GetByTripID obtiene los gastos vinculados a un viaje específico
+func (r *ExpensePostgres) GetByTripID(tripID uint) ([]*entity.Expense, error) {
+	var expenses []*entity.Expense
+	err := r.db.
+		Preload("Category").
+		Preload("Splits.Member").
+		Preload("PaidBy").
+		Where("trip_id = ?", tripID).
+		Order("date DESC, created_at DESC").
+		Find(&expenses).Error
+	return expenses, err
+}
+
+// GetUnassignedTripCandidates retorna gastos del usuario sin viaje asignado dentro de un rango
+func (r *ExpensePostgres) GetUnassignedTripCandidates(userID uint, fromDate, toDate time.Time) ([]*entity.Expense, error) {
+	var expenses []*entity.Expense
+	err := r.db.
+		Preload("Category").
+		Where("user_id = ? AND trip_id IS NULL", userID).
+		Where("date BETWEEN ? AND ?", fromDate, toDate).
+		Where("status IN ?", []string{string(entity.ExpenseStatusConfirmed), string(entity.ExpenseStatusPending)}).
+		Order("date ASC").
+		Find(&expenses).Error
+	return expenses, err
+}
+
+// AssignToTrip asigna en lote una lista de gastos a un viaje del propio usuario
+func (r *ExpensePostgres) AssignToTrip(expenseIDs []uint, tripID uint, userID uint) error {
+	if len(expenseIDs) == 0 {
+		return nil
+	}
+	return r.db.Model(&entity.Expense{}).
+		Where("id IN ? AND user_id = ?", expenseIDs, userID).
+		Update("trip_id", tripID).Error
+}

@@ -1,0 +1,27 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: fintech-backend
+  description: Money Flow backend - Go API with Clean Architecture
+  tags:
+    - go
+    - gin
+    - gorm
+    - postgres
+    - fintech
+  annotations:
+    github.com/project-slug: nick130920/fintech-backend
+  links:
+    - url: https://github.com/nick130920/fintech-backend
+      title: Repository
+      icon: github
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: money-flow
+  dependsOn:
+    - component:default/go-auth-lib
+    - component:default/go-rbac-lib
+  providesApis:
+    - money-flow-rest-api

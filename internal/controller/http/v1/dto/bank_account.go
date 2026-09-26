@@ -41,12 +41,12 @@ type UpdateBankAccountRequest struct {
 
 // SetBankAccountActiveRequest representa la estructura para cambiar el estado activo
 type SetBankAccountActiveRequest struct {
-	IsActive bool `json:"is_active" validate:"required"`
+	IsActive *bool `json:"is_active" validate:"required"`
 }
 
 // UpdateBankAccountBalanceRequest representa la estructura para actualizar el balance
 type UpdateBankAccountBalanceRequest struct {
-	Balance float64 `json:"balance" validate:"required"`
+	Balance *float64 `json:"balance" validate:"required"`
 }
 
 // BankAccountResponse representa la respuesta de una cuenta bancaria

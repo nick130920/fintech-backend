@@ -2,14 +2,11 @@ package configs
 
 import (
 	"fmt"
-	"log"
 	"net/url"
 	"os"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/nick130920/fintech-backend/pkg/logger"
 )
 
 // Config representa toda la configuración de la aplicación
@@ -35,6 +32,8 @@ type ServerConfig struct {
 
 // DatabaseConfig representa la configuración de la base de datos
 type DatabaseConfig struct {
+	URL             string `json:"-"`
+	databaseURLSet  bool
 	Host            string `json:"host"`
 	Port            string `json:"port"`
 	User            string `json:"user"`
@@ -84,14 +83,14 @@ type EmailConfig struct {
 
 // ExternalConfig representa configuraciones de servicios externos
 type ExternalConfig struct {
-	PlaidClientID    string `json:"-"` // No exponer en JSON
-	PlaidSecret      string `json:"-"` // No exponer en JSON
-	PlaidEnvironment string `json:"plaid_environment"`
-	SentryDSN        string `json:"-"` // No exponer en JSON
-	SentryTestSecret string `json:"-"` // Secreto para POST /debug/sentry-test (solo desarrollo)
-	WebhookSecret    string `json:"-"` // Secreto para autenticación de webhooks
-	OCRAPIKey        string `json:"-"` // API key del proveedor OCR
-	OCRProviderURL   string `json:"ocr_provider_url"`
+	PlaidClientID    string           `json:"-"` // No exponer en JSON
+	PlaidSecret      string           `json:"-"` // No exponer en JSON
+	PlaidEnvironment string           `json:"plaid_environment"`
+	SentryDSN        string           `json:"-"` // No exponer en JSON
+	SentryTestSecret string           `json:"-"` // Secreto para POST /debug/sentry-test (solo desarrollo)
+	WebhookSecret    string           `json:"-"` // Secreto para autenticación de webhooks
+	OCRAPIKey        string           `json:"-"` // API key del proveedor OCR
+	OCRProviderURL   string           `json:"ocr_provider_url"`
 	Gmail            GmailOAuthConfig `json:"-"`
 }
 
@@ -136,7 +135,7 @@ func Load() *Config {
 			Mode:     getEnv("GIN_MODE", "release"), // release en producción; en Railway Dashboard verificar que no esté "debug"
 			LogLevel: getEnv("LOG_LEVEL", "info"),
 		},
-		Database: loadDatabaseConfig(),
+		Database: loadDatabaseConfig(getEnv("GIN_MODE", "release")),
 		JWT: JWTConfig{
 			SecretKey:             getEnv("JWT_SECRET_KEY", "default-secret-key-change-in-production"),
 			ExpiresIn:             time.Duration(getEnvAsInt("JWT_EXPIRES_IN", 86400)) * time.Second,             // 24 horas por defecto
@@ -214,13 +213,19 @@ func (c *Config) IsDevelopment() bool {
 
 // Validate valida la configuración
 func (c *Config) Validate() error {
-	log := logger.Get()
-	if c.JWT.SecretKey == "default-secret-key-change-in-production" && c.IsProduction() {
-		log.Warn().Msg("Using default JWT secret key in production")
-	}
+	if c.IsProduction() {
+		jwtSecret := strings.TrimSpace(c.JWT.SecretKey)
+		if jwtSecret == "" || jwtSecret == "default-secret-key-change-in-production" || len([]byte(jwtSecret)) < 32 {
+			return fmt.Errorf("JWT_SECRET_KEY must be configured with at least 32 bytes in release mode")
+		}
 
-	if c.Database.Password == "postgres" && c.IsProduction() {
-		log.Warn().Msg("Using default database password in production")
+		if c.Database.databaseURLSet || c.Database.URL != "" {
+			if !isValidProductionDatabaseURL(c.Database.URL) {
+				return fmt.Errorf("DATABASE_URL must be a complete PostgreSQL connection URL in release mode")
+			}
+		} else if err := validateProductionDatabaseConfig(c.Database); err != nil {
+			return err
+		}
 	}
 
 	g := c.External.Gmail
@@ -242,24 +247,30 @@ func (c *Config) Validate() error {
 
 // loadDatabaseConfig carga la configuración de base de datos
 // Soporta tanto DATABASE_URL (Railway, Heroku) como variables individuales
-func loadDatabaseConfig() DatabaseConfig {
-	// Intentar cargar desde DATABASE_URL primero (Railway, Heroku, etc.)
-	if databaseURL := os.Getenv("DATABASE_URL"); databaseURL != "" {
+func loadDatabaseConfig(mode string) DatabaseConfig {
+	// DATABASE_URL is the sole database source whenever it is supplied, including whitespace-only values.
+	if rawDatabaseURL, databaseURLSet := os.LookupEnv("DATABASE_URL"); databaseURLSet {
+		databaseURL := strings.TrimSpace(rawDatabaseURL)
 		if config, err := parseDatabaseURL(databaseURL); err == nil {
+			config.URL = databaseURL
+			config.databaseURLSet = true
 			return config
-		} else {
-			// No usar el logger aquí porque aún no está inicializado
-			log.Printf("Warning: Failed to parse DATABASE_URL, falling back to individual variables: %v", err)
 		}
+		return DatabaseConfig{URL: databaseURL, databaseURLSet: true}
 	}
 
-	// Fallback a variables individuales
+	hostDefault, portDefault, userDefault, passwordDefault, nameDefault := "", "", "", "", ""
+	if mode != "release" {
+		hostDefault, portDefault, userDefault, passwordDefault, nameDefault = "localhost", "5432", "postgres", "postgres", "fintech_db"
+	}
+
+	// Use local defaults only outside release when DATABASE_URL is absent.
 	return DatabaseConfig{
-		Host:            getEnv("DB_HOST", "localhost"),
-		Port:            getEnv("DB_PORT", "5432"),
-		User:            getEnv("DB_USER", "postgres"),
-		Password:        getEnv("DB_PASSWORD", "postgres"),
-		DBName:          getEnv("DB_NAME", "fintech_db"),
+		Host:            getEnv("DB_HOST", hostDefault),
+		Port:            getEnv("DB_PORT", portDefault),
+		User:            getEnv("DB_USER", userDefault),
+		Password:        getEnv("DB_PASSWORD", passwordDefault),
+		DBName:          getEnv("DB_NAME", nameDefault),
 		SSLMode:         getEnv("DB_SSLMODE", "disable"),
 		TimeZone:        getEnv("DB_TIMEZONE", "America/Bogota"),
 		LogLevel:        getEnv("DB_LOG_LEVEL", "error"),
@@ -319,6 +330,40 @@ func parseDatabaseURL(databaseURL string) (DatabaseConfig, error) {
 	}
 
 	return config, nil
+}
+
+func isValidProductionDatabaseURL(databaseURL string) bool {
+	u, err := url.Parse(strings.TrimSpace(databaseURL))
+	if err != nil || (u.Scheme != "postgres" && u.Scheme != "postgresql") || u.Hostname() == "" {
+		return false
+	}
+	if u.User == nil || strings.TrimSpace(u.User.Username()) == "" {
+		return false
+	}
+	password, hasPassword := u.User.Password()
+	password = strings.TrimSpace(password)
+	return hasPassword && password != "" && password != "postgres" && strings.TrimSpace(strings.Trim(u.Path, "/")) != ""
+}
+
+func validateProductionDatabaseConfig(database DatabaseConfig) error {
+	for _, field := range []struct {
+		name  string
+		value string
+	}{
+		{name: "DB_HOST", value: database.Host},
+		{name: "DB_PORT", value: database.Port},
+		{name: "DB_USER", value: database.User},
+		{name: "DB_PASSWORD", value: database.Password},
+		{name: "DB_NAME", value: database.DBName},
+	} {
+		if strings.TrimSpace(field.value) == "" {
+			return fmt.Errorf("%s must be configured in release mode", field.name)
+		}
+	}
+	if strings.TrimSpace(database.Password) == "postgres" {
+		return fmt.Errorf("DB_PASSWORD must not use the default value in release mode")
+	}
+	return nil
 }
 
 // Funciones auxiliares para obtener variables de entorno

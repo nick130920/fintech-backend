@@ -118,6 +118,14 @@ CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:4200
 
 **Privacidad (correo Gmail):** el usuario autoriza lectura de Gmail para detectar movimientos bancarios; el texto relevante puede enviarse al mismo flujo de IA que los SMS. No subas credenciales OAuth (`client_secret*.json`) al repositorio.
 
+### Development/test defaults and release requirements
+
+`GIN_MODE=debug` is intended for local development and tests. In this mode, the documented local PostgreSQL defaults (`localhost`, `postgres`, and `fintech_db`) and the built-in JWT development placeholder remain permitted for compatibility.
+
+`GIN_MODE=release` validates credentials at startup. After surrounding whitespace is ignored for validation, `JWT_SECRET_KEY` must not be empty or equal to the built-in placeholder and must contain at least 32 bytes. When supplied, `DATABASE_URL` is authoritative and must be a complete PostgreSQL URL (`postgres://` or `postgresql://`) containing host, user, password, and database name. Surrounding whitespace is ignored for a valid URL, but a whitespace-only value is still supplied and is rejected rather than falling back to `DB_*`. When `DATABASE_URL` is absent, all of `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, and `DB_NAME` are required. Release mode rejects an empty database value and the local default password `postgres`, including when supplied through `DATABASE_URL`. Validation errors identify variable names without printing secret values or connection URLs.
+
+Railway deployments can use `GIN_MODE=release`, `JWT_SECRET_KEY`, and `DATABASE_URL`; discrete `DB_*` variables are not required when `DATABASE_URL` is configured.
+
 ## Instalación y Uso
 
 ### Prerrequisitos

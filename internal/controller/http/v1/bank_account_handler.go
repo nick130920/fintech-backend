@@ -427,7 +427,7 @@ func (h *BankAccountHandler) SetBankAccountActive(c *gin.Context) {
 		return
 	}
 
-	err = h.bankAccountUC.SetBankAccountActive(userID.(uint), uint(bankAccountID), req.IsActive)
+	err = h.bankAccountUC.SetBankAccountActive(userID.(uint), uint(bankAccountID), *req.IsActive)
 	if err != nil {
 		if err.Error() == "bank account not found" || err.Error() == "unauthorized access to bank account" {
 			c.JSON(http.StatusNotFound, dto.ErrorResponse{
@@ -496,7 +496,7 @@ func (h *BankAccountHandler) UpdateBankAccountBalance(c *gin.Context) {
 		return
 	}
 
-	err = h.bankAccountUC.UpdateBankAccountBalance(userID.(uint), uint(bankAccountID), req.Balance)
+	err = h.bankAccountUC.UpdateBankAccountBalance(userID.(uint), uint(bankAccountID), *req.Balance)
 	if err != nil {
 		if err.Error() == "bank account not found" || err.Error() == "unauthorized access to bank account" {
 			c.JSON(http.StatusNotFound, dto.ErrorResponse{

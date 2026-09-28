@@ -1,0 +1,101 @@
+name: Backend CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GOTOOLCHAIN: local
+      CI_DATABASE_URL: postgres://ci_user:ci_password@localhost:5432/fintech_ci?sslmode=disable
+    services:
+      postgres:
+        image: postgres:16.10-alpine3.22@sha256:ab8380566c3ea09690a9ecaa85a59d82bfc6eb86744151a2a54335866c83a3e9
+        env:
+          POSTGRES_USER: ci_user
+          POSTGRES_PASSWORD: ci_password
+          POSTGRES_DB: fintech_ci
+        options: >-
+          --health-cmd "pg_isready -U ci_user -d fintech_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
+        with:
+          go-version: '1.25.14'
+          check-latest: true
+
+      - name: Check changed Go files are formatted
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -euo pipefail
+          changed_files=$(mktemp)
+          trap 'rm -f "$changed_files"' EXIT
+          git diff --name-only --diff-filter=ACMR "$BASE_SHA" "$GITHUB_SHA" -- '*.go' >"$changed_files"
+          mapfile -t go_files <"$changed_files"
+          if ((${#go_files[@]} == 0)); then
+            exit 0
+          fi
+          test -z "$(gofmt -d -- "${go_files[@]}")"
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test with coverage
+        run: go test -covermode=atomic -coverprofile=coverage.out ./...
+
+      - name: Check coverage baseline
+        run: bash scripts/ci/check-coverage.sh coverage.out .ci/coverage-baseline.txt
+
+      - name: Race test
+        run: go test -race ./...
+
+      - name: Verify PostgreSQL migration bootstrap
+        run: go test -tags=integration ./pkg/database -run '^TestVersionedMigrationsAfterLegacyBootstrap$' -count=1
+
+      - name: Check vulnerabilities
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
+
+      - name: Check OpenAPI artifacts
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -euo pipefail
+          python3 -m json.tool api/swagger/swagger.json >/dev/null
+          go test ./api/swagger
+
+          changed_files=$(mktemp)
+          trap 'rm -f "$changed_files"' EXIT
+          git diff --name-only --diff-filter=ACMRD "$BASE_SHA" "$GITHUB_SHA" >"$changed_files"
+          if grep -Eq '^(cmd/server/main\.go|internal/controller/http/v1/.*\.go)$' "$changed_files" && \
+             ! grep -Eq '^api/swagger/(docs\.go|swagger\.json|swagger\.yaml)$' "$changed_files"; then
+            echo 'API annotations changed without committed OpenAPI artifacts.' >&2
+            exit 1
+          fi
+
+      - name: Check secrets
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

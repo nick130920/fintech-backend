@@ -531,6 +531,7 @@ func (h *BankNotificationPatternHandler) GetPattern(c *gin.Context) {
 
 	c.JSON(http.StatusOK, pattern)
 }
+
 // UpdatePattern godoc
 // @Summary Actualizar patrón
 // @Description Actualiza un patrón existente de notificación bancaria
@@ -574,6 +575,7 @@ func (h *BankNotificationPatternHandler) UpdatePattern(c *gin.Context) {
 
 	c.JSON(http.StatusOK, pattern)
 }
+
 // DeletePattern godoc
 // @Summary Eliminar patrón
 // @Description Elimina un patrón de notificación bancaria del usuario
@@ -606,6 +608,7 @@ func (h *BankNotificationPatternHandler) DeletePattern(c *gin.Context) {
 
 	c.Status(http.StatusNoContent)
 }
+
 // SetPatternStatus godoc
 // @Summary Cambiar estado del patrón
 // @Description Activa o desactiva un patrón de notificación bancaria
@@ -647,6 +650,7 @@ func (h *BankNotificationPatternHandler) SetPatternStatus(c *gin.Context) {
 
 	c.Status(http.StatusNoContent)
 }
+
 // GetBankAccountPatterns godoc
 // @Summary Patrones por cuenta bancaria
 // @Description Obtiene patrones asociados a una cuenta bancaria del usuario

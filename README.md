@@ -242,15 +242,52 @@ totales/balances usan `pkg/exchange` para conversión multi-moneda.
 
 ## Desarrollo
 
-### Generar documentación Swagger
+### CI quality gates
+
+Run the same Go quality gates as CI with Go 1.25.0 first on `PATH` and
+`GOTOOLCHAIN=local`:
 
 ```bash
-# Instalar swag
-go install github.com/swaggo/swag/cmd/swag@latest
-
-# Generar docs
-swag init -g cmd/server/main.go -o api/swagger
+gofmt -d $(git ls-files '*.go')
+go vet ./...
+go test -covermode=atomic -coverprofile=coverage.out ./...
+bash scripts/ci/check-coverage.sh coverage.out .ci/coverage-baseline.txt
+go test -race ./...
+go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
 ```
+
+The initial coverage baseline is 6.8%. It is intentionally a ratchet while the
+existing repository-wide Go formatting drift is addressed separately. CI checks
+only Go files changed by the pull request or push, so it does not require
+formatting unrelated legacy files.
+
+The PostgreSQL migration integration test requires a disposable database and
+runs the legacy GORM bootstrap before the versioned migrations. This hybrid
+order preserves the current migration compatibility contract:
+
+```bash
+docker run --rm -d --name fintech-ci-postgres \
+  -e POSTGRES_USER=ci_user -e POSTGRES_PASSWORD=ci_password \
+  -e POSTGRES_DB=fintech_ci -p 5432:5432 \
+  postgres:16.10-alpine3.22@sha256:ab8380566c3ea09690a9ecaa85a59d82bfc6eb86744151a2a54335866c83a3e9
+CI_DATABASE_URL='postgres://ci_user:ci_password@localhost:5432/fintech_ci?sslmode=disable' \
+  go test -tags=integration ./pkg/database -run '^TestVersionedMigrationsAfterLegacyBootstrap$' -count=1
+```
+
+### Generar documentación Swagger
+
+CI validates that the committed OpenAPI JSON is parseable and that the Swagger
+Go package compiles. If API annotations change, the same commit must update the
+three generated artifacts under `api/swagger/`.
+
+```bash
+go run github.com/swaggo/swag/cmd/swag@v1.16.3 init -g cmd/server/main.go -o api/swagger
+git diff --exit-code -- api/swagger
+```
+
+Generation currently also exposes pre-existing annotation drift. Resolve that
+before regenerating the committed artifacts; do not bypass the incremental CI
+check when changing handlers or DTOs.
 
 ### Ejecutar tests
 

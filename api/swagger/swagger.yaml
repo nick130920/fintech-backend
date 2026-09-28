@@ -45,6 +45,174 @@ definitions:
       spent_amount:
         type: number
     type: object
+  dto.AnalyzeSMSBatchRequest:
+    properties:
+      messages:
+        items:
+          $ref: '#/definitions/dto.SMSMessageForAnalysis'
+        type: array
+    required:
+    - messages
+    type: object
+  dto.AnalyzeSMSBatchResponse:
+    properties:
+      suggestions:
+        $ref: '#/definitions/dto.BudgetSuggestions'
+    type: object
+  dto.BankAccountResponse:
+    properties:
+      account_alias:
+        type: string
+      account_number_mask:
+        type: string
+      bank_code:
+        type: string
+      bank_name:
+        type: string
+      branch_code:
+        type: string
+      branch_name:
+        type: string
+      color:
+        type: string
+      created_at:
+        type: string
+      currency:
+        type: string
+      display_name:
+        type: string
+      icon:
+        type: string
+      id:
+        type: integer
+      is_active:
+        type: boolean
+      is_notification_enabled:
+        type: boolean
+      last_balance:
+        type: number
+      last_balance_update:
+        type: string
+      min_amount_to_notify:
+        type: number
+      notes:
+        type: string
+      notification_email:
+        type: string
+      notification_phone:
+        type: string
+      type:
+        $ref: '#/definitions/entity.BankAccountType'
+      updated_at:
+        type: string
+    type: object
+  dto.BankAccountSummaryResponse:
+    properties:
+      account_alias:
+        type: string
+      account_number_mask:
+        type: string
+      bank_name:
+        type: string
+      color:
+        type: string
+      currency:
+        type: string
+      display_name:
+        type: string
+      icon:
+        type: string
+      id:
+        type: integer
+      is_active:
+        type: boolean
+      last_balance:
+        type: number
+      last_balance_update:
+        type: string
+      short_bank_name:
+        type: string
+      type:
+        $ref: '#/definitions/entity.BankAccountType'
+    type: object
+  dto.BankNotificationPatternResponse:
+    properties:
+      auto_approve:
+        type: boolean
+      bank_account_id:
+        type: integer
+      channel:
+        $ref: '#/definitions/entity.NotificationChannel'
+      confidence_threshold:
+        type: number
+      created_at:
+        type: string
+      description:
+        type: string
+      example_message:
+        type: string
+      id:
+        type: integer
+      is_default:
+        type: boolean
+      last_matched_at:
+        type: string
+      match_count:
+        type: integer
+      metadata:
+        additionalProperties: true
+        type: object
+      name:
+        type: string
+      priority:
+        type: integer
+      requires_validation:
+        type: boolean
+      status:
+        $ref: '#/definitions/entity.NotificationPatternStatus'
+      success_count:
+        type: integer
+      success_rate:
+        type: number
+      tags:
+        items:
+          type: string
+        type: array
+      updated_at:
+        type: string
+    type: object
+  dto.BankNotificationWebhook:
+    properties:
+      bank_code:
+        example: BANCOLOMBIA
+        type: string
+      channel:
+        enum:
+        - sms
+        - push
+        - email
+        example: sms
+        type: string
+      message:
+        example: Compra por $50.000 en SUPERMERCADO XYZ el 15/01/2024
+        type: string
+      metadata:
+        additionalProperties: true
+        type: object
+      phone:
+        example: "+573001234567"
+        type: string
+      received_at:
+        example: "2024-01-15T10:30:00Z"
+        type: string
+      user_id:
+        example: 1
+        type: integer
+    required:
+    - channel
+    - message
+    - phone
+    type: object
   dto.BudgetDashboardResponse:
     properties:
       category_alerts:
@@ -80,6 +248,26 @@ definitions:
         type: number
       total_categories:
         type: integer
+    type: object
+  dto.BudgetSuggestionCategory:
+    properties:
+      category_id:
+        type: integer
+      category_name:
+        type: string
+      count:
+        type: integer
+      total:
+        type: number
+    type: object
+  dto.BudgetSuggestions:
+    properties:
+      by_category:
+        items:
+          $ref: '#/definitions/dto.BudgetSuggestionCategory'
+        type: array
+      total_expense_3m:
+        type: number
     type: object
   dto.BudgetSummaryResponse:
     properties:
@@ -148,6 +336,47 @@ definitions:
       sort_order:
         type: integer
     type: object
+  dto.CreateAccountRequest:
+    properties:
+      account_number:
+        maxLength: 50
+        type: string
+      bank_name:
+        maxLength: 100
+        type: string
+      color:
+        type: string
+      credit_limit:
+        minimum: 0
+        type: number
+      currency:
+        type: string
+      description:
+        maxLength: 500
+        type: string
+      icon:
+        maxLength: 50
+        type: string
+      initial_balance:
+        minimum: 0
+        type: number
+      name:
+        maxLength: 100
+        minLength: 1
+        type: string
+      type:
+        allOf:
+        - $ref: '#/definitions/entity.AccountType'
+        enum:
+        - checking
+        - savings
+        - credit
+        - investment
+        - cash
+    required:
+    - name
+    - type
+    type: object
   dto.CreateAllocationRequest:
     properties:
       alert_threshold:
@@ -163,6 +392,116 @@ definitions:
     required:
     - allocated_amount
     - category_id
+    type: object
+  dto.CreateBankAccountRequest:
+    properties:
+      account_alias:
+        maxLength: 100
+        minLength: 1
+        type: string
+      account_number:
+        description: Debería estar encriptado
+        maxLength: 50
+        type: string
+      account_number_mask:
+        maxLength: 20
+        minLength: 4
+        type: string
+      bank_code:
+        maxLength: 10
+        type: string
+      bank_name:
+        maxLength: 100
+        minLength: 1
+        type: string
+      branch_code:
+        maxLength: 10
+        type: string
+      branch_name:
+        maxLength: 100
+        type: string
+      color:
+        type: string
+      currency:
+        type: string
+      icon:
+        maxLength: 50
+        type: string
+      is_notification_enabled:
+        type: boolean
+      min_amount_to_notify:
+        minimum: 0
+        type: number
+      notes:
+        maxLength: 1000
+        type: string
+      notification_email:
+        type: string
+      notification_phone:
+        maxLength: 15
+        minLength: 10
+        type: string
+      type:
+        allOf:
+        - $ref: '#/definitions/entity.BankAccountType'
+        enum:
+        - checking
+        - savings
+        - credit
+        - debit
+        - investment
+    required:
+    - account_alias
+    - account_number_mask
+    - bank_name
+    - type
+    type: object
+  dto.CreateBankNotificationPatternRequest:
+    properties:
+      auto_approve:
+        type: boolean
+      bank_account_id:
+        type: integer
+      channel:
+        allOf:
+        - $ref: '#/definitions/entity.NotificationChannel'
+        enum:
+        - sms
+        - push
+        - email
+        - app
+      confidence_threshold:
+        maximum: 1
+        minimum: 0
+        type: number
+      description:
+        maxLength: 500
+        type: string
+      example_message:
+        maxLength: 2000
+        type: string
+      is_default:
+        type: boolean
+      metadata:
+        additionalProperties: true
+        type: object
+      name:
+        maxLength: 100
+        minLength: 1
+        type: string
+      priority:
+        minimum: 1
+        type: integer
+      requires_validation:
+        type: boolean
+      tags:
+        items:
+          type: string
+        type: array
+    required:
+    - bank_account_id
+    - channel
+    - name
     type: object
   dto.CreateBudgetRequest:
     properties:
@@ -195,13 +534,13 @@ definitions:
         maxLength: 200
         type: string
       icon:
-        maxLength: 50
         type: string
       name:
         maxLength: 50
         minLength: 1
         type: string
     required:
+    - icon
     - name
     type: object
   dto.CreateExpenseRequest:
@@ -244,6 +583,125 @@ definitions:
     - date
     - description
     type: object
+  dto.CreateIncomeRequest:
+    properties:
+      amount:
+        type: number
+      date:
+        type: string
+      description:
+        maxLength: 255
+        type: string
+      end_date:
+        type: string
+      frequency:
+        enum:
+        - weekly
+        - biweekly
+        - monthly
+        - quarterly
+        - yearly
+        type: string
+      is_recurring:
+        description: Campos para ingresos recurrentes
+        type: boolean
+      notes:
+        type: string
+      source:
+        enum:
+        - salary
+        - freelance
+        - investment
+        - business
+        - rental
+        - bonus
+        - gift
+        - other
+        type: string
+      tax_deducted:
+        minimum: 0
+        type: number
+    required:
+    - amount
+    - date
+    - description
+    - source
+    type: object
+  dto.CreateTransactionRequest:
+    properties:
+      account_id:
+        type: integer
+      amount:
+        type: number
+      category_id:
+        type: integer
+      currency:
+        type: string
+      description:
+        maxLength: 500
+        minLength: 1
+        type: string
+      location:
+        maxLength: 200
+        type: string
+      notes:
+        maxLength: 1000
+        type: string
+      reference:
+        maxLength: 100
+        type: string
+      tags:
+        items:
+          type: string
+        type: array
+      to_account_id:
+        type: integer
+      transaction_date:
+        type: string
+      type:
+        allOf:
+        - $ref: '#/definitions/entity.TransactionType'
+        enum:
+        - income
+        - expense
+        - transfer
+    required:
+    - account_id
+    - amount
+    - description
+    - transaction_date
+    - type
+    type: object
+  dto.CreateTripRequest:
+    properties:
+      country_code:
+        type: string
+      cover_image_url:
+        type: string
+      destination:
+        maxLength: 200
+        minLength: 1
+        type: string
+      end_date:
+        type: string
+      name:
+        maxLength: 120
+        minLength: 1
+        type: string
+      notes:
+        maxLength: 2000
+        type: string
+      primary_currency:
+        type: string
+      start_date:
+        type: string
+    required:
+    - destination
+    - end_date
+    - name
+    - primary_currency
+    - start_date
+    type: object
   dto.CreateUserRequest:
     properties:
       date_of_birth:
@@ -278,6 +736,24 @@ definitions:
     - first_name
     - last_name
     - password
+    type: object
+  dto.DailyNotificationStat:
+    properties:
+      avg_amount:
+        example: 75000.5
+        type: number
+      count:
+        example: 12
+        type: integer
+      date:
+        example: "2024-01-15"
+        type: string
+      failed:
+        example: 2
+        type: integer
+      processed:
+        example: 10
+        type: integer
     type: object
   dto.ErrorResponse:
     properties:
@@ -333,6 +809,129 @@ definitions:
       triggered_alert:
         type: boolean
     type: object
+  dto.ForgotPasswordRequest:
+    properties:
+      email:
+        type: string
+    required:
+    - email
+    type: object
+  dto.IncomeBySourceResponse:
+    properties:
+      count:
+        type: integer
+      formatted_amount:
+        type: string
+      percentage:
+        type: number
+      source:
+        type: string
+      source_display_name:
+        type: string
+      total_amount:
+        type: number
+    type: object
+  dto.IncomeResponse:
+    properties:
+      amount:
+        type: number
+      can_be_deleted:
+        type: boolean
+      can_be_modified:
+        description: Metadatos
+        type: boolean
+      created_at:
+        type: string
+      currency:
+        type: string
+      date:
+        type: string
+      description:
+        type: string
+      end_date:
+        type: string
+      formatted_amount:
+        type: string
+      formatted_net_amount:
+        type: string
+      frequency:
+        type: string
+      frequency_display_name:
+        type: string
+      id:
+        type: integer
+      is_active:
+        type: boolean
+      is_future:
+        type: boolean
+      is_recurring:
+        description: Campos para ingresos recurrentes
+        type: boolean
+      net_amount:
+        type: number
+      next_date:
+        type: string
+      notes:
+        type: string
+      source:
+        type: string
+      source_display_name:
+        type: string
+      tax_deducted:
+        type: number
+      updated_at:
+        type: string
+    type: object
+  dto.IncomeStatsResponse:
+    properties:
+      currency:
+        type: string
+      formatted_monthly_average:
+        type: string
+      formatted_total_income:
+        type: string
+      income_by_source:
+        items:
+          $ref: '#/definitions/dto.IncomeBySourceResponse'
+        type: array
+      monthly_average:
+        type: number
+      monthly_income:
+        items:
+          $ref: '#/definitions/dto.MonthlyIncomeResponse'
+        type: array
+      period:
+        type: string
+      recurring_income:
+        items:
+          $ref: '#/definitions/dto.IncomeSummaryResponse'
+        type: array
+      total_income:
+        type: number
+    type: object
+  dto.IncomeSummaryResponse:
+    properties:
+      amount:
+        type: number
+      created_at:
+        type: string
+      currency:
+        type: string
+      date:
+        type: string
+      description:
+        type: string
+      formatted_amount:
+        type: string
+      id:
+        type: integer
+      is_recurring:
+        type: boolean
+      source:
+        type: string
+      source_display_name:
+        type: string
+    type: object
   dto.LoginRequest:
     properties:
       email:
@@ -359,10 +958,208 @@ definitions:
       user:
         $ref: '#/definitions/entity.UserPublic'
     type: object
-  dto.LogoutResponse:
+  dto.MonthlyIncomeResponse:
+    properties:
+      count:
+        type: integer
+      formatted_amount:
+        type: string
+      month:
+        type: integer
+      month_name:
+        type: string
+      total_amount:
+        type: number
+      year:
+        type: integer
+    type: object
+  dto.NotificationStatsResponse:
+    properties:
+      auto_created:
+        example: 120
+        type: integer
+      average_confidence:
+        example: 0.85
+        type: number
+      by_bank:
+        additionalProperties:
+          type: integer
+        type: object
+      by_channel:
+        additionalProperties:
+          type: integer
+        type: object
+      by_day:
+        items:
+          $ref: '#/definitions/dto.DailyNotificationStat'
+        type: array
+      pending_validation:
+        example: 22
+        type: integer
+      request_id:
+        type: string
+      total_failed:
+        example: 8
+        type: integer
+      total_processed:
+        example: 142
+        type: integer
+      total_received:
+        example: 150
+        type: integer
+    type: object
+  dto.PaginatedBankNotificationPatternResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/dto.BankNotificationPatternResponse'
+        type: array
+      page:
+        type: integer
+      per_page:
+        type: integer
+      total:
+        type: integer
+      total_pages:
+        type: integer
+    type: object
+  dto.PaginatedResponse:
+    properties:
+      data: {}
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total:
+        type: integer
+      total_pages:
+        type: integer
+    type: object
+  dto.ProcessNotificationRequest:
+    properties:
+      bank_code:
+        type: string
+      channel:
+        type: string
+      message:
+        minLength: 1
+        type: string
+      phone:
+        type: string
+      received_at:
+        type: string
+      user_id:
+        type: integer
+    required:
+    - channel
+    - message
+    type: object
+  dto.ProcessPendingNotificationsRequest:
+    properties:
+      limit:
+        example: 10
+        type: integer
+      user_id:
+        example: 1
+        type: integer
+    required:
+    - user_id
+    type: object
+  dto.ProcessPendingNotificationsResponse:
+    properties:
+      failed:
+        example: 3
+        type: integer
+      processed:
+        example: 12
+        type: integer
+      request_id:
+        type: string
+      total_found:
+        example: 15
+        type: integer
+    type: object
+  dto.ProcessSMSBatchWithAIRequest:
+    properties:
+      messages:
+        items:
+          $ref: '#/definitions/dto.SMSMessageForAnalysis'
+        type: array
+    required:
+    - messages
+    type: object
+  dto.ProcessSMSBatchWithAIResponse:
+    properties:
+      chunks_processed:
+        type: integer
+      filtered_out:
+        type: integer
+      low_confidence_or_skipped:
+        type: integer
+      not_bank_sms:
+        type: integer
+      pattern_used:
+        type: string
+      processing_errors:
+        type: integer
+      sms_after_filter:
+        type: integer
+      total_received:
+        type: integer
+      transactions_created:
+        type: integer
+    type: object
+  dto.ProcessSMSWithAIRequest:
+    properties:
+      message:
+        example: 'BBVA: Compra por $150.00 en OXXO el 28/01/26'
+        minLength: 1
+        type: string
+    required:
+    - message
+    type: object
+  dto.ProcessedNotificationResponse:
+    properties:
+      amount:
+        type: number
+      bank_account_id:
+        type: integer
+      channel:
+        $ref: '#/definitions/entity.NotificationChannel'
+      confidence:
+        type: number
+      description:
+        type: string
+      extracted_data:
+        additionalProperties: true
+        type: object
+      message:
+        type: string
+      pattern_id:
+        type: integer
+      pattern_used:
+        type: string
+      reason:
+        type: string
+      requires_validation:
+        type: boolean
+      success:
+        type: boolean
+      transaction_created:
+        type: boolean
+      transaction_id:
+        type: integer
+    type: object
+  dto.RecurringIncomeProcessResponse:
     properties:
       message:
         type: string
+      processed_count:
+        type: integer
+      processed_incomes:
+        items:
+          $ref: '#/definitions/dto.IncomeSummaryResponse'
+        type: array
     type: object
   dto.RefreshTokenRequest:
     properties:
@@ -371,6 +1168,18 @@ definitions:
     required:
     - refresh_token
     type: object
+  dto.ResetPasswordRequest:
+    properties:
+      new_password:
+        maxLength: 50
+        minLength: 8
+        type: string
+      token:
+        type: string
+    required:
+    - new_password
+    - token
+    type: object
   dto.Response:
     properties:
       code:
@@ -378,6 +1187,75 @@ definitions:
       data: {}
       message:
         type: string
+    type: object
+  dto.SMSBatchJobStatusResponse:
+    properties:
+      error:
+        type: string
+      status:
+        description: pending | processing | completed | failed
+        type: string
+      suggestions:
+        $ref: '#/definitions/dto.BudgetSuggestions'
+    type: object
+  dto.SMSMessageForAnalysis:
+    properties:
+      body:
+        type: string
+      date:
+        description: ISO8601 optional, for aggregation by period
+        type: string
+    required:
+    - body
+    type: object
+  dto.SMSNotificationWebhook:
+    properties:
+      from:
+        description: Número del banco
+        type: string
+      message:
+        type: string
+      provider:
+        description: Twilio, etc.
+        type: string
+      received_at:
+        type: string
+      to:
+        description: Número del usuario
+        type: string
+    required:
+    - from
+    - message
+    - to
+    type: object
+  dto.SetBankAccountActiveRequest:
+    properties:
+      is_active:
+        type: boolean
+    required:
+    - is_active
+    type: object
+  dto.SetPatternStatusRequest:
+    properties:
+      status:
+        allOf:
+        - $ref: '#/definitions/entity.NotificationPatternStatus'
+        enum:
+        - active
+        - inactive
+        - learning
+    required:
+    - status
+    type: object
+  dto.StartSMSBatchJobResponse:
+    properties:
+      job_id:
+        type: string
+      status:
+        description: pending | completed (vacío sync)
+        type: string
+      suggestions:
+        $ref: '#/definitions/dto.BudgetSuggestions'
     type: object
   dto.SuccessResponse:
     properties:
@@ -400,6 +1278,168 @@ definitions:
         description: '"Bearer"'
         type: string
     type: object
+  dto.TripAllocationResponse:
+    properties:
+      category:
+        $ref: '#/definitions/dto.CategorySummaryResponse'
+      currency:
+        type: string
+      daily_suggested:
+        type: number
+      estimated_amount:
+        type: number
+      id:
+        type: integer
+      is_over_budget:
+        type: boolean
+      notes:
+        type: string
+      progress_percent:
+        type: number
+      remaining_amount:
+        type: number
+      spent_amount:
+        type: number
+    type: object
+  dto.TripItineraryResponse:
+    properties:
+      actual_amount:
+        type: number
+      currency:
+        type: string
+      day:
+        type: string
+      description:
+        type: string
+      estimated_cost:
+        type: number
+      expense_id:
+        type: integer
+      id:
+        type: integer
+      location:
+        type: string
+      time:
+        type: string
+      title:
+        type: string
+      type:
+        type: string
+      variance:
+        type: number
+    type: object
+  dto.TripMemberResponse:
+    properties:
+      avatar_url:
+        type: string
+      display_name:
+        type: string
+      email:
+        type: string
+      id:
+        type: integer
+      is_ghost:
+        type: boolean
+      joined_at:
+        type: string
+      role:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  dto.TripResponse:
+    properties:
+      allocations:
+        items:
+          $ref: '#/definitions/dto.TripAllocationResponse'
+        type: array
+      country_code:
+        type: string
+      cover_image_url:
+        type: string
+      created_at:
+        type: string
+      days_remaining:
+        type: integer
+      days_total:
+        type: integer
+      destination:
+        type: string
+      end_date:
+        type: string
+      estimated_total:
+        type: number
+      id:
+        type: integer
+      is_active_now:
+        type: boolean
+      itinerary:
+        items:
+          $ref: '#/definitions/dto.TripItineraryResponse'
+        type: array
+      members:
+        items:
+          $ref: '#/definitions/dto.TripMemberResponse'
+        type: array
+      name:
+        type: string
+      notes:
+        type: string
+      owner_user_id:
+        type: integer
+      primary_currency:
+        type: string
+      progress_percent:
+        type: number
+      remaining_amount:
+        type: number
+      spent_total:
+        type: number
+      start_date:
+        type: string
+      status:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  dto.UpdateAccountRequest:
+    properties:
+      bank_name:
+        maxLength: 100
+        type: string
+      color:
+        type: string
+      credit_limit:
+        minimum: 0
+        type: number
+      description:
+        maxLength: 500
+        type: string
+      icon:
+        maxLength: 50
+        type: string
+      is_active:
+        type: boolean
+      low_balance_alert:
+        description: Configuración de alertas
+        type: boolean
+      low_balance_limit:
+        minimum: 0
+        type: number
+      name:
+        maxLength: 100
+        minLength: 1
+        type: string
+      type:
+        allOf:
+        - $ref: '#/definitions/entity.AccountType'
+        enum:
+        - checking
+        - savings
+        - credit
+        - investment
+        - cash
+    type: object
   dto.UpdateAllocationRequest:
     properties:
       alert_threshold:
@@ -413,6 +1453,76 @@ definitions:
         type: integer
     required:
     - id
+    type: object
+  dto.UpdateBankAccountBalanceRequest:
+    properties:
+      balance:
+        type: number
+    required:
+    - balance
+    type: object
+  dto.UpdateBankAccountRequest:
+    properties:
+      account_alias:
+        maxLength: 100
+        minLength: 1
+        type: string
+      bank_name:
+        maxLength: 100
+        minLength: 1
+        type: string
+      color:
+        type: string
+      icon:
+        maxLength: 50
+        type: string
+      is_notification_enabled:
+        type: boolean
+      min_amount_to_notify:
+        minimum: 0
+        type: number
+      notes:
+        maxLength: 1000
+        type: string
+      notification_email:
+        type: string
+      notification_phone:
+        maxLength: 15
+        minLength: 10
+        type: string
+    type: object
+  dto.UpdateBankNotificationPatternRequest:
+    properties:
+      auto_approve:
+        type: boolean
+      confidence_threshold:
+        maximum: 1
+        minimum: 0
+        type: number
+      description:
+        maxLength: 500
+        type: string
+      example_message:
+        maxLength: 2000
+        type: string
+      is_default:
+        type: boolean
+      metadata:
+        additionalProperties: true
+        type: object
+      name:
+        maxLength: 100
+        minLength: 1
+        type: string
+      priority:
+        minimum: 1
+        type: integer
+      requires_validation:
+        type: boolean
+      tags:
+        items:
+          type: string
+        type: array
     type: object
   dto.UpdateBudgetRequest:
     properties:
@@ -433,7 +1543,6 @@ definitions:
         maxLength: 200
         type: string
       icon:
-        maxLength: 50
         type: string
       is_active:
         type: boolean
@@ -473,11 +1582,126 @@ definitions:
           type: string
         type: array
     type: object
+  dto.UpdateIncomeRequest:
+    properties:
+      amount:
+        type: number
+      date:
+        type: string
+      description:
+        maxLength: 255
+        type: string
+      end_date:
+        type: string
+      frequency:
+        enum:
+        - weekly
+        - biweekly
+        - monthly
+        - quarterly
+        - yearly
+        type: string
+      is_recurring:
+        description: Campos para ingresos recurrentes
+        type: boolean
+      notes:
+        type: string
+      source:
+        enum:
+        - salary
+        - freelance
+        - investment
+        - business
+        - rental
+        - bonus
+        - gift
+        - other
+        type: string
+      tax_deducted:
+        minimum: 0
+        type: number
+    type: object
+  dto.UpdateSingleAllocationRequest:
+    properties:
+      alert_threshold:
+        maximum: 1
+        minimum: 0
+        type: number
+      allocated_amount:
+        minimum: 0
+        type: number
+    type: object
+  dto.UpdateTransactionRequest:
+    properties:
+      category_id:
+        type: integer
+      description:
+        maxLength: 500
+        minLength: 1
+        type: string
+      location:
+        maxLength: 200
+        type: string
+      notes:
+        maxLength: 1000
+        type: string
+      reference:
+        maxLength: 100
+        type: string
+      status:
+        allOf:
+        - $ref: '#/definitions/entity.TransactionStatus'
+        enum:
+        - pending
+        - completed
+        - cancelled
+      tags:
+        items:
+          type: string
+        type: array
+      transaction_date:
+        type: string
+    type: object
+  dto.UpdateTripRequest:
+    properties:
+      country_code:
+        type: string
+      cover_image_url:
+        type: string
+      destination:
+        maxLength: 200
+        minLength: 1
+        type: string
+      end_date:
+        type: string
+      name:
+        maxLength: 120
+        minLength: 1
+        type: string
+      notes:
+        maxLength: 2000
+        type: string
+      primary_currency:
+        type: string
+      start_date:
+        type: string
+    type: object
+  dto.UpdateUserPreferencesRequest:
+    properties:
+      default_account_id:
+        type: integer
+    required:
+    - default_account_id
+    type: object
   dto.UpdateUserRequest:
     properties:
+      currency:
+        type: string
       date_of_birth:
         description: 'Format: YYYY-MM-DD'
         type: string
+      default_account_id:
+        type: integer
       first_name:
         maxLength: 50
         minLength: 2
@@ -497,6 +1721,237 @@ definitions:
         description: 'Format: America/Mexico_City'
         type: string
     type: object
+  entity.Account:
+    properties:
+      account_number:
+        maxLength: 50
+        type: string
+      balance:
+        description: Información financiera
+        type: number
+      bank_name:
+        description: Información bancaria (opcional)
+        maxLength: 100
+        type: string
+      color:
+        type: string
+      created_at:
+        type: string
+      credit_limit:
+        description: Para tarjetas de crédito
+        type: number
+      currency:
+        type: string
+      description:
+        maxLength: 500
+        type: string
+      icon:
+        maxLength: 50
+        type: string
+      id:
+        type: integer
+      initial_balance:
+        type: number
+      is_active:
+        description: Estado y configuración
+        type: boolean
+      low_balance_alert:
+        description: Configuración de alertas
+        type: boolean
+      low_balance_limit:
+        type: number
+      name:
+        description: Información de la cuenta
+        maxLength: 100
+        minLength: 1
+        type: string
+      type:
+        allOf:
+        - $ref: '#/definitions/entity.AccountType'
+        enum:
+        - checking
+        - savings
+        - credit
+        - investment
+        - cash
+      updated_at:
+        type: string
+      user_id:
+        description: Relación con usuario
+        type: integer
+    required:
+    - name
+    - type
+    type: object
+  entity.AccountSummary:
+    properties:
+      available_credit:
+        description: Para tarjetas de crédito
+        type: number
+      balance:
+        type: number
+      bank_name:
+        type: string
+      color:
+        type: string
+      currency:
+        type: string
+      icon:
+        type: string
+      id:
+        type: integer
+      is_active:
+        type: boolean
+      name:
+        type: string
+      type:
+        $ref: '#/definitions/entity.AccountType'
+    type: object
+  entity.AccountType:
+    enum:
+    - checking
+    - savings
+    - credit
+    - investment
+    - cash
+    type: string
+    x-enum-comments:
+      AccountTypeCash: Efectivo
+      AccountTypeChecking: Cuenta corriente
+      AccountTypeCredit: Tarjeta de crédito
+      AccountTypeInvestment: Cuenta de inversión
+      AccountTypeSavings: Cuenta de ahorros
+    x-enum-varnames:
+    - AccountTypeChecking
+    - AccountTypeSavings
+    - AccountTypeCredit
+    - AccountTypeInvestment
+    - AccountTypeCash
+  entity.BankAccountType:
+    enum:
+    - checking
+    - savings
+    - credit
+    - debit
+    - investment
+    type: string
+    x-enum-comments:
+      BankAccountTypeChecking: Cuenta corriente
+      BankAccountTypeCredit: Tarjeta de crédito
+      BankAccountTypeDebit: Tarjeta de débito
+      BankAccountTypeInvestment: Cuenta de inversión
+      BankAccountTypeSavings: Cuenta de ahorros
+    x-enum-varnames:
+    - BankAccountTypeChecking
+    - BankAccountTypeSavings
+    - BankAccountTypeCredit
+    - BankAccountTypeDebit
+    - BankAccountTypeInvestment
+  entity.BankNotificationPattern:
+    properties:
+      amount_regex:
+        description: Configuración de extracción
+        maxLength: 500
+        type: string
+      auto_approve:
+        description: Auto-aprobar si confianza > umbral
+        type: boolean
+      bank_account_id:
+        type: integer
+      channel:
+        allOf:
+        - $ref: '#/definitions/entity.NotificationChannel'
+        enum:
+        - sms
+        - push
+        - email
+        - app
+      confidence_threshold:
+        description: Umbral de confianza (0-1)
+        type: number
+      created_at:
+        type: string
+      date_regex:
+        description: Regex para extraer fecha
+        maxLength: 500
+        type: string
+      description:
+        maxLength: 500
+        type: string
+      description_regex:
+        description: Regex para extraer descripción
+        maxLength: 500
+        type: string
+      example_message:
+        description: Ejemplo de mensaje
+        maxLength: 2000
+        type: string
+      id:
+        type: integer
+      is_default:
+        description: Si es el patrón por defecto para el banco
+        type: boolean
+      keywords_exclude:
+        description: Palabras a excluir (JSON array)
+        maxLength: 1000
+        type: string
+      keywords_trigger:
+        description: Palabras clave (JSON array)
+        maxLength: 1000
+        type: string
+      last_matched_at:
+        description: Última vez que coincidió
+        type: string
+      match_count:
+        description: Estadísticas de uso
+        type: integer
+      merchant_regex:
+        description: Regex para extraer comercio
+        maxLength: 500
+        type: string
+      message_pattern:
+        description: Patrón de mensaje
+        maxLength: 2000
+        type: string
+      metadata:
+        description: Metadatos adicionales (JSON)
+        type: string
+      name:
+        description: Información del patrón
+        maxLength: 100
+        minLength: 1
+        type: string
+      priority:
+        description: Configuración adicional
+        type: integer
+      requires_validation:
+        description: Configuración de validación
+        type: boolean
+      status:
+        allOf:
+        - $ref: '#/definitions/entity.NotificationPatternStatus'
+        enum:
+        - active
+        - inactive
+        - learning
+      success_count:
+        description: Número de éxitos
+        type: integer
+      success_rate:
+        description: Tasa de éxito (%)
+        type: number
+      tags:
+        description: Tags adicionales (JSON array)
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        description: Relaciones
+        type: integer
+    required:
+    - channel
+    - name
+    type: object
   entity.ExpenseSource:
     enum:
     - manual
@@ -511,12 +1966,6 @@ definitions:
       ExpenseSourceNotification: Notificación del sistema
       ExpenseSourceSMS: Capturado desde SMS bancario
       ExpenseSourceWhatsApp: Enviado por WhatsApp
-    x-enum-descriptions:
-    - Entrada manual del usuario
-    - Capturado desde SMS bancario
-    - Enviado por WhatsApp
-    - API bancaria
-    - Notificación del sistema
     x-enum-varnames:
     - ExpenseSourceManual
     - ExpenseSourceSMS
@@ -533,22 +1982,249 @@ definitions:
       ExpenseStatusCancelled: Cancelado
       ExpenseStatusConfirmed: Confirmado
       ExpenseStatusPending: Pendiente de confirmación
-    x-enum-descriptions:
-    - Pendiente de confirmación
-    - Confirmado
-    - Cancelado
     x-enum-varnames:
     - ExpenseStatusPending
     - ExpenseStatusConfirmed
     - ExpenseStatusCancelled
+  entity.NotificationChannel:
+    enum:
+    - sms
+    - push
+    - email
+    - app
+    type: string
+    x-enum-comments:
+      NotificationChannelApp: Notificación interna de app bancaria
+      NotificationChannelEmail: Correo electrónico
+      NotificationChannelPush: Notificación push
+      NotificationChannelSMS: Mensaje SMS
+    x-enum-varnames:
+    - NotificationChannelSMS
+    - NotificationChannelPush
+    - NotificationChannelEmail
+    - NotificationChannelApp
+  entity.NotificationPatternStatus:
+    enum:
+    - active
+    - inactive
+    - learning
+    type: string
+    x-enum-comments:
+      NotificationPatternStatusActive: Activo
+      NotificationPatternStatusInactive: Inactivo
+      NotificationPatternStatusLearning: En aprendizaje
+    x-enum-varnames:
+    - NotificationPatternStatusActive
+    - NotificationPatternStatusInactive
+    - NotificationPatternStatusLearning
+  entity.Transaction:
+    properties:
+      account_id:
+        description: Cuenta origen
+        type: integer
+      ai_confidence:
+        description: Confianza del AI (0-1)
+        type: number
+      amount:
+        type: number
+      bank_account_id:
+        description: Referencia a cuenta bancaria (nullable)
+        type: integer
+      category_id:
+        description: Categorización
+        type: integer
+      category_name:
+        description: Desnormalizado para performance
+        maxLength: 100
+        type: string
+      created_at:
+        type: string
+      currency:
+        description: Moneda (normalmente heredada de la cuenta)
+        type: string
+      description:
+        maxLength: 500
+        minLength: 1
+        type: string
+      exchange_rate:
+        description: Para conversiones
+        type: number
+      external_id:
+        description: ID externo
+        maxLength: 100
+        type: string
+      id:
+        type: integer
+      imported_from:
+        description: Metadatos
+        maxLength: 100
+        type: string
+      location:
+        maxLength: 200
+        type: string
+      notes:
+        description: Notas adicionales
+        maxLength: 1000
+        type: string
+      pattern_id:
+        description: ID del patrón que procesó la notificación
+        type: integer
+      raw_notification:
+        description: Notificación original (para transacciones desde notificación)
+        type: string
+      recurring:
+        description: Si es una transacción recurrente
+        type: boolean
+      recurring_id:
+        description: ID del patrón recurrente
+        type: integer
+      reference:
+        description: Información adicional
+        maxLength: 100
+        type: string
+      source:
+        allOf:
+        - $ref: '#/definitions/entity.TransactionSource'
+        description: Origen y validación de la transacción
+        enum:
+        - notification
+        - manual
+        - integration
+        - import
+      status:
+        allOf:
+        - $ref: '#/definitions/entity.TransactionStatus'
+        enum:
+        - pending
+        - completed
+        - cancelled
+      tags:
+        description: JSON array de tags
+        type: string
+      to_account_id:
+        description: Para transferencias
+        type: integer
+      transaction_date:
+        description: Fecha y ubicación
+        type: string
+      type:
+        allOf:
+        - $ref: '#/definitions/entity.TransactionType'
+        description: Información de la transacción
+        enum:
+        - income
+        - expense
+        - transfer
+      updated_at:
+        type: string
+      user_id:
+        description: Relaciones
+        type: integer
+      validation_status:
+        allOf:
+        - $ref: '#/definitions/entity.ValidationStatus'
+        enum:
+        - auto
+        - pending_review
+        - manual_validated
+        - rejected
+    required:
+    - amount
+    - description
+    - type
+    type: object
+  entity.TransactionSource:
+    enum:
+    - notification
+    - manual
+    - integration
+    - import
+    type: string
+    x-enum-comments:
+      TransactionSourceImport: Importada desde archivo
+      TransactionSourceIntegration: Desde integración bancaria
+      TransactionSourceManual: Ingresada manualmente
+      TransactionSourceNotification: Desde notificación bancaria
+    x-enum-varnames:
+    - TransactionSourceNotification
+    - TransactionSourceManual
+    - TransactionSourceIntegration
+    - TransactionSourceImport
+  entity.TransactionStatus:
+    enum:
+    - pending
+    - completed
+    - cancelled
+    type: string
+    x-enum-comments:
+      TransactionStatusCancelled: Cancelada
+      TransactionStatusCompleted: Completada
+      TransactionStatusPending: Pendiente
+    x-enum-varnames:
+    - TransactionStatusPending
+    - TransactionStatusCompleted
+    - TransactionStatusCancelled
+  entity.TransactionSummary:
+    properties:
+      account_name:
+        type: string
+      ai_confidence:
+        type: number
+      amount:
+        type: number
+      bank_account_alias:
+        type: string
+      category_name:
+        type: string
+      created_at:
+        type: string
+      currency:
+        type: string
+      description:
+        type: string
+      id:
+        type: integer
+      needs_review:
+        type: boolean
+      source:
+        $ref: '#/definitions/entity.TransactionSource'
+      status:
+        $ref: '#/definitions/entity.TransactionStatus'
+      to_account_name:
+        type: string
+      transaction_date:
+        type: string
+      type:
+        $ref: '#/definitions/entity.TransactionType'
+      validation_status:
+        $ref: '#/definitions/entity.ValidationStatus'
+    type: object
+  entity.TransactionType:
+    enum:
+    - income
+    - expense
+    - transfer
+    type: string
+    x-enum-comments:
+      TransactionTypeExpense: Gasto
+      TransactionTypeIncome: Ingreso
+      TransactionTypeTransfer: Transferencia entre cuentas
+    x-enum-varnames:
+    - TransactionTypeIncome
+    - TransactionTypeExpense
+    - TransactionTypeTransfer
   entity.UserPublic:
     properties:
       created_at:
         description: ISO format string
         type: string
+      currency:
+        type: string
       date_of_birth:
         description: 'Format: YYYY-MM-DD'
         type: string
+      default_account_id:
+        type: integer
       email:
         type: string
       first_name:
@@ -571,6 +2247,23 @@ definitions:
       timezone:
         type: string
     type: object
+  entity.ValidationStatus:
+    enum:
+    - auto
+    - pending_review
+    - manual_validated
+    - rejected
+    type: string
+    x-enum-comments:
+      ValidationStatusAuto: Validada automáticamente
+      ValidationStatusManual: Validada manualmente
+      ValidationStatusPending: Pendiente de revisión
+      ValidationStatusRejected: Rechazada
+    x-enum-varnames:
+    - ValidationStatusAuto
+    - ValidationStatusPending
+    - ValidationStatusManual
+    - ValidationStatusRejected
 host: fintech-production-5841.up.railway.app
 info:
   contact:
@@ -585,6 +2278,256 @@ info:
   title: API Fintech
   version: "1.0"
 paths:
+  /account-deletion:
+    get:
+      description: Devuelve la página informativa para eliminación de cuenta en formato
+        HTML
+      produces:
+      - text/html
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+      summary: Eliminación de cuenta
+      tags:
+      - legal
+  /api/v1/accounts:
+    get:
+      description: Obtiene las cuentas del usuario autenticado. Si envías page/per_page
+        retorna respuesta paginada.
+      parameters:
+      - description: Página (opcional para paginación)
+        in: query
+        name: page
+        type: integer
+      - description: Elementos por página (opcional para paginación)
+        in: query
+        name: per_page
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.PaginatedResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Obtener cuentas
+      tags:
+      - accounts
+    post:
+      consumes:
+      - application/json
+      description: Crea una nueva cuenta financiera para el usuario autenticado
+      parameters:
+      - description: Datos de la cuenta
+        in: body
+        name: account
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateAccountRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/entity.Account'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Crear cuenta
+      tags:
+      - accounts
+  /api/v1/accounts/{id}:
+    delete:
+      description: Elimina una cuenta del usuario autenticado
+      parameters:
+      - description: ID de cuenta
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Eliminar cuenta
+      tags:
+      - accounts
+    get:
+      description: Obtiene una cuenta específica del usuario autenticado
+      parameters:
+      - description: ID de cuenta
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/entity.Account'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Obtener cuenta
+      tags:
+      - accounts
+    put:
+      consumes:
+      - application/json
+      description: Actualiza una cuenta del usuario autenticado
+      parameters:
+      - description: ID de cuenta
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Datos a actualizar
+        in: body
+        name: account
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateAccountRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/entity.Account'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Actualizar cuenta
+      tags:
+      - accounts
+  /api/v1/accounts/summaries:
+    get:
+      description: Obtiene un resumen compacto de cuentas del usuario autenticado
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/entity.AccountSummary'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Resumen de cuentas
+      tags:
+      - accounts
+  /api/v1/accounts/total-balance:
+    get:
+      description: Obtiene el balance total consolidado de cuentas activas del usuario
+        autenticado
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: number
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Balance total
+      tags:
+      - accounts
   /api/v1/budgets:
     post:
       consumes:
@@ -674,6 +2617,56 @@ paths:
       security:
       - BearerAuth: []
       summary: Actualizar presupuesto
+      tags:
+      - budgets
+  /api/v1/budgets/allocations/{id}:
+    put:
+      consumes:
+      - application/json
+      description: Actualiza una asignación individual de presupuesto por categoría
+      parameters:
+      - description: ID de la asignación
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Datos de actualización
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateSingleAllocationRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.AllocationSummaryResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Actualizar asignación de presupuesto
       tags:
       - budgets
   /api/v1/budgets/current:
@@ -966,6 +2959,51 @@ paths:
       summary: Actualizar categoría personalizada
       tags:
       - categories
+  /api/v1/currencies:
+    get:
+      description: Devuelve el catálogo de monedas soportadas por la aplicación
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Listar monedas soportadas
+      tags:
+      - currencies
+  /api/v1/currencies/rates:
+    get:
+      description: Obtiene tipos de cambio para una moneda base y símbolos opcionales
+      parameters:
+      - description: Moneda base (default USD)
+        in: query
+        name: base
+        type: string
+      - description: 'Lista de símbolos separados por coma (ej: EUR,MXN)'
+        in: query
+        name: symbols
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Obtener tipos de cambio
+      tags:
+      - currencies
   /api/v1/expenses:
     get:
       description: Obtiene el historial de gastos del usuario con filtros opcionales
@@ -1147,6 +3185,121 @@ paths:
       summary: Actualizar gasto
       tags:
       - expenses
+  /api/v1/expenses/{id}/confirm:
+    post:
+      description: Confirma un gasto pendiente creado automáticamente por IA
+      parameters:
+      - description: ID del gasto
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.ExpenseSummaryResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Confirmar gasto automático
+      tags:
+      - expenses
+  /api/v1/expenses/{id}/reject:
+    post:
+      description: Rechaza/cancela un gasto pendiente creado automáticamente por IA
+      parameters:
+      - description: ID del gasto
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Rechazar gasto automático
+      tags:
+      - expenses
+  /api/v1/expenses/automatic:
+    get:
+      description: Obtiene los gastos creados automáticamente por IA/notificaciones
+        pendientes de confirmación
+      parameters:
+      - description: 'Número máximo de resultados (default: 50)'
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/dto.ExpenseSummaryResponse'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Obtener gastos automáticos
+      tags:
+      - expenses
   /api/v1/expenses/by-category:
     get:
       description: Obtiene gastos agrupados por categoría para el mes actual
@@ -1211,6 +3364,830 @@ paths:
       summary: Obtener gastos recientes
       tags:
       - expenses
+  /api/v1/incomes:
+    get:
+      consumes:
+      - application/json
+      description: Obtiene la lista de ingresos del usuario con filtros opcionales
+      parameters:
+      - description: Fecha de inicio (YYYY-MM-DD)
+        in: query
+        name: start_date
+        type: string
+      - description: Fecha de fin (YYYY-MM-DD)
+        in: query
+        name: end_date
+        type: string
+      - description: Fuente de ingreso
+        enum:
+        - salary
+        - freelance
+        - investment
+        - business
+        - rental
+        - bonus
+        - gift
+        - other
+        in: query
+        name: source
+        type: string
+      - default: 10
+        description: Límite de resultados
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset de resultados
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/dto.IncomeSummaryResponse'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - Bearer: []
+      summary: Obtener ingresos del usuario
+      tags:
+      - incomes
+    post:
+      consumes:
+      - application/json
+      description: Crea un nuevo ingreso para el usuario autenticado
+      parameters:
+      - description: Datos del ingreso
+        in: body
+        name: income
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateIncomeRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.IncomeResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - Bearer: []
+      summary: Crear un nuevo ingreso
+      tags:
+      - incomes
+  /api/v1/incomes/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Elimina un ingreso existente
+      parameters:
+      - description: ID del ingreso
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - Bearer: []
+      summary: Eliminar un ingreso
+      tags:
+      - incomes
+    get:
+      consumes:
+      - application/json
+      description: Obtiene los detalles de un ingreso específico
+      parameters:
+      - description: ID del ingreso
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.IncomeResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - Bearer: []
+      summary: Obtener ingreso por ID
+      tags:
+      - incomes
+    put:
+      consumes:
+      - application/json
+      description: Actualiza los datos de un ingreso existente
+      parameters:
+      - description: ID del ingreso
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Datos actualizados del ingreso
+        in: body
+        name: income
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateIncomeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.IncomeResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - Bearer: []
+      summary: Actualizar un ingreso
+      tags:
+      - incomes
+  /api/v1/incomes/process-recurring:
+    post:
+      consumes:
+      - application/json
+      description: Procesa y genera ingresos recurrentes pendientes
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.RecurringIncomeProcessResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - Bearer: []
+      summary: Procesar ingresos recurrentes
+      tags:
+      - incomes
+  /api/v1/incomes/recent:
+    get:
+      consumes:
+      - application/json
+      description: Obtiene los ingresos más recientes del usuario
+      parameters:
+      - default: 10
+        description: Límite de resultados
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/dto.IncomeSummaryResponse'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - Bearer: []
+      summary: Obtener ingresos recientes
+      tags:
+      - incomes
+  /api/v1/incomes/stats:
+    get:
+      consumes:
+      - application/json
+      description: Obtiene estadísticas detalladas de los ingresos del usuario
+      parameters:
+      - description: Año para las estadísticas
+        in: query
+        name: year
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.IncomeStatsResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - Bearer: []
+      summary: Obtener estadísticas de ingresos
+      tags:
+      - incomes
+  /api/v1/transactions:
+    get:
+      description: Obtiene transacciones del usuario autenticado con filtros avanzados
+        (fechas, montos, categoría, búsqueda y paginación)
+      parameters:
+      - description: ID de cuenta
+        in: query
+        name: account_id
+        type: integer
+      - description: Tipo (income,expense,transfer)
+        in: query
+        name: type
+        type: string
+      - description: Estado (pending,completed,cancelled)
+        in: query
+        name: status
+        type: string
+      - description: ID de categoría
+        in: query
+        name: category_id
+        type: integer
+      - description: 'IDs de categorías separados por coma (ej: 1,2,3)'
+        in: query
+        name: category_ids
+        type: string
+      - description: Fecha inicio (YYYY-MM-DD)
+        in: query
+        name: from_date
+        type: string
+      - description: Fecha fin (YYYY-MM-DD)
+        in: query
+        name: to_date
+        type: string
+      - description: Monto mínimo
+        in: query
+        name: amount_min
+        type: number
+      - description: Monto máximo
+        in: query
+        name: amount_max
+        type: number
+      - description: Texto a buscar en descripción
+        in: query
+        name: search
+        type: string
+      - description: Límite de resultados
+        in: query
+        name: limit
+        type: integer
+      - description: Offset de resultados
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/entity.TransactionSummary'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Listar transacciones
+      tags:
+      - transactions
+    post:
+      consumes:
+      - application/json
+      description: Crea una nueva transacción para el usuario autenticado
+      parameters:
+      - description: Datos de transacción
+        in: body
+        name: transaction
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateTransactionRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/entity.Transaction'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Crear transacción
+      tags:
+      - transactions
+  /api/v1/transactions/{id}:
+    delete:
+      description: Elimina una transacción del usuario autenticado
+      parameters:
+      - description: ID de transacción
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Eliminar transacción
+      tags:
+      - transactions
+    get:
+      description: Obtiene una transacción específica del usuario autenticado
+      parameters:
+      - description: ID de transacción
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/entity.Transaction'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Obtener transacción
+      tags:
+      - transactions
+    put:
+      consumes:
+      - application/json
+      description: Actualiza una transacción del usuario autenticado
+      parameters:
+      - description: ID de transacción
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Datos a actualizar
+        in: body
+        name: transaction
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateTransactionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/entity.Transaction'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Actualizar transacción
+      tags:
+      - transactions
+  /api/v1/transactions/{id}/cancel:
+    patch:
+      description: Cancela una transacción del usuario autenticado
+      parameters:
+      - description: ID de transacción
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Cancelar transacción
+      tags:
+      - transactions
+  /api/v1/transactions/recent:
+    get:
+      description: Obtiene las transacciones más recientes del usuario autenticado
+      parameters:
+      - description: Límite de resultados
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/entity.TransactionSummary'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Transacciones recientes
+      tags:
+      - transactions
+  /api/v1/transactions/totals-by-type:
+    get:
+      description: Obtiene totales de transacciones por tipo para el usuario autenticado
+      parameters:
+      - description: Fecha inicio (YYYY-MM-DD)
+        in: query
+        name: from_date
+        type: string
+      - description: Fecha fin (YYYY-MM-DD)
+        in: query
+        name: to_date
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: number
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Totales por tipo
+      tags:
+      - transactions
+  /api/v1/trips:
+    get:
+      parameters:
+      - description: Filtro por estado
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/dto.TripResponse'
+                  type: array
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Listar viajes del usuario
+      tags:
+      - trips
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Datos del viaje
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateTripRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.TripResponse'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Crear viaje
+      tags:
+      - trips
+  /api/v1/trips/{id}:
+    delete:
+      parameters:
+      - description: Trip ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+      security:
+      - BearerAuth: []
+      summary: Eliminar viaje
+      tags:
+      - trips
+    get:
+      parameters:
+      - description: Trip ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.TripResponse'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Obtener viaje por ID
+      tags:
+      - trips
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Trip ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Cambios
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateTripRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/dto.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.TripResponse'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Actualizar viaje
+      tags:
+      - trips
+  /auth/forgot-password:
+    post:
+      consumes:
+      - application/json
+      description: Inicia el flujo de recuperación enviando token/instrucciones al
+        correo del usuario
+      parameters:
+      - description: Correo del usuario
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ForgotPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Solicitar recuperación de contraseña
+      tags:
+      - auth
   /auth/login:
     post:
       consumes:
@@ -1243,25 +4220,6 @@ paths:
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
       summary: Iniciar sesión
-      tags:
-      - auth
-  /auth/logout:
-    post:
-      description: Cierra la sesión del usuario (invalida tokens)
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/dto.LogoutResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/dto.ErrorResponse'
-      security:
-      - Bearer: []
-      summary: Cerrar sesión
       tags:
       - auth
   /auth/refresh:
@@ -1332,6 +4290,32 @@ paths:
       summary: Registrar nuevo usuario
       tags:
       - auth
+  /auth/reset-password:
+    post:
+      consumes:
+      - application/json
+      description: Completa el flujo de recuperación usando token y nueva contraseña
+      parameters:
+      - description: Token y nueva contraseña
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ResetPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Restablecer contraseña
+      tags:
+      - auth
   /auth/validate:
     get:
       description: Valida si el token de acceso es válido y activo
@@ -1351,6 +4335,1052 @@ paths:
       summary: Validar token
       tags:
       - auth
+  /bank-accounts:
+    get:
+      description: Obtiene todas las cuentas bancarias del usuario autenticado
+      parameters:
+      - description: Solo cuentas activas
+        in: query
+        name: active_only
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.BankAccountResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Listar cuentas bancarias
+      tags:
+      - bank-accounts
+    post:
+      consumes:
+      - application/json
+      description: Crea una nueva cuenta bancaria para el usuario autenticado
+      parameters:
+      - description: Datos de la cuenta bancaria
+        in: body
+        name: bankAccount
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateBankAccountRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.BankAccountResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Crear cuenta bancaria
+      tags:
+      - bank-accounts
+  /bank-accounts/{id}:
+    delete:
+      description: Elimina una cuenta bancaria (soft delete)
+      parameters:
+      - description: ID de la cuenta bancaria
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Eliminar cuenta bancaria
+      tags:
+      - bank-accounts
+    get:
+      description: Obtiene los detalles de una cuenta bancaria específica
+      parameters:
+      - description: ID de la cuenta bancaria
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.BankAccountResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Obtener cuenta bancaria
+      tags:
+      - bank-accounts
+    put:
+      consumes:
+      - application/json
+      description: Actualiza los detalles de una cuenta bancaria
+      parameters:
+      - description: ID de la cuenta bancaria
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Datos a actualizar
+        in: body
+        name: bankAccount
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateBankAccountRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.BankAccountResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Actualizar cuenta bancaria
+      tags:
+      - bank-accounts
+  /bank-accounts/{id}/active:
+    patch:
+      consumes:
+      - application/json
+      description: Activa o desactiva una cuenta bancaria
+      parameters:
+      - description: ID de la cuenta bancaria
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Estado activo
+        in: body
+        name: status
+        required: true
+        schema:
+          $ref: '#/definitions/dto.SetBankAccountActiveRequest'
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Cambiar estado activo
+      tags:
+      - bank-accounts
+  /bank-accounts/{id}/balance:
+    patch:
+      consumes:
+      - application/json
+      description: Actualiza el balance de una cuenta bancaria
+      parameters:
+      - description: ID de la cuenta bancaria
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Nuevo balance
+        in: body
+        name: balance
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateBankAccountBalanceRequest'
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Actualizar balance
+      tags:
+      - bank-accounts
+  /bank-accounts/summary:
+    get:
+      description: Obtiene un resumen de todas las cuentas bancarias del usuario
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.BankAccountSummaryResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Resumen de cuentas bancarias
+      tags:
+      - bank-accounts
+  /bank-accounts/type/{type}:
+    get:
+      description: Obtiene cuentas bancarias filtradas por tipo
+      parameters:
+      - description: Tipo de cuenta
+        enum:
+        - checking
+        - savings
+        - credit
+        - debit
+        - investment
+        in: path
+        name: type
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.BankAccountResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Listar cuentas bancarias por tipo
+      tags:
+      - bank-accounts
+  /email/gmail/authorize:
+    get:
+      description: Genera la URL OAuth para conectar Gmail con el usuario autenticado
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Iniciar autorización Gmail
+      tags:
+      - email
+  /email/gmail/callback:
+    get:
+      description: Endpoint público al que Google redirige tras autorización; completa
+        el vínculo y muestra HTML
+      parameters:
+      - description: Código OAuth
+        in: query
+        name: code
+        type: string
+      - description: Estado OAuth
+        in: query
+        name: state
+        type: string
+      produces:
+      - text/html
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "503":
+          description: Service Unavailable
+          schema:
+            type: string
+      summary: Callback OAuth de Gmail
+      tags:
+      - email
+  /email/gmail/disconnect:
+    delete:
+      description: Revoca la conexión Gmail del usuario autenticado
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Desconectar Gmail
+      tags:
+      - email
+  /email/gmail/sync:
+    post:
+      description: Ejecuta una sincronización manual del buzón Gmail conectado
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Sincronizar Gmail
+      tags:
+      - email
+  /email/status:
+    get:
+      description: Obtiene el estado de conexión Gmail para el usuario autenticado
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Estado de conexión de correo
+      tags:
+      - email
+  /notification-patterns:
+    get:
+      description: Obtiene los patrones de notificaciones bancarias del usuario autenticado
+      parameters:
+      - description: Página (opcional)
+        in: query
+        name: page
+        type: integer
+      - description: Elementos por página (opcional)
+        in: query
+        name: per_page
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.PaginatedBankNotificationPatternResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Listar patrones del usuario
+      tags:
+      - notification-patterns
+    post:
+      consumes:
+      - application/json
+      description: Crea un nuevo patrón para procesar notificaciones bancarias
+      parameters:
+      - description: Datos del patrón
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateBankNotificationPatternRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/entity.BankNotificationPattern'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Crear patrón de notificación
+      tags:
+      - notification-patterns
+  /notification-patterns/{id}:
+    delete:
+      description: Elimina un patrón de notificación bancaria del usuario
+      parameters:
+      - description: ID del patrón
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Eliminar patrón
+      tags:
+      - notification-patterns
+    get:
+      description: Obtiene un patrón específico por ID
+      parameters:
+      - description: ID del patrón
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/entity.BankNotificationPattern'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Obtener patrón
+      tags:
+      - notification-patterns
+    put:
+      consumes:
+      - application/json
+      description: Actualiza un patrón existente de notificación bancaria
+      parameters:
+      - description: ID del patrón
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Datos a actualizar
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateBankNotificationPatternRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/entity.BankNotificationPattern'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Actualizar patrón
+      tags:
+      - notification-patterns
+  /notification-patterns/{id}/status:
+    patch:
+      consumes:
+      - application/json
+      description: Activa o desactiva un patrón de notificación bancaria
+      parameters:
+      - description: ID del patrón
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Nuevo estado
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.SetPatternStatusRequest'
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Cambiar estado del patrón
+      tags:
+      - notification-patterns
+  /notification-patterns/analyze-sms-batch:
+    post:
+      consumes:
+      - application/json
+      description: Processes multiple SMS to extract expense data and returns aggregated
+        suggestions by category. Does not create any transactions.
+      parameters:
+      - description: Batch of SMS messages
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.AnalyzeSMSBatchRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.AnalyzeSMSBatchResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Analyze SMS batch for budget suggestions
+      tags:
+      - notification-patterns
+  /notification-patterns/analyze-sms-batch/jobs:
+    post:
+      consumes:
+      - application/json
+      description: Crea un job asíncrono para analizar SMS y generar sugerencias de
+        presupuesto
+      parameters:
+      - description: Lote de SMS
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.AnalyzeSMSBatchRequest'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/dto.StartSMSBatchJobResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Iniciar job de análisis de SMS
+      tags:
+      - notification-patterns
+  /notification-patterns/analyze-sms-batch/jobs/{jobId}:
+    get:
+      description: Devuelve el estado actual del job asíncrono de análisis de SMS
+      parameters:
+      - description: ID del job
+        in: path
+        name: jobId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.SMSBatchJobStatusResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Consultar estado de job de análisis
+      tags:
+      - notification-patterns
+  /notification-patterns/analyze-statement:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Accepts a PDF/image/TXT/CSV and returns aggregated budget suggestions.
+        PDF/image are processed through OCR provider.
+      parameters:
+      - description: PDF or image (JPEG/PNG)
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.AnalyzeSMSBatchResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Analyze bank statement for budget suggestions
+      tags:
+      - notification-patterns
+  /notification-patterns/bank-account/{bank_account_id}:
+    get:
+      description: Obtiene patrones asociados a una cuenta bancaria del usuario
+      parameters:
+      - description: ID de cuenta bancaria
+        in: path
+        name: bank_account_id
+        required: true
+        type: integer
+      - description: Filtrar solo activos
+        in: query
+        name: active_only
+        type: boolean
+      - description: Página (opcional)
+        in: query
+        name: page
+        type: integer
+      - description: Elementos por página (opcional)
+        in: query
+        name: per_page
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.PaginatedBankNotificationPatternResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Patrones por cuenta bancaria
+      tags:
+      - notification-patterns
+  /notification-patterns/process:
+    post:
+      consumes:
+      - application/json
+      description: Procesa una notificación bancaria y devuelve la transacción sugerida/procesada
+      parameters:
+      - description: Payload de notificación
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ProcessNotificationRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.ProcessedNotificationResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Procesar notificación bancaria
+      tags:
+      - notification-patterns
+  /notification-patterns/process-sms:
+    post:
+      consumes:
+      - application/json
+      description: Analyzes an SMS notification using AI to extract transaction data
+      parameters:
+      - description: SMS message to process
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ProcessSMSWithAIRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.ProcessedNotificationResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Process SMS with AI
+      tags:
+      - notification-patterns
+  /notification-patterns/process-sms-batch:
+    post:
+      consumes:
+      - application/json
+      description: Agrupa SMS, filtra ruido, extrae movimientos por chunks y crea
+        gastos/ingresos automáticos.
+      parameters:
+      - description: Lista de SMS (body + date opcional)
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ProcessSMSBatchWithAIRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.ProcessSMSBatchWithAIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Procesar lote de SMS con IA
+      tags:
+      - notification-patterns
+  /notification-patterns/stats:
+    get:
+      description: Obtiene estadísticas agregadas de uso y efectividad de patrones
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Estadísticas de patrones
+      tags:
+      - notification-patterns
+  /privacy:
+    get:
+      description: Devuelve la política de privacidad en formato HTML
+      produces:
+      - text/html
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+      summary: Política de privacidad
+      tags:
+      - legal
+  /terms:
+    get:
+      description: Devuelve los términos de servicio en formato HTML
+      produces:
+      - text/html
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+      summary: Términos de servicio
+      tags:
+      - legal
+  /users/preferences:
+    put:
+      consumes:
+      - application/json
+      description: Actualiza preferencias del usuario autenticado (por ejemplo, cuenta
+        por defecto)
+      parameters:
+      - description: Preferencias del usuario
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateUserPreferencesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/entity.UserPublic'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - Bearer: []
+      summary: Actualizar preferencias del usuario
+      tags:
+      - users
   /users/profile:
     get:
       description: Devuelve la información del perfil del usuario autenticado
@@ -1417,6 +5447,115 @@ paths:
       summary: Actualizar perfil del usuario
       tags:
       - users
+  /webhooks/bank-notification:
+    post:
+      consumes:
+      - application/json
+      description: Procesa notificaciones SMS/Push de bancos y crea transacciones
+        automáticamente
+      parameters:
+      - description: Notificación bancaria
+        in: body
+        name: notification
+        required: true
+        schema:
+          $ref: '#/definitions/dto.BankNotificationWebhook'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.ProcessedNotificationResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Recibir notificación bancaria
+      tags:
+      - webhooks
+  /webhooks/process-pending:
+    post:
+      consumes:
+      - application/json
+      description: Procesa notificaciones que requieren validación manual
+      parameters:
+      - description: Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ProcessPendingNotificationsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.ProcessPendingNotificationsResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Procesar notificaciones pendientes
+      tags:
+      - webhooks
+  /webhooks/sms:
+    post:
+      consumes:
+      - application/json
+      description: Procesa notificaciones SMS de bancos
+      parameters:
+      - description: Notificación SMS
+        in: body
+        name: sms
+        required: true
+        schema:
+          $ref: '#/definitions/dto.SMSNotificationWebhook'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.ProcessedNotificationResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Recibir notificación SMS
+      tags:
+      - webhooks
+  /webhooks/stats:
+    get:
+      description: Obtiene estadísticas de procesamiento de notificaciones
+      parameters:
+      - description: ID del usuario
+        in: query
+        name: user_id
+        type: integer
+      - description: 'Días hacia atrás (default: 30)'
+        in: query
+        name: days
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.NotificationStatsResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Estadísticas de notificaciones
+      tags:
+      - webhooks
 securityDefinitions:
   Bearer:
     description: Bearer token para autenticación

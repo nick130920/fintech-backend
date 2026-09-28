@@ -16,7 +16,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -tags netgo -ldflags '-s -w' -o app ./cmd/server
 
 # Final stage
-FROM alpine:latest
+FROM alpine:3.22.6@sha256:5291449c3df73caf6ed85e649dec1b9e818b39a5d8c871e97afc13e9cd5e8fa8
 
 # Install ca-certificates for HTTPS requests
 RUN apk --no-cache add ca-certificates tzdata

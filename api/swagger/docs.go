@@ -24,6 +24,394 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/account-deletion": {
+            "get": {
+                "description": "Devuelve la página informativa para eliminación de cuenta en formato HTML",
+                "produces": [
+                    "text/html"
+                ],
+                "tags": [
+                    "legal"
+                ],
+                "summary": "Eliminación de cuenta",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/accounts": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Obtiene las cuentas del usuario autenticado. Si envías page/per_page retorna respuesta paginada.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "accounts"
+                ],
+                "summary": "Obtener cuentas",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Página (opcional para paginación)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Elementos por página (opcional para paginación)",
+                        "name": "per_page",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.PaginatedResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Crea una nueva cuenta financiera para el usuario autenticado",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "accounts"
+                ],
+                "summary": "Crear cuenta",
+                "parameters": [
+                    {
+                        "description": "Datos de la cuenta",
+                        "name": "account",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.CreateAccountRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/entity.Account"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/accounts/summaries": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Obtiene un resumen compacto de cuentas del usuario autenticado",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "accounts"
+                ],
+                "summary": "Resumen de cuentas",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/entity.AccountSummary"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/accounts/total-balance": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Obtiene el balance total consolidado de cuentas activas del usuario autenticado",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "accounts"
+                ],
+                "summary": "Balance total",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "number"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/accounts/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Obtiene una cuenta específica del usuario autenticado",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "accounts"
+                ],
+                "summary": "Obtener cuenta",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID de cuenta",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/entity.Account"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Actualiza una cuenta del usuario autenticado",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "accounts"
+                ],
+                "summary": "Actualizar cuenta",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID de cuenta",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Datos a actualizar",
+                        "name": "account",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.UpdateAccountRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/entity.Account"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Elimina una cuenta del usuario autenticado",
+                "tags": [
+                    "accounts"
+                ],
+                "summary": "Eliminar cuenta",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID de cuenta",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/budgets": {
             "post": {
                 "security": [
@@ -80,6 +468,88 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/budgets/allocations/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Actualiza una asignación individual de presupuesto por categoría",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "budgets"
+                ],
+                "summary": "Actualizar asignación de presupuesto",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID de la asignación",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Datos de actualización",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.UpdateSingleAllocationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/dto.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.AllocationSummaryResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/dto.ErrorResponse"
                         }
@@ -653,6 +1123,74 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/currencies": {
+            "get": {
+                "description": "Devuelve el catálogo de monedas soportadas por la aplicación",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "currencies"
+                ],
+                "summary": "Listar monedas soportadas",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/currencies/rates": {
+            "get": {
+                "description": "Obtiene tipos de cambio para una moneda base y símbolos opcionales",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "currencies"
+                ],
+                "summary": "Obtener tipos de cambio",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Moneda base (default USD)",
+                        "name": "base",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Lista de símbolos separados por coma (ej: EUR,MXN)",
+                        "name": "symbols",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/expenses": {
             "get": {
                 "security": [
@@ -793,6 +1331,66 @@ const docTemplate = `{
                         "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/expenses/automatic": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Obtiene los gastos creados automáticamente por IA/notificaciones pendientes de confirmación",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "expenses"
+                ],
+                "summary": "Obtener gastos automáticos",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Número máximo de resultados (default: 50)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/dto.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/dto.ExpenseSummaryResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "401": {
@@ -1058,6 +1656,1468 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/expenses/{id}/confirm": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Confirma un gasto pendiente creado automáticamente por IA",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "expenses"
+                ],
+                "summary": "Confirmar gasto automático",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID del gasto",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/dto.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.ExpenseSummaryResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/expenses/{id}/reject": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Rechaza/cancela un gasto pendiente creado automáticamente por IA",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "expenses"
+                ],
+                "summary": "Rechazar gasto automático",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID del gasto",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/incomes": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "Obtiene la lista de ingresos del usuario con filtros opcionales",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "incomes"
+                ],
+                "summary": "Obtener ingresos del usuario",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Fecha de inicio (YYYY-MM-DD)",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Fecha de fin (YYYY-MM-DD)",
+                        "name": "end_date",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "salary",
+                            "freelance",
+                            "investment",
+                            "business",
+                            "rental",
+                            "bonus",
+                            "gift",
+                            "other"
+                        ],
+                        "type": "string",
+                        "description": "Fuente de ingreso",
+                        "name": "source",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Límite de resultados",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Offset de resultados",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/dto.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/dto.IncomeSummaryResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "Crea un nuevo ingreso para el usuario autenticado",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "incomes"
+                ],
+                "summary": "Crear un nuevo ingreso",
+                "parameters": [
+                    {
+                        "description": "Datos del ingreso",
+                        "name": "income",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.CreateIncomeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/dto.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.IncomeResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/incomes/process-recurring": {
+            "post": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "Procesa y genera ingresos recurrentes pendientes",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "incomes"
+                ],
+                "summary": "Procesar ingresos recurrentes",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/dto.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.RecurringIncomeProcessResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/incomes/recent": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "Obtiene los ingresos más recientes del usuario",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "incomes"
+                ],
+                "summary": "Obtener ingresos recientes",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Límite de resultados",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/dto.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/dto.IncomeSummaryResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/incomes/stats": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "Obtiene estadísticas detalladas de los ingresos del usuario",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "incomes"
+                ],
+                "summary": "Obtener estadísticas de ingresos",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Año para las estadísticas",
+                        "name": "year",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/dto.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.IncomeStatsResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/incomes/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "Obtiene los detalles de un ingreso específico",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "incomes"
+                ],
+                "summary": "Obtener ingreso por ID",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID del ingreso",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/dto.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.IncomeResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "Actualiza los datos de un ingreso existente",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "incomes"
+                ],
+                "summary": "Actualizar un ingreso",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID del ingreso",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Datos actualizados del ingreso",
+                        "name": "income",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.UpdateIncomeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/dto.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.IncomeResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "Elimina un ingreso existente",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "incomes"
+                ],
+                "summary": "Eliminar un ingreso",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID del ingreso",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/transactions": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Obtiene transacciones del usuario autenticado con filtros avanzados (fechas, montos, categoría, búsqueda y paginación)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "transactions"
+                ],
+                "summary": "Listar transacciones",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID de cuenta",
+                        "name": "account_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Tipo (income,expense,transfer)",
+                        "name": "type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Estado (pending,completed,cancelled)",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID de categoría",
+                        "name": "category_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "IDs de categorías separados por coma (ej: 1,2,3)",
+                        "name": "category_ids",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Fecha inicio (YYYY-MM-DD)",
+                        "name": "from_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Fecha fin (YYYY-MM-DD)",
+                        "name": "to_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "Monto mínimo",
+                        "name": "amount_min",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "Monto máximo",
+                        "name": "amount_max",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Texto a buscar en descripción",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Límite de resultados",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Offset de resultados",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/entity.TransactionSummary"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Crea una nueva transacción para el usuario autenticado",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "transactions"
+                ],
+                "summary": "Crear transacción",
+                "parameters": [
+                    {
+                        "description": "Datos de transacción",
+                        "name": "transaction",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.CreateTransactionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/entity.Transaction"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/transactions/recent": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Obtiene las transacciones más recientes del usuario autenticado",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "transactions"
+                ],
+                "summary": "Transacciones recientes",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Límite de resultados",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/entity.TransactionSummary"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/transactions/totals-by-type": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Obtiene totales de transacciones por tipo para el usuario autenticado",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "transactions"
+                ],
+                "summary": "Totales por tipo",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Fecha inicio (YYYY-MM-DD)",
+                        "name": "from_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Fecha fin (YYYY-MM-DD)",
+                        "name": "to_date",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "number"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/transactions/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Obtiene una transacción específica del usuario autenticado",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "transactions"
+                ],
+                "summary": "Obtener transacción",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID de transacción",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/entity.Transaction"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Actualiza una transacción del usuario autenticado",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "transactions"
+                ],
+                "summary": "Actualizar transacción",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID de transacción",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Datos a actualizar",
+                        "name": "transaction",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.UpdateTransactionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/entity.Transaction"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Elimina una transacción del usuario autenticado",
+                "tags": [
+                    "transactions"
+                ],
+                "summary": "Eliminar transacción",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID de transacción",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/transactions/{id}/cancel": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Cancela una transacción del usuario autenticado",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "transactions"
+                ],
+                "summary": "Cancelar transacción",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID de transacción",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/trips": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "trips"
+                ],
+                "summary": "Listar viajes del usuario",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filtro por estado",
+                        "name": "status",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/dto.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/dto.TripResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "trips"
+                ],
+                "summary": "Crear viaje",
+                "parameters": [
+                    {
+                        "description": "Datos del viaje",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.CreateTripRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/dto.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.TripResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/trips/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "trips"
+                ],
+                "summary": "Obtener viaje por ID",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Trip ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/dto.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.TripResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "trips"
+                ],
+                "summary": "Actualizar viaje",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Trip ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Cambios",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.UpdateTripRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/dto.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.TripResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "trips"
+                ],
+                "summary": "Eliminar viaje",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Trip ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/auth/forgot-password": {
+            "post": {
+                "description": "Inicia el flujo de recuperación enviando token/instrucciones al correo del usuario",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Solicitar recuperación de contraseña",
+                "parameters": [
+                    {
+                        "description": "Correo del usuario",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.ForgotPasswordRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/login": {
             "post": {
                 "description": "Autentica un usuario y devuelve tokens de acceso",
@@ -1103,37 +3163,6 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/dto.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/auth/logout": {
-            "post": {
-                "security": [
-                    {
-                        "Bearer": []
-                    }
-                ],
-                "description": "Cierra la sesión del usuario (invalida tokens)",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "auth"
-                ],
-                "summary": "Cerrar sesión",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/dto.LogoutResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/dto.ErrorResponse"
                         }
@@ -1245,6 +3274,46 @@ const docTemplate = `{
                 }
             }
         },
+        "/auth/reset-password": {
+            "post": {
+                "description": "Completa el flujo de recuperación usando token y nueva contraseña",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Restablecer contraseña",
+                "parameters": [
+                    {
+                        "description": "Token y nueva contraseña",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.ResetPasswordRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/validate": {
             "get": {
                 "security": [
@@ -1269,6 +3338,1631 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/bank-accounts": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Obtiene todas las cuentas bancarias del usuario autenticado",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "bank-accounts"
+                ],
+                "summary": "Listar cuentas bancarias",
+                "parameters": [
+                    {
+                        "type": "boolean",
+                        "description": "Solo cuentas activas",
+                        "name": "active_only",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/dto.BankAccountResponse"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Crea una nueva cuenta bancaria para el usuario autenticado",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "bank-accounts"
+                ],
+                "summary": "Crear cuenta bancaria",
+                "parameters": [
+                    {
+                        "description": "Datos de la cuenta bancaria",
+                        "name": "bankAccount",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.CreateBankAccountRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BankAccountResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/bank-accounts/summary": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Obtiene un resumen de todas las cuentas bancarias del usuario",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "bank-accounts"
+                ],
+                "summary": "Resumen de cuentas bancarias",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/dto.BankAccountSummaryResponse"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/bank-accounts/type/{type}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Obtiene cuentas bancarias filtradas por tipo",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "bank-accounts"
+                ],
+                "summary": "Listar cuentas bancarias por tipo",
+                "parameters": [
+                    {
+                        "enum": [
+                            "checking",
+                            "savings",
+                            "credit",
+                            "debit",
+                            "investment"
+                        ],
+                        "type": "string",
+                        "description": "Tipo de cuenta",
+                        "name": "type",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/dto.BankAccountResponse"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/bank-accounts/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Obtiene los detalles de una cuenta bancaria específica",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "bank-accounts"
+                ],
+                "summary": "Obtener cuenta bancaria",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID de la cuenta bancaria",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BankAccountResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Actualiza los detalles de una cuenta bancaria",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "bank-accounts"
+                ],
+                "summary": "Actualizar cuenta bancaria",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID de la cuenta bancaria",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Datos a actualizar",
+                        "name": "bankAccount",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.UpdateBankAccountRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BankAccountResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Elimina una cuenta bancaria (soft delete)",
+                "tags": [
+                    "bank-accounts"
+                ],
+                "summary": "Eliminar cuenta bancaria",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID de la cuenta bancaria",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/bank-accounts/{id}/active": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Activa o desactiva una cuenta bancaria",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "bank-accounts"
+                ],
+                "summary": "Cambiar estado activo",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID de la cuenta bancaria",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Estado activo",
+                        "name": "status",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.SetBankAccountActiveRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/bank-accounts/{id}/balance": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Actualiza el balance de una cuenta bancaria",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "bank-accounts"
+                ],
+                "summary": "Actualizar balance",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID de la cuenta bancaria",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Nuevo balance",
+                        "name": "balance",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.UpdateBankAccountBalanceRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/email/gmail/authorize": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Genera la URL OAuth para conectar Gmail con el usuario autenticado",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "email"
+                ],
+                "summary": "Iniciar autorización Gmail",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/email/gmail/callback": {
+            "get": {
+                "description": "Endpoint público al que Google redirige tras autorización; completa el vínculo y muestra HTML",
+                "produces": [
+                    "text/html"
+                ],
+                "tags": [
+                    "email"
+                ],
+                "summary": "Callback OAuth de Gmail",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Código OAuth",
+                        "name": "code",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Estado OAuth",
+                        "name": "state",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/email/gmail/disconnect": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Revoca la conexión Gmail del usuario autenticado",
+                "tags": [
+                    "email"
+                ],
+                "summary": "Desconectar Gmail",
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/email/gmail/sync": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Ejecuta una sincronización manual del buzón Gmail conectado",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "email"
+                ],
+                "summary": "Sincronizar Gmail",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/email/status": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Obtiene el estado de conexión Gmail para el usuario autenticado",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "email"
+                ],
+                "summary": "Estado de conexión de correo",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/notification-patterns": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Obtiene los patrones de notificaciones bancarias del usuario autenticado",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notification-patterns"
+                ],
+                "summary": "Listar patrones del usuario",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Página (opcional)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Elementos por página (opcional)",
+                        "name": "per_page",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.PaginatedBankNotificationPatternResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Crea un nuevo patrón para procesar notificaciones bancarias",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notification-patterns"
+                ],
+                "summary": "Crear patrón de notificación",
+                "parameters": [
+                    {
+                        "description": "Datos del patrón",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.CreateBankNotificationPatternRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/entity.BankNotificationPattern"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/notification-patterns/analyze-sms-batch": {
+            "post": {
+                "description": "Processes multiple SMS to extract expense data and returns aggregated suggestions by category. Does not create any transactions.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notification-patterns"
+                ],
+                "summary": "Analyze SMS batch for budget suggestions",
+                "parameters": [
+                    {
+                        "description": "Batch of SMS messages",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.AnalyzeSMSBatchRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.AnalyzeSMSBatchResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/notification-patterns/analyze-sms-batch/jobs": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Crea un job asíncrono para analizar SMS y generar sugerencias de presupuesto",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notification-patterns"
+                ],
+                "summary": "Iniciar job de análisis de SMS",
+                "parameters": [
+                    {
+                        "description": "Lote de SMS",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.AnalyzeSMSBatchRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/dto.StartSMSBatchJobResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/notification-patterns/analyze-sms-batch/jobs/{jobId}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Devuelve el estado actual del job asíncrono de análisis de SMS",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notification-patterns"
+                ],
+                "summary": "Consultar estado de job de análisis",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID del job",
+                        "name": "jobId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.SMSBatchJobStatusResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/notification-patterns/analyze-statement": {
+            "post": {
+                "description": "Accepts a PDF/image/TXT/CSV and returns aggregated budget suggestions. PDF/image are processed through OCR provider.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notification-patterns"
+                ],
+                "summary": "Analyze bank statement for budget suggestions",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "PDF or image (JPEG/PNG)",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.AnalyzeSMSBatchResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/notification-patterns/bank-account/{bank_account_id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Obtiene patrones asociados a una cuenta bancaria del usuario",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notification-patterns"
+                ],
+                "summary": "Patrones por cuenta bancaria",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID de cuenta bancaria",
+                        "name": "bank_account_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Filtrar solo activos",
+                        "name": "active_only",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Página (opcional)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Elementos por página (opcional)",
+                        "name": "per_page",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.PaginatedBankNotificationPatternResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/notification-patterns/process": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Procesa una notificación bancaria y devuelve la transacción sugerida/procesada",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notification-patterns"
+                ],
+                "summary": "Procesar notificación bancaria",
+                "parameters": [
+                    {
+                        "description": "Payload de notificación",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.ProcessNotificationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ProcessedNotificationResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/notification-patterns/process-sms": {
+            "post": {
+                "description": "Analyzes an SMS notification using AI to extract transaction data",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notification-patterns"
+                ],
+                "summary": "Process SMS with AI",
+                "parameters": [
+                    {
+                        "description": "SMS message to process",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.ProcessSMSWithAIRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ProcessedNotificationResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/notification-patterns/process-sms-batch": {
+            "post": {
+                "description": "Agrupa SMS, filtra ruido, extrae movimientos por chunks y crea gastos/ingresos automáticos.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notification-patterns"
+                ],
+                "summary": "Procesar lote de SMS con IA",
+                "parameters": [
+                    {
+                        "description": "Lista de SMS (body + date opcional)",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.ProcessSMSBatchWithAIRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ProcessSMSBatchWithAIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/notification-patterns/stats": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Obtiene estadísticas agregadas de uso y efectividad de patrones",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notification-patterns"
+                ],
+                "summary": "Estadísticas de patrones",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/notification-patterns/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Obtiene un patrón específico por ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notification-patterns"
+                ],
+                "summary": "Obtener patrón",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID del patrón",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/entity.BankNotificationPattern"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Actualiza un patrón existente de notificación bancaria",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notification-patterns"
+                ],
+                "summary": "Actualizar patrón",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID del patrón",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Datos a actualizar",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.UpdateBankNotificationPatternRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/entity.BankNotificationPattern"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Elimina un patrón de notificación bancaria del usuario",
+                "tags": [
+                    "notification-patterns"
+                ],
+                "summary": "Eliminar patrón",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID del patrón",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/notification-patterns/{id}/status": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Activa o desactiva un patrón de notificación bancaria",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notification-patterns"
+                ],
+                "summary": "Cambiar estado del patrón",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID del patrón",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Nuevo estado",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.SetPatternStatusRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/privacy": {
+            "get": {
+                "description": "Devuelve la política de privacidad en formato HTML",
+                "produces": [
+                    "text/html"
+                ],
+                "tags": [
+                    "legal"
+                ],
+                "summary": "Política de privacidad",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/terms": {
+            "get": {
+                "description": "Devuelve los términos de servicio en formato HTML",
+                "produces": [
+                    "text/html"
+                ],
+                "tags": [
+                    "legal"
+                ],
+                "summary": "Términos de servicio",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/preferences": {
+            "put": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "Actualiza preferencias del usuario autenticado (por ejemplo, cuenta por defecto)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Actualizar preferencias del usuario",
+                "parameters": [
+                    {
+                        "description": "Preferencias del usuario",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.UpdateUserPreferencesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/entity.UserPublic"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/dto.ErrorResponse"
                         }
@@ -1379,6 +5073,172 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/webhooks/bank-notification": {
+            "post": {
+                "description": "Procesa notificaciones SMS/Push de bancos y crea transacciones automáticamente",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "webhooks"
+                ],
+                "summary": "Recibir notificación bancaria",
+                "parameters": [
+                    {
+                        "description": "Notificación bancaria",
+                        "name": "notification",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.BankNotificationWebhook"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ProcessedNotificationResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/webhooks/process-pending": {
+            "post": {
+                "description": "Procesa notificaciones que requieren validación manual",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "webhooks"
+                ],
+                "summary": "Procesar notificaciones pendientes",
+                "parameters": [
+                    {
+                        "description": "Request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.ProcessPendingNotificationsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ProcessPendingNotificationsResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/webhooks/sms": {
+            "post": {
+                "description": "Procesa notificaciones SMS de bancos",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "webhooks"
+                ],
+                "summary": "Recibir notificación SMS",
+                "parameters": [
+                    {
+                        "description": "Notificación SMS",
+                        "name": "sms",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.SMSNotificationWebhook"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ProcessedNotificationResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/webhooks/stats": {
+            "get": {
+                "description": "Obtiene estadísticas de procesamiento de notificaciones",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "webhooks"
+                ],
+                "summary": "Estadísticas de notificaciones",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID del usuario",
+                        "name": "user_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Días hacia atrás (default: 30)",
+                        "name": "days",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.NotificationStatsResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -1450,6 +5310,255 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.AnalyzeSMSBatchRequest": {
+            "type": "object",
+            "required": [
+                "messages"
+            ],
+            "properties": {
+                "messages": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.SMSMessageForAnalysis"
+                    }
+                }
+            }
+        },
+        "dto.AnalyzeSMSBatchResponse": {
+            "type": "object",
+            "properties": {
+                "suggestions": {
+                    "$ref": "#/definitions/dto.BudgetSuggestions"
+                }
+            }
+        },
+        "dto.BankAccountResponse": {
+            "type": "object",
+            "properties": {
+                "account_alias": {
+                    "type": "string"
+                },
+                "account_number_mask": {
+                    "type": "string"
+                },
+                "bank_code": {
+                    "type": "string"
+                },
+                "bank_name": {
+                    "type": "string"
+                },
+                "branch_code": {
+                    "type": "string"
+                },
+                "branch_name": {
+                    "type": "string"
+                },
+                "color": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "is_notification_enabled": {
+                    "type": "boolean"
+                },
+                "last_balance": {
+                    "type": "number"
+                },
+                "last_balance_update": {
+                    "type": "string"
+                },
+                "min_amount_to_notify": {
+                    "type": "number"
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "notification_email": {
+                    "type": "string"
+                },
+                "notification_phone": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/entity.BankAccountType"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.BankAccountSummaryResponse": {
+            "type": "object",
+            "properties": {
+                "account_alias": {
+                    "type": "string"
+                },
+                "account_number_mask": {
+                    "type": "string"
+                },
+                "bank_name": {
+                    "type": "string"
+                },
+                "color": {
+                    "type": "string"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "last_balance": {
+                    "type": "number"
+                },
+                "last_balance_update": {
+                    "type": "string"
+                },
+                "short_bank_name": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/entity.BankAccountType"
+                }
+            }
+        },
+        "dto.BankNotificationPatternResponse": {
+            "type": "object",
+            "properties": {
+                "auto_approve": {
+                    "type": "boolean"
+                },
+                "bank_account_id": {
+                    "type": "integer"
+                },
+                "channel": {
+                    "$ref": "#/definitions/entity.NotificationChannel"
+                },
+                "confidence_threshold": {
+                    "type": "number"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "example_message": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_default": {
+                    "type": "boolean"
+                },
+                "last_matched_at": {
+                    "type": "string"
+                },
+                "match_count": {
+                    "type": "integer"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "name": {
+                    "type": "string"
+                },
+                "priority": {
+                    "type": "integer"
+                },
+                "requires_validation": {
+                    "type": "boolean"
+                },
+                "status": {
+                    "$ref": "#/definitions/entity.NotificationPatternStatus"
+                },
+                "success_count": {
+                    "type": "integer"
+                },
+                "success_rate": {
+                    "type": "number"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.BankNotificationWebhook": {
+            "type": "object",
+            "required": [
+                "channel",
+                "message",
+                "phone"
+            ],
+            "properties": {
+                "bank_code": {
+                    "type": "string",
+                    "example": "BANCOLOMBIA"
+                },
+                "channel": {
+                    "type": "string",
+                    "enum": [
+                        "sms",
+                        "push",
+                        "email"
+                    ],
+                    "example": "sms"
+                },
+                "message": {
+                    "type": "string",
+                    "example": "Compra por $50.000 en SUPERMERCADO XYZ el 15/01/2024"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "phone": {
+                    "type": "string",
+                    "example": "+573001234567"
+                },
+                "received_at": {
+                    "type": "string",
+                    "example": "2024-01-15T10:30:00Z"
+                },
+                "user_id": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
         "dto.BudgetDashboardResponse": {
             "type": "object",
             "properties": {
@@ -1502,6 +5611,37 @@ const docTemplate = `{
                 },
                 "total_categories": {
                     "type": "integer"
+                }
+            }
+        },
+        "dto.BudgetSuggestionCategory": {
+            "type": "object",
+            "properties": {
+                "category_id": {
+                    "type": "integer"
+                },
+                "category_name": {
+                    "type": "string"
+                },
+                "count": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "number"
+                }
+            }
+        },
+        "dto.BudgetSuggestions": {
+            "type": "object",
+            "properties": {
+                "by_category": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.BudgetSuggestionCategory"
+                    }
+                },
+                "total_expense_3m": {
+                    "type": "number"
                 }
             }
         },
@@ -1607,6 +5747,64 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.CreateAccountRequest": {
+            "type": "object",
+            "required": [
+                "name",
+                "type"
+            ],
+            "properties": {
+                "account_number": {
+                    "type": "string",
+                    "maxLength": 50
+                },
+                "bank_name": {
+                    "type": "string",
+                    "maxLength": 100
+                },
+                "color": {
+                    "type": "string"
+                },
+                "credit_limit": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 500
+                },
+                "icon": {
+                    "type": "string",
+                    "maxLength": 50
+                },
+                "initial_balance": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
+                },
+                "type": {
+                    "enum": [
+                        "checking",
+                        "savings",
+                        "credit",
+                        "investment",
+                        "cash"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/entity.AccountType"
+                        }
+                    ]
+                }
+            }
+        },
         "dto.CreateAllocationRequest": {
             "type": "object",
             "required": [
@@ -1626,6 +5824,159 @@ const docTemplate = `{
                 },
                 "category_id": {
                     "type": "integer"
+                }
+            }
+        },
+        "dto.CreateBankAccountRequest": {
+            "type": "object",
+            "required": [
+                "account_alias",
+                "account_number_mask",
+                "bank_name",
+                "type"
+            ],
+            "properties": {
+                "account_alias": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
+                },
+                "account_number": {
+                    "description": "Debería estar encriptado",
+                    "type": "string",
+                    "maxLength": 50
+                },
+                "account_number_mask": {
+                    "type": "string",
+                    "maxLength": 20,
+                    "minLength": 4
+                },
+                "bank_code": {
+                    "type": "string",
+                    "maxLength": 10
+                },
+                "bank_name": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
+                },
+                "branch_code": {
+                    "type": "string",
+                    "maxLength": 10
+                },
+                "branch_name": {
+                    "type": "string",
+                    "maxLength": 100
+                },
+                "color": {
+                    "type": "string"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string",
+                    "maxLength": 50
+                },
+                "is_notification_enabled": {
+                    "type": "boolean"
+                },
+                "min_amount_to_notify": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "notes": {
+                    "type": "string",
+                    "maxLength": 1000
+                },
+                "notification_email": {
+                    "type": "string"
+                },
+                "notification_phone": {
+                    "type": "string",
+                    "maxLength": 15,
+                    "minLength": 10
+                },
+                "type": {
+                    "enum": [
+                        "checking",
+                        "savings",
+                        "credit",
+                        "debit",
+                        "investment"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/entity.BankAccountType"
+                        }
+                    ]
+                }
+            }
+        },
+        "dto.CreateBankNotificationPatternRequest": {
+            "type": "object",
+            "required": [
+                "bank_account_id",
+                "channel",
+                "name"
+            ],
+            "properties": {
+                "auto_approve": {
+                    "type": "boolean"
+                },
+                "bank_account_id": {
+                    "type": "integer"
+                },
+                "channel": {
+                    "enum": [
+                        "sms",
+                        "push",
+                        "email",
+                        "app"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/entity.NotificationChannel"
+                        }
+                    ]
+                },
+                "confidence_threshold": {
+                    "type": "number",
+                    "maximum": 1,
+                    "minimum": 0
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 500
+                },
+                "example_message": {
+                    "type": "string",
+                    "maxLength": 2000
+                },
+                "is_default": {
+                    "type": "boolean"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
+                },
+                "priority": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "requires_validation": {
+                    "type": "boolean"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -1663,6 +6014,7 @@ const docTemplate = `{
         "dto.CreateCategoryRequest": {
             "type": "object",
             "required": [
+                "icon",
                 "name"
             ],
             "properties": {
@@ -1674,8 +6026,7 @@ const docTemplate = `{
                     "maxLength": 200
                 },
                 "icon": {
-                    "type": "string",
-                    "maxLength": 50
+                    "type": "string"
                 },
                 "name": {
                     "type": "string",
@@ -1742,6 +6093,170 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.CreateIncomeRequest": {
+            "type": "object",
+            "required": [
+                "amount",
+                "date",
+                "description",
+                "source"
+            ],
+            "properties": {
+                "amount": {
+                    "type": "number"
+                },
+                "date": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "end_date": {
+                    "type": "string"
+                },
+                "frequency": {
+                    "type": "string",
+                    "enum": [
+                        "weekly",
+                        "biweekly",
+                        "monthly",
+                        "quarterly",
+                        "yearly"
+                    ]
+                },
+                "is_recurring": {
+                    "description": "Campos para ingresos recurrentes",
+                    "type": "boolean"
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "source": {
+                    "type": "string",
+                    "enum": [
+                        "salary",
+                        "freelance",
+                        "investment",
+                        "business",
+                        "rental",
+                        "bonus",
+                        "gift",
+                        "other"
+                    ]
+                },
+                "tax_deducted": {
+                    "type": "number",
+                    "minimum": 0
+                }
+            }
+        },
+        "dto.CreateTransactionRequest": {
+            "type": "object",
+            "required": [
+                "account_id",
+                "amount",
+                "description",
+                "transaction_date",
+                "type"
+            ],
+            "properties": {
+                "account_id": {
+                    "type": "integer"
+                },
+                "amount": {
+                    "type": "number"
+                },
+                "category_id": {
+                    "type": "integer"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "minLength": 1
+                },
+                "location": {
+                    "type": "string",
+                    "maxLength": 200
+                },
+                "notes": {
+                    "type": "string",
+                    "maxLength": 1000
+                },
+                "reference": {
+                    "type": "string",
+                    "maxLength": 100
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "to_account_id": {
+                    "type": "integer"
+                },
+                "transaction_date": {
+                    "type": "string"
+                },
+                "type": {
+                    "enum": [
+                        "income",
+                        "expense",
+                        "transfer"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/entity.TransactionType"
+                        }
+                    ]
+                }
+            }
+        },
+        "dto.CreateTripRequest": {
+            "type": "object",
+            "required": [
+                "destination",
+                "end_date",
+                "name",
+                "primary_currency",
+                "start_date"
+            ],
+            "properties": {
+                "country_code": {
+                    "type": "string"
+                },
+                "cover_image_url": {
+                    "type": "string"
+                },
+                "destination": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "minLength": 1
+                },
+                "end_date": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 120,
+                    "minLength": 1
+                },
+                "notes": {
+                    "type": "string",
+                    "maxLength": 2000
+                },
+                "primary_currency": {
+                    "type": "string"
+                },
+                "start_date": {
+                    "type": "string"
+                }
+            }
+        },
         "dto.CreateUserRequest": {
             "type": "object",
             "required": [
@@ -1785,6 +6300,31 @@ const docTemplate = `{
                 "timezone": {
                     "description": "Format: America/Mexico_City",
                     "type": "string"
+                }
+            }
+        },
+        "dto.DailyNotificationStat": {
+            "type": "object",
+            "properties": {
+                "avg_amount": {
+                    "type": "number",
+                    "example": 75000.5
+                },
+                "count": {
+                    "type": "integer",
+                    "example": 12
+                },
+                "date": {
+                    "type": "string",
+                    "example": "2024-01-15"
+                },
+                "failed": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "processed": {
+                    "type": "integer",
+                    "example": 10
                 }
             }
         },
@@ -1869,6 +6409,192 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.ForgotPasswordRequest": {
+            "type": "object",
+            "required": [
+                "email"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.IncomeBySourceResponse": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "formatted_amount": {
+                    "type": "string"
+                },
+                "percentage": {
+                    "type": "number"
+                },
+                "source": {
+                    "type": "string"
+                },
+                "source_display_name": {
+                    "type": "string"
+                },
+                "total_amount": {
+                    "type": "number"
+                }
+            }
+        },
+        "dto.IncomeResponse": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "number"
+                },
+                "can_be_deleted": {
+                    "type": "boolean"
+                },
+                "can_be_modified": {
+                    "description": "Metadatos",
+                    "type": "boolean"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "date": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "end_date": {
+                    "type": "string"
+                },
+                "formatted_amount": {
+                    "type": "string"
+                },
+                "formatted_net_amount": {
+                    "type": "string"
+                },
+                "frequency": {
+                    "type": "string"
+                },
+                "frequency_display_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "is_future": {
+                    "type": "boolean"
+                },
+                "is_recurring": {
+                    "description": "Campos para ingresos recurrentes",
+                    "type": "boolean"
+                },
+                "net_amount": {
+                    "type": "number"
+                },
+                "next_date": {
+                    "type": "string"
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "source": {
+                    "type": "string"
+                },
+                "source_display_name": {
+                    "type": "string"
+                },
+                "tax_deducted": {
+                    "type": "number"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.IncomeStatsResponse": {
+            "type": "object",
+            "properties": {
+                "currency": {
+                    "type": "string"
+                },
+                "formatted_monthly_average": {
+                    "type": "string"
+                },
+                "formatted_total_income": {
+                    "type": "string"
+                },
+                "income_by_source": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.IncomeBySourceResponse"
+                    }
+                },
+                "monthly_average": {
+                    "type": "number"
+                },
+                "monthly_income": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.MonthlyIncomeResponse"
+                    }
+                },
+                "period": {
+                    "type": "string"
+                },
+                "recurring_income": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.IncomeSummaryResponse"
+                    }
+                },
+                "total_income": {
+                    "type": "number"
+                }
+            }
+        },
+        "dto.IncomeSummaryResponse": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "number"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "date": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "formatted_amount": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_recurring": {
+                    "type": "boolean"
+                },
+                "source": {
+                    "type": "string"
+                },
+                "source_display_name": {
+                    "type": "string"
+                }
+            }
+        },
         "dto.LoginRequest": {
             "type": "object",
             "required": [
@@ -1907,11 +6633,305 @@ const docTemplate = `{
                 }
             }
         },
-        "dto.LogoutResponse": {
+        "dto.MonthlyIncomeResponse": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "formatted_amount": {
+                    "type": "string"
+                },
+                "month": {
+                    "type": "integer"
+                },
+                "month_name": {
+                    "type": "string"
+                },
+                "total_amount": {
+                    "type": "number"
+                },
+                "year": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.NotificationStatsResponse": {
+            "type": "object",
+            "properties": {
+                "auto_created": {
+                    "type": "integer",
+                    "example": 120
+                },
+                "average_confidence": {
+                    "type": "number",
+                    "example": 0.85
+                },
+                "by_bank": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
+                },
+                "by_channel": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
+                },
+                "by_day": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.DailyNotificationStat"
+                    }
+                },
+                "pending_validation": {
+                    "type": "integer",
+                    "example": 22
+                },
+                "request_id": {
+                    "type": "string"
+                },
+                "total_failed": {
+                    "type": "integer",
+                    "example": 8
+                },
+                "total_processed": {
+                    "type": "integer",
+                    "example": 142
+                },
+                "total_received": {
+                    "type": "integer",
+                    "example": 150
+                }
+            }
+        },
+        "dto.PaginatedBankNotificationPatternResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.BankNotificationPatternResponse"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "per_page": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "total_pages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.PaginatedResponse": {
+            "type": "object",
+            "properties": {
+                "data": {},
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "total_pages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.ProcessNotificationRequest": {
+            "type": "object",
+            "required": [
+                "channel",
+                "message"
+            ],
+            "properties": {
+                "bank_code": {
+                    "type": "string"
+                },
+                "channel": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "phone": {
+                    "type": "string"
+                },
+                "received_at": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.ProcessPendingNotificationsRequest": {
+            "type": "object",
+            "required": [
+                "user_id"
+            ],
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "example": 10
+                },
+                "user_id": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "dto.ProcessPendingNotificationsResponse": {
+            "type": "object",
+            "properties": {
+                "failed": {
+                    "type": "integer",
+                    "example": 3
+                },
+                "processed": {
+                    "type": "integer",
+                    "example": 12
+                },
+                "request_id": {
+                    "type": "string"
+                },
+                "total_found": {
+                    "type": "integer",
+                    "example": 15
+                }
+            }
+        },
+        "dto.ProcessSMSBatchWithAIRequest": {
+            "type": "object",
+            "required": [
+                "messages"
+            ],
+            "properties": {
+                "messages": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.SMSMessageForAnalysis"
+                    }
+                }
+            }
+        },
+        "dto.ProcessSMSBatchWithAIResponse": {
+            "type": "object",
+            "properties": {
+                "chunks_processed": {
+                    "type": "integer"
+                },
+                "filtered_out": {
+                    "type": "integer"
+                },
+                "low_confidence_or_skipped": {
+                    "type": "integer"
+                },
+                "not_bank_sms": {
+                    "type": "integer"
+                },
+                "pattern_used": {
+                    "type": "string"
+                },
+                "processing_errors": {
+                    "type": "integer"
+                },
+                "sms_after_filter": {
+                    "type": "integer"
+                },
+                "total_received": {
+                    "type": "integer"
+                },
+                "transactions_created": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.ProcessSMSWithAIRequest": {
+            "type": "object",
+            "required": [
+                "message"
+            ],
+            "properties": {
+                "message": {
+                    "type": "string",
+                    "minLength": 1,
+                    "example": "BBVA: Compra por $150.00 en OXXO el 28/01/26"
+                }
+            }
+        },
+        "dto.ProcessedNotificationResponse": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "number"
+                },
+                "bank_account_id": {
+                    "type": "integer"
+                },
+                "channel": {
+                    "$ref": "#/definitions/entity.NotificationChannel"
+                },
+                "confidence": {
+                    "type": "number"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "extracted_data": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "message": {
+                    "type": "string"
+                },
+                "pattern_id": {
+                    "type": "integer"
+                },
+                "pattern_used": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "requires_validation": {
+                    "type": "boolean"
+                },
+                "success": {
+                    "type": "boolean"
+                },
+                "transaction_created": {
+                    "type": "boolean"
+                },
+                "transaction_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.RecurringIncomeProcessResponse": {
             "type": "object",
             "properties": {
                 "message": {
                     "type": "string"
+                },
+                "processed_count": {
+                    "type": "integer"
+                },
+                "processed_incomes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.IncomeSummaryResponse"
+                    }
                 }
             }
         },
@@ -1926,6 +6946,23 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.ResetPasswordRequest": {
+            "type": "object",
+            "required": [
+                "new_password",
+                "token"
+            ],
+            "properties": {
+                "new_password": {
+                    "type": "string",
+                    "maxLength": 50,
+                    "minLength": 8
+                },
+                "token": {
+                    "type": "string"
+                }
+            }
+        },
         "dto.Response": {
             "type": "object",
             "properties": {
@@ -1935,6 +6972,110 @@ const docTemplate = `{
                 "data": {},
                 "message": {
                     "type": "string"
+                }
+            }
+        },
+        "dto.SMSBatchJobStatusResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "status": {
+                    "description": "pending | processing | completed | failed",
+                    "type": "string"
+                },
+                "suggestions": {
+                    "$ref": "#/definitions/dto.BudgetSuggestions"
+                }
+            }
+        },
+        "dto.SMSMessageForAnalysis": {
+            "type": "object",
+            "required": [
+                "body"
+            ],
+            "properties": {
+                "body": {
+                    "type": "string"
+                },
+                "date": {
+                    "description": "ISO8601 optional, for aggregation by period",
+                    "type": "string"
+                }
+            }
+        },
+        "dto.SMSNotificationWebhook": {
+            "type": "object",
+            "required": [
+                "from",
+                "message",
+                "to"
+            ],
+            "properties": {
+                "from": {
+                    "description": "Número del banco",
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "provider": {
+                    "description": "Twilio, etc.",
+                    "type": "string"
+                },
+                "received_at": {
+                    "type": "string"
+                },
+                "to": {
+                    "description": "Número del usuario",
+                    "type": "string"
+                }
+            }
+        },
+        "dto.SetBankAccountActiveRequest": {
+            "type": "object",
+            "required": [
+                "is_active"
+            ],
+            "properties": {
+                "is_active": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "dto.SetPatternStatusRequest": {
+            "type": "object",
+            "required": [
+                "status"
+            ],
+            "properties": {
+                "status": {
+                    "enum": [
+                        "active",
+                        "inactive",
+                        "learning"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/entity.NotificationPatternStatus"
+                        }
+                    ]
+                }
+            }
+        },
+        "dto.StartSMSBatchJobResponse": {
+            "type": "object",
+            "properties": {
+                "job_id": {
+                    "type": "string"
+                },
+                "status": {
+                    "description": "pending | completed (vacío sync)",
+                    "type": "string"
+                },
+                "suggestions": {
+                    "$ref": "#/definitions/dto.BudgetSuggestions"
                 }
             }
         },
@@ -1969,6 +7110,248 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.TripAllocationResponse": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "$ref": "#/definitions/dto.CategorySummaryResponse"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "daily_suggested": {
+                    "type": "number"
+                },
+                "estimated_amount": {
+                    "type": "number"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_over_budget": {
+                    "type": "boolean"
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "progress_percent": {
+                    "type": "number"
+                },
+                "remaining_amount": {
+                    "type": "number"
+                },
+                "spent_amount": {
+                    "type": "number"
+                }
+            }
+        },
+        "dto.TripItineraryResponse": {
+            "type": "object",
+            "properties": {
+                "actual_amount": {
+                    "type": "number"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "day": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "estimated_cost": {
+                    "type": "number"
+                },
+                "expense_id": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "location": {
+                    "type": "string"
+                },
+                "time": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "variance": {
+                    "type": "number"
+                }
+            }
+        },
+        "dto.TripMemberResponse": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_ghost": {
+                    "type": "boolean"
+                },
+                "joined_at": {
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.TripResponse": {
+            "type": "object",
+            "properties": {
+                "allocations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.TripAllocationResponse"
+                    }
+                },
+                "country_code": {
+                    "type": "string"
+                },
+                "cover_image_url": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "days_remaining": {
+                    "type": "integer"
+                },
+                "days_total": {
+                    "type": "integer"
+                },
+                "destination": {
+                    "type": "string"
+                },
+                "end_date": {
+                    "type": "string"
+                },
+                "estimated_total": {
+                    "type": "number"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_active_now": {
+                    "type": "boolean"
+                },
+                "itinerary": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.TripItineraryResponse"
+                    }
+                },
+                "members": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.TripMemberResponse"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "owner_user_id": {
+                    "type": "integer"
+                },
+                "primary_currency": {
+                    "type": "string"
+                },
+                "progress_percent": {
+                    "type": "number"
+                },
+                "remaining_amount": {
+                    "type": "number"
+                },
+                "spent_total": {
+                    "type": "number"
+                },
+                "start_date": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.UpdateAccountRequest": {
+            "type": "object",
+            "properties": {
+                "bank_name": {
+                    "type": "string",
+                    "maxLength": 100
+                },
+                "color": {
+                    "type": "string"
+                },
+                "credit_limit": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 500
+                },
+                "icon": {
+                    "type": "string",
+                    "maxLength": 50
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "low_balance_alert": {
+                    "description": "Configuración de alertas",
+                    "type": "boolean"
+                },
+                "low_balance_limit": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
+                },
+                "type": {
+                    "enum": [
+                        "checking",
+                        "savings",
+                        "credit",
+                        "investment",
+                        "cash"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/entity.AccountType"
+                        }
+                    ]
+                }
+            }
+        },
         "dto.UpdateAllocationRequest": {
             "type": "object",
             "required": [
@@ -1986,6 +7369,104 @@ const docTemplate = `{
                 },
                 "id": {
                     "type": "integer"
+                }
+            }
+        },
+        "dto.UpdateBankAccountBalanceRequest": {
+            "type": "object",
+            "required": [
+                "balance"
+            ],
+            "properties": {
+                "balance": {
+                    "type": "number"
+                }
+            }
+        },
+        "dto.UpdateBankAccountRequest": {
+            "type": "object",
+            "properties": {
+                "account_alias": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
+                },
+                "bank_name": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
+                },
+                "color": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string",
+                    "maxLength": 50
+                },
+                "is_notification_enabled": {
+                    "type": "boolean"
+                },
+                "min_amount_to_notify": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "notes": {
+                    "type": "string",
+                    "maxLength": 1000
+                },
+                "notification_email": {
+                    "type": "string"
+                },
+                "notification_phone": {
+                    "type": "string",
+                    "maxLength": 15,
+                    "minLength": 10
+                }
+            }
+        },
+        "dto.UpdateBankNotificationPatternRequest": {
+            "type": "object",
+            "properties": {
+                "auto_approve": {
+                    "type": "boolean"
+                },
+                "confidence_threshold": {
+                    "type": "number",
+                    "maximum": 1,
+                    "minimum": 0
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 500
+                },
+                "example_message": {
+                    "type": "string",
+                    "maxLength": 2000
+                },
+                "is_default": {
+                    "type": "boolean"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
+                },
+                "priority": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "requires_validation": {
+                    "type": "boolean"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -2017,8 +7498,7 @@ const docTemplate = `{
                     "maxLength": 200
                 },
                 "icon": {
-                    "type": "string",
-                    "maxLength": 50
+                    "type": "string"
                 },
                 "is_active": {
                     "type": "boolean"
@@ -2074,12 +7554,175 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.UpdateIncomeRequest": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "number"
+                },
+                "date": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "end_date": {
+                    "type": "string"
+                },
+                "frequency": {
+                    "type": "string",
+                    "enum": [
+                        "weekly",
+                        "biweekly",
+                        "monthly",
+                        "quarterly",
+                        "yearly"
+                    ]
+                },
+                "is_recurring": {
+                    "description": "Campos para ingresos recurrentes",
+                    "type": "boolean"
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "source": {
+                    "type": "string",
+                    "enum": [
+                        "salary",
+                        "freelance",
+                        "investment",
+                        "business",
+                        "rental",
+                        "bonus",
+                        "gift",
+                        "other"
+                    ]
+                },
+                "tax_deducted": {
+                    "type": "number",
+                    "minimum": 0
+                }
+            }
+        },
+        "dto.UpdateSingleAllocationRequest": {
+            "type": "object",
+            "properties": {
+                "alert_threshold": {
+                    "type": "number",
+                    "maximum": 1,
+                    "minimum": 0
+                },
+                "allocated_amount": {
+                    "type": "number",
+                    "minimum": 0
+                }
+            }
+        },
+        "dto.UpdateTransactionRequest": {
+            "type": "object",
+            "properties": {
+                "category_id": {
+                    "type": "integer"
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "minLength": 1
+                },
+                "location": {
+                    "type": "string",
+                    "maxLength": 200
+                },
+                "notes": {
+                    "type": "string",
+                    "maxLength": 1000
+                },
+                "reference": {
+                    "type": "string",
+                    "maxLength": 100
+                },
+                "status": {
+                    "enum": [
+                        "pending",
+                        "completed",
+                        "cancelled"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/entity.TransactionStatus"
+                        }
+                    ]
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "transaction_date": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.UpdateTripRequest": {
+            "type": "object",
+            "properties": {
+                "country_code": {
+                    "type": "string"
+                },
+                "cover_image_url": {
+                    "type": "string"
+                },
+                "destination": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "minLength": 1
+                },
+                "end_date": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 120,
+                    "minLength": 1
+                },
+                "notes": {
+                    "type": "string",
+                    "maxLength": 2000
+                },
+                "primary_currency": {
+                    "type": "string"
+                },
+                "start_date": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.UpdateUserPreferencesRequest": {
+            "type": "object",
+            "required": [
+                "default_account_id"
+            ],
+            "properties": {
+                "default_account_id": {
+                    "type": "integer"
+                }
+            }
+        },
         "dto.UpdateUserRequest": {
             "type": "object",
             "properties": {
+                "currency": {
+                    "type": "string"
+                },
                 "date_of_birth": {
                     "description": "Format: YYYY-MM-DD",
                     "type": "string"
+                },
+                "default_account_id": {
+                    "type": "integer"
                 },
                 "first_name": {
                     "type": "string",
@@ -2106,6 +7749,321 @@ const docTemplate = `{
                 }
             }
         },
+        "entity.Account": {
+            "type": "object",
+            "required": [
+                "name",
+                "type"
+            ],
+            "properties": {
+                "account_number": {
+                    "type": "string",
+                    "maxLength": 50
+                },
+                "balance": {
+                    "description": "Información financiera",
+                    "type": "number"
+                },
+                "bank_name": {
+                    "description": "Información bancaria (opcional)",
+                    "type": "string",
+                    "maxLength": 100
+                },
+                "color": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "credit_limit": {
+                    "description": "Para tarjetas de crédito",
+                    "type": "number"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 500
+                },
+                "icon": {
+                    "type": "string",
+                    "maxLength": 50
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "initial_balance": {
+                    "type": "number"
+                },
+                "is_active": {
+                    "description": "Estado y configuración",
+                    "type": "boolean"
+                },
+                "low_balance_alert": {
+                    "description": "Configuración de alertas",
+                    "type": "boolean"
+                },
+                "low_balance_limit": {
+                    "type": "number"
+                },
+                "name": {
+                    "description": "Información de la cuenta",
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
+                },
+                "type": {
+                    "enum": [
+                        "checking",
+                        "savings",
+                        "credit",
+                        "investment",
+                        "cash"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/entity.AccountType"
+                        }
+                    ]
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "description": "Relación con usuario",
+                    "type": "integer"
+                }
+            }
+        },
+        "entity.AccountSummary": {
+            "type": "object",
+            "properties": {
+                "available_credit": {
+                    "description": "Para tarjetas de crédito",
+                    "type": "number"
+                },
+                "balance": {
+                    "type": "number"
+                },
+                "bank_name": {
+                    "type": "string"
+                },
+                "color": {
+                    "type": "string"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/entity.AccountType"
+                }
+            }
+        },
+        "entity.AccountType": {
+            "type": "string",
+            "enum": [
+                "checking",
+                "savings",
+                "credit",
+                "investment",
+                "cash"
+            ],
+            "x-enum-comments": {
+                "AccountTypeCash": "Efectivo",
+                "AccountTypeChecking": "Cuenta corriente",
+                "AccountTypeCredit": "Tarjeta de crédito",
+                "AccountTypeInvestment": "Cuenta de inversión",
+                "AccountTypeSavings": "Cuenta de ahorros"
+            },
+            "x-enum-varnames": [
+                "AccountTypeChecking",
+                "AccountTypeSavings",
+                "AccountTypeCredit",
+                "AccountTypeInvestment",
+                "AccountTypeCash"
+            ]
+        },
+        "entity.BankAccountType": {
+            "type": "string",
+            "enum": [
+                "checking",
+                "savings",
+                "credit",
+                "debit",
+                "investment"
+            ],
+            "x-enum-comments": {
+                "BankAccountTypeChecking": "Cuenta corriente",
+                "BankAccountTypeCredit": "Tarjeta de crédito",
+                "BankAccountTypeDebit": "Tarjeta de débito",
+                "BankAccountTypeInvestment": "Cuenta de inversión",
+                "BankAccountTypeSavings": "Cuenta de ahorros"
+            },
+            "x-enum-varnames": [
+                "BankAccountTypeChecking",
+                "BankAccountTypeSavings",
+                "BankAccountTypeCredit",
+                "BankAccountTypeDebit",
+                "BankAccountTypeInvestment"
+            ]
+        },
+        "entity.BankNotificationPattern": {
+            "type": "object",
+            "required": [
+                "channel",
+                "name"
+            ],
+            "properties": {
+                "amount_regex": {
+                    "description": "Configuración de extracción",
+                    "type": "string",
+                    "maxLength": 500
+                },
+                "auto_approve": {
+                    "description": "Auto-aprobar si confianza \u003e umbral",
+                    "type": "boolean"
+                },
+                "bank_account_id": {
+                    "type": "integer"
+                },
+                "channel": {
+                    "enum": [
+                        "sms",
+                        "push",
+                        "email",
+                        "app"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/entity.NotificationChannel"
+                        }
+                    ]
+                },
+                "confidence_threshold": {
+                    "description": "Umbral de confianza (0-1)",
+                    "type": "number"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "date_regex": {
+                    "description": "Regex para extraer fecha",
+                    "type": "string",
+                    "maxLength": 500
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 500
+                },
+                "description_regex": {
+                    "description": "Regex para extraer descripción",
+                    "type": "string",
+                    "maxLength": 500
+                },
+                "example_message": {
+                    "description": "Ejemplo de mensaje",
+                    "type": "string",
+                    "maxLength": 2000
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_default": {
+                    "description": "Si es el patrón por defecto para el banco",
+                    "type": "boolean"
+                },
+                "keywords_exclude": {
+                    "description": "Palabras a excluir (JSON array)",
+                    "type": "string",
+                    "maxLength": 1000
+                },
+                "keywords_trigger": {
+                    "description": "Palabras clave (JSON array)",
+                    "type": "string",
+                    "maxLength": 1000
+                },
+                "last_matched_at": {
+                    "description": "Última vez que coincidió",
+                    "type": "string"
+                },
+                "match_count": {
+                    "description": "Estadísticas de uso",
+                    "type": "integer"
+                },
+                "merchant_regex": {
+                    "description": "Regex para extraer comercio",
+                    "type": "string",
+                    "maxLength": 500
+                },
+                "message_pattern": {
+                    "description": "Patrón de mensaje",
+                    "type": "string",
+                    "maxLength": 2000
+                },
+                "metadata": {
+                    "description": "Metadatos adicionales (JSON)",
+                    "type": "string"
+                },
+                "name": {
+                    "description": "Información del patrón",
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
+                },
+                "priority": {
+                    "description": "Configuración adicional",
+                    "type": "integer"
+                },
+                "requires_validation": {
+                    "description": "Configuración de validación",
+                    "type": "boolean"
+                },
+                "status": {
+                    "enum": [
+                        "active",
+                        "inactive",
+                        "learning"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/entity.NotificationPatternStatus"
+                        }
+                    ]
+                },
+                "success_count": {
+                    "description": "Número de éxitos",
+                    "type": "integer"
+                },
+                "success_rate": {
+                    "description": "Tasa de éxito (%)",
+                    "type": "number"
+                },
+                "tags": {
+                    "description": "Tags adicionales (JSON array)",
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "description": "Relaciones",
+                    "type": "integer"
+                }
+            }
+        },
         "entity.ExpenseSource": {
             "type": "string",
             "enum": [
@@ -2122,13 +8080,6 @@ const docTemplate = `{
                 "ExpenseSourceSMS": "Capturado desde SMS bancario",
                 "ExpenseSourceWhatsApp": "Enviado por WhatsApp"
             },
-            "x-enum-descriptions": [
-                "Entrada manual del usuario",
-                "Capturado desde SMS bancario",
-                "Enviado por WhatsApp",
-                "API bancaria",
-                "Notificación del sistema"
-            ],
             "x-enum-varnames": [
                 "ExpenseSourceManual",
                 "ExpenseSourceSMS",
@@ -2149,15 +8100,323 @@ const docTemplate = `{
                 "ExpenseStatusConfirmed": "Confirmado",
                 "ExpenseStatusPending": "Pendiente de confirmación"
             },
-            "x-enum-descriptions": [
-                "Pendiente de confirmación",
-                "Confirmado",
-                "Cancelado"
-            ],
             "x-enum-varnames": [
                 "ExpenseStatusPending",
                 "ExpenseStatusConfirmed",
                 "ExpenseStatusCancelled"
+            ]
+        },
+        "entity.NotificationChannel": {
+            "type": "string",
+            "enum": [
+                "sms",
+                "push",
+                "email",
+                "app"
+            ],
+            "x-enum-comments": {
+                "NotificationChannelApp": "Notificación interna de app bancaria",
+                "NotificationChannelEmail": "Correo electrónico",
+                "NotificationChannelPush": "Notificación push",
+                "NotificationChannelSMS": "Mensaje SMS"
+            },
+            "x-enum-varnames": [
+                "NotificationChannelSMS",
+                "NotificationChannelPush",
+                "NotificationChannelEmail",
+                "NotificationChannelApp"
+            ]
+        },
+        "entity.NotificationPatternStatus": {
+            "type": "string",
+            "enum": [
+                "active",
+                "inactive",
+                "learning"
+            ],
+            "x-enum-comments": {
+                "NotificationPatternStatusActive": "Activo",
+                "NotificationPatternStatusInactive": "Inactivo",
+                "NotificationPatternStatusLearning": "En aprendizaje"
+            },
+            "x-enum-varnames": [
+                "NotificationPatternStatusActive",
+                "NotificationPatternStatusInactive",
+                "NotificationPatternStatusLearning"
+            ]
+        },
+        "entity.Transaction": {
+            "type": "object",
+            "required": [
+                "amount",
+                "description",
+                "type"
+            ],
+            "properties": {
+                "account_id": {
+                    "description": "Cuenta origen",
+                    "type": "integer"
+                },
+                "ai_confidence": {
+                    "description": "Confianza del AI (0-1)",
+                    "type": "number"
+                },
+                "amount": {
+                    "type": "number"
+                },
+                "bank_account_id": {
+                    "description": "Referencia a cuenta bancaria (nullable)",
+                    "type": "integer"
+                },
+                "category_id": {
+                    "description": "Categorización",
+                    "type": "integer"
+                },
+                "category_name": {
+                    "description": "Desnormalizado para performance",
+                    "type": "string",
+                    "maxLength": 100
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "currency": {
+                    "description": "Moneda (normalmente heredada de la cuenta)",
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "minLength": 1
+                },
+                "exchange_rate": {
+                    "description": "Para conversiones",
+                    "type": "number"
+                },
+                "external_id": {
+                    "description": "ID externo",
+                    "type": "string",
+                    "maxLength": 100
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "imported_from": {
+                    "description": "Metadatos",
+                    "type": "string",
+                    "maxLength": 100
+                },
+                "location": {
+                    "type": "string",
+                    "maxLength": 200
+                },
+                "notes": {
+                    "description": "Notas adicionales",
+                    "type": "string",
+                    "maxLength": 1000
+                },
+                "pattern_id": {
+                    "description": "ID del patrón que procesó la notificación",
+                    "type": "integer"
+                },
+                "raw_notification": {
+                    "description": "Notificación original (para transacciones desde notificación)",
+                    "type": "string"
+                },
+                "recurring": {
+                    "description": "Si es una transacción recurrente",
+                    "type": "boolean"
+                },
+                "recurring_id": {
+                    "description": "ID del patrón recurrente",
+                    "type": "integer"
+                },
+                "reference": {
+                    "description": "Información adicional",
+                    "type": "string",
+                    "maxLength": 100
+                },
+                "source": {
+                    "description": "Origen y validación de la transacción",
+                    "enum": [
+                        "notification",
+                        "manual",
+                        "integration",
+                        "import"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/entity.TransactionSource"
+                        }
+                    ]
+                },
+                "status": {
+                    "enum": [
+                        "pending",
+                        "completed",
+                        "cancelled"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/entity.TransactionStatus"
+                        }
+                    ]
+                },
+                "tags": {
+                    "description": "JSON array de tags",
+                    "type": "string"
+                },
+                "to_account_id": {
+                    "description": "Para transferencias",
+                    "type": "integer"
+                },
+                "transaction_date": {
+                    "description": "Fecha y ubicación",
+                    "type": "string"
+                },
+                "type": {
+                    "description": "Información de la transacción",
+                    "enum": [
+                        "income",
+                        "expense",
+                        "transfer"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/entity.TransactionType"
+                        }
+                    ]
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "description": "Relaciones",
+                    "type": "integer"
+                },
+                "validation_status": {
+                    "enum": [
+                        "auto",
+                        "pending_review",
+                        "manual_validated",
+                        "rejected"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/entity.ValidationStatus"
+                        }
+                    ]
+                }
+            }
+        },
+        "entity.TransactionSource": {
+            "type": "string",
+            "enum": [
+                "notification",
+                "manual",
+                "integration",
+                "import"
+            ],
+            "x-enum-comments": {
+                "TransactionSourceImport": "Importada desde archivo",
+                "TransactionSourceIntegration": "Desde integración bancaria",
+                "TransactionSourceManual": "Ingresada manualmente",
+                "TransactionSourceNotification": "Desde notificación bancaria"
+            },
+            "x-enum-varnames": [
+                "TransactionSourceNotification",
+                "TransactionSourceManual",
+                "TransactionSourceIntegration",
+                "TransactionSourceImport"
+            ]
+        },
+        "entity.TransactionStatus": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "completed",
+                "cancelled"
+            ],
+            "x-enum-comments": {
+                "TransactionStatusCancelled": "Cancelada",
+                "TransactionStatusCompleted": "Completada",
+                "TransactionStatusPending": "Pendiente"
+            },
+            "x-enum-varnames": [
+                "TransactionStatusPending",
+                "TransactionStatusCompleted",
+                "TransactionStatusCancelled"
+            ]
+        },
+        "entity.TransactionSummary": {
+            "type": "object",
+            "properties": {
+                "account_name": {
+                    "type": "string"
+                },
+                "ai_confidence": {
+                    "type": "number"
+                },
+                "amount": {
+                    "type": "number"
+                },
+                "bank_account_alias": {
+                    "type": "string"
+                },
+                "category_name": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "needs_review": {
+                    "type": "boolean"
+                },
+                "source": {
+                    "$ref": "#/definitions/entity.TransactionSource"
+                },
+                "status": {
+                    "$ref": "#/definitions/entity.TransactionStatus"
+                },
+                "to_account_name": {
+                    "type": "string"
+                },
+                "transaction_date": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/entity.TransactionType"
+                },
+                "validation_status": {
+                    "$ref": "#/definitions/entity.ValidationStatus"
+                }
+            }
+        },
+        "entity.TransactionType": {
+            "type": "string",
+            "enum": [
+                "income",
+                "expense",
+                "transfer"
+            ],
+            "x-enum-comments": {
+                "TransactionTypeExpense": "Gasto",
+                "TransactionTypeIncome": "Ingreso",
+                "TransactionTypeTransfer": "Transferencia entre cuentas"
+            },
+            "x-enum-varnames": [
+                "TransactionTypeIncome",
+                "TransactionTypeExpense",
+                "TransactionTypeTransfer"
             ]
         },
         "entity.UserPublic": {
@@ -2167,9 +8426,15 @@ const docTemplate = `{
                     "description": "ISO format string",
                     "type": "string"
                 },
+                "currency": {
+                    "type": "string"
+                },
                 "date_of_birth": {
                     "description": "Format: YYYY-MM-DD",
                     "type": "string"
+                },
+                "default_account_id": {
+                    "type": "integer"
                 },
                 "email": {
                     "type": "string"
@@ -2203,6 +8468,27 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "entity.ValidationStatus": {
+            "type": "string",
+            "enum": [
+                "auto",
+                "pending_review",
+                "manual_validated",
+                "rejected"
+            ],
+            "x-enum-comments": {
+                "ValidationStatusAuto": "Validada automáticamente",
+                "ValidationStatusManual": "Validada manualmente",
+                "ValidationStatusPending": "Pendiente de revisión",
+                "ValidationStatusRejected": "Rechazada"
+            },
+            "x-enum-varnames": [
+                "ValidationStatusAuto",
+                "ValidationStatusPending",
+                "ValidationStatusManual",
+                "ValidationStatusRejected"
+            ]
         }
     },
     "securityDefinitions": {

@@ -343,7 +343,7 @@ func (h *BankNotificationPatternHandler) ProcessSMSBatchWithAI(c *gin.Context) {
 // @Produce      json
 // @Security     BearerAuth
 // @Param        request body dto.AnalyzeSMSBatchRequest true "Lote de SMS"
-// @Success      202 {object} dto.AnalyzeSMSBatchJobResponse
+// @Success      202 {object} dto.StartSMSBatchJobResponse
 // @Failure      400 {object} dto.ErrorResponse
 // @Failure      401 {object} dto.ErrorResponse
 // @Failure      500 {object} dto.ErrorResponse
@@ -383,10 +383,10 @@ func (h *BankNotificationPatternHandler) StartAnalyzeSMSBatchJob(c *gin.Context)
 // @Produce      json
 // @Security     BearerAuth
 // @Param        jobId path string true "ID del job"
-// @Success      200 {object} dto.AnalyzeSMSBatchJobStatusResponse
-// @Failure      400 {object} gin.H
-// @Failure      401 {object} gin.H
-// @Failure      500 {object} gin.H
+// @Success      200 {object} dto.SMSBatchJobStatusResponse
+// @Failure      400 {object} dto.ErrorResponse
+// @Failure      401 {object} dto.ErrorResponse
+// @Failure      500 {object} dto.ErrorResponse
 // @Router       /notification-patterns/analyze-sms-batch/jobs/{jobId} [get]
 func (h *BankNotificationPatternHandler) GetAnalyzeSMSBatchJobStatus(c *gin.Context) {
 	userID, exists := c.Get("user_id")

@@ -107,7 +107,7 @@ func Run() {
 	httpServer := initHTTPServer(cfg, deps, logger.Get())
 
 	// Ejecutar servidor
-	runServer(httpServer, db, cfg.Server.Port)
+	runServer(httpServer, db, cfg.Server)
 }
 
 // Dependencies contiene todas las dependencias de la aplicación
@@ -336,13 +336,22 @@ func initHTTPServer(cfg *configs.Config, deps *Dependencies, log zerolog.Logger)
 	return router
 }
 
-// runServer ejecuta el servidor con graceful shutdown
-func runServer(router *gin.Engine, db *gorm.DB, port string) {
-	log := logger.Get()
-	server := &http.Server{
-		Addr:    ":" + port,
-		Handler: router,
+func newHTTPServer(handler http.Handler, config configs.ServerConfig) *http.Server {
+	return &http.Server{
+		Addr:              ":" + config.Port,
+		Handler:           handler,
+		ReadHeaderTimeout: config.ReadHeaderTimeout,
+		ReadTimeout:       config.ReadTimeout,
+		WriteTimeout:      config.WriteTimeout,
+		IdleTimeout:       config.IdleTimeout,
+		MaxHeaderBytes:    config.MaxHeaderBytes,
 	}
+}
+
+// runServer ejecuta el servidor con graceful shutdown
+func runServer(router *gin.Engine, db *gorm.DB, serverConfig configs.ServerConfig) {
+	log := logger.Get()
+	server := newHTTPServer(router, serverConfig)
 
 	// Canal para señales del sistema
 	quit := make(chan os.Signal, 1)
@@ -350,7 +359,7 @@ func runServer(router *gin.Engine, db *gorm.DB, port string) {
 
 	// Ejecutar servidor en goroutine
 	go func() {
-		log.Info().Msgf("Server starting on port %s", port)
+		log.Info().Msgf("Server starting on port %s", serverConfig.Port)
 		log.Info().Msgf("Environment: %s", gin.Mode())
 
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -451,12 +460,12 @@ func healthCheckHandler(c *gin.Context) {
 	}
 
 	c.JSON(code, gin.H{
-		"status":       status,
-		"timestamp":    time.Now().Unix(),
-		"service":      "fintech-api",
-		"version":      "1.0.0",
-		"database":     dbStatus,
-		"db_ping_ms":   pingMs,
+		"status":     status,
+		"timestamp":  time.Now().Unix(),
+		"service":    "fintech-api",
+		"version":    "1.0.0",
+		"database":   dbStatus,
+		"db_ping_ms": pingMs,
 	})
 }
 

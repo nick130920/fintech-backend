@@ -37,6 +37,7 @@ logs/
 
 # Environment files
 .env
+/configs/.env
 .env.local
 .env.development
 .env.test

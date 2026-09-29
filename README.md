@@ -148,8 +148,10 @@ Railway deployments can use `GIN_MODE=release`, `JWT_SECRET_KEY`, and `DATABASE_
 
 3. **Configurar variables de entorno**
    ```bash
-   # Crear archivo .env basado en las variables mostradas arriba
+   cp configs/env.example configs/.env
    ```
+
+   `configs/.env` es solo para desarrollo local y no debe incluirse en commits. Los despliegues de producción usan variables de entorno inyectadas.
 
 4. **Configurar base de datos**
    ```bash

@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 const (
@@ -170,7 +171,7 @@ func TestLoadDebugPreservesDevelopmentDatabaseDefaults(t *testing.T) {
 
 func TestConfigValidateDebugAllowsDevelopmentDefaults(t *testing.T) {
 	cfg := Config{
-		Server: ServerConfig{Mode: "debug"},
+		Server: validHTTPServerConfig("debug"),
 		JWT:    JWTConfig{SecretKey: "default-secret-key-change-in-production"},
 		Database: DatabaseConfig{
 			Host:     "localhost",
@@ -188,7 +189,7 @@ func TestConfigValidateDebugAllowsDevelopmentDefaults(t *testing.T) {
 
 func TestConfigValidatePreservesGmailValidationOutsideRelease(t *testing.T) {
 	cfg := Config{
-		Server: ServerConfig{Mode: "debug"},
+		Server: validHTTPServerConfig("debug"),
 		External: ExternalConfig{Gmail: GmailOAuthConfig{
 			ClientID:     "client-id",
 			ClientSecret: "client-secret",
@@ -271,7 +272,7 @@ func unsetEnv(t *testing.T, key string) {
 
 func validReleaseConfig() Config {
 	return Config{
-		Server: ServerConfig{Mode: "release"},
+		Server: validHTTPServerConfig("release"),
 		JWT:    JWTConfig{SecretKey: validJWTSecret},
 		Database: DatabaseConfig{
 			Host:     "db.example.test",
@@ -280,6 +281,17 @@ func validReleaseConfig() Config {
 			Password: "fixture_password",
 			DBName:   "fixture_db",
 		},
+	}
+}
+
+func validHTTPServerConfig(mode string) ServerConfig {
+	return ServerConfig{
+		Mode:              mode,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 20,
 	}
 }
 

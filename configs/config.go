@@ -24,10 +24,16 @@ type Config struct {
 
 // ServerConfig representa la configuración del servidor
 type ServerConfig struct {
-	Port     string `json:"port"`
-	Host     string `json:"host"`
-	Mode     string `json:"mode"`
-	LogLevel string `json:"log_level"`
+	Port              string        `json:"port"`
+	Host              string        `json:"host"`
+	Mode              string        `json:"mode"`
+	LogLevel          string        `json:"log_level"`
+	ReadHeaderTimeout time.Duration `json:"read_header_timeout"`
+	ReadTimeout       time.Duration `json:"read_timeout"`
+	WriteTimeout      time.Duration `json:"write_timeout"`
+	IdleTimeout       time.Duration `json:"idle_timeout"`
+	MaxHeaderBytes    int           `json:"max_header_bytes"`
+	httpSettingsErr   error
 }
 
 // DatabaseConfig representa la configuración de la base de datos
@@ -129,12 +135,7 @@ func Load() *Config {
 	}
 
 	config := &Config{
-		Server: ServerConfig{
-			Port:     getEnv("PORT", "8080"),        // Railway usa PORT por defecto
-			Host:     getEnv("HOST", "0.0.0.0"),     // Railway necesita 0.0.0.0
-			Mode:     getEnv("GIN_MODE", "release"), // release en producción; en Railway Dashboard verificar que no esté "debug"
-			LogLevel: getEnv("LOG_LEVEL", "info"),
-		},
+		Server:   loadServerConfig(),
 		Database: loadDatabaseConfig(getEnv("GIN_MODE", "release")),
 		JWT: JWTConfig{
 			SecretKey:             getEnv("JWT_SECRET_KEY", "default-secret-key-change-in-production"),
@@ -213,6 +214,26 @@ func (c *Config) IsDevelopment() bool {
 
 // Validate valida la configuración
 func (c *Config) Validate() error {
+	if c.Server.httpSettingsErr != nil {
+		return c.Server.httpSettingsErr
+	}
+
+	if c.Server.ReadHeaderTimeout <= 0 {
+		return fmt.Errorf("HTTP_READ_HEADER_TIMEOUT_SECONDS must be greater than zero")
+	}
+	if c.Server.ReadTimeout <= 0 {
+		return fmt.Errorf("HTTP_READ_TIMEOUT_SECONDS must be greater than zero")
+	}
+	if c.Server.WriteTimeout <= 0 {
+		return fmt.Errorf("HTTP_WRITE_TIMEOUT_SECONDS must be greater than zero")
+	}
+	if c.Server.IdleTimeout <= 0 {
+		return fmt.Errorf("HTTP_IDLE_TIMEOUT_SECONDS must be greater than zero")
+	}
+	if c.Server.MaxHeaderBytes <= 0 {
+		return fmt.Errorf("HTTP_MAX_HEADER_BYTES must be greater than zero")
+	}
+
 	if c.IsProduction() {
 		jwtSecret := strings.TrimSpace(c.JWT.SecretKey)
 		if jwtSecret == "" || jwtSecret == "default-secret-key-change-in-production" || len([]byte(jwtSecret)) < 32 {
@@ -243,6 +264,62 @@ func (c *Config) Validate() error {
 	}
 
 	return nil
+}
+
+func loadServerConfig() ServerConfig {
+	serverConfig := ServerConfig{
+		Port:     getEnv("PORT", "8080"),        // Railway usa PORT por defecto
+		Host:     getEnv("HOST", "0.0.0.0"),     // Railway necesita 0.0.0.0
+		Mode:     getEnv("GIN_MODE", "release"), // release en producción; en Railway Dashboard verificar que no esté "debug"
+		LogLevel: getEnv("LOG_LEVEL", "info"),
+	}
+
+	var err error
+	if serverConfig.ReadHeaderTimeout, err = getPositiveDurationFromSeconds("HTTP_READ_HEADER_TIMEOUT_SECONDS", 5*time.Second); err != nil {
+		serverConfig.httpSettingsErr = err
+		return serverConfig
+	}
+	if serverConfig.ReadTimeout, err = getPositiveDurationFromSeconds("HTTP_READ_TIMEOUT_SECONDS", 30*time.Second); err != nil {
+		serverConfig.httpSettingsErr = err
+		return serverConfig
+	}
+	if serverConfig.WriteTimeout, err = getPositiveDurationFromSeconds("HTTP_WRITE_TIMEOUT_SECONDS", 60*time.Second); err != nil {
+		serverConfig.httpSettingsErr = err
+		return serverConfig
+	}
+	if serverConfig.IdleTimeout, err = getPositiveDurationFromSeconds("HTTP_IDLE_TIMEOUT_SECONDS", 60*time.Second); err != nil {
+		serverConfig.httpSettingsErr = err
+		return serverConfig
+	}
+	if serverConfig.MaxHeaderBytes, err = getPositiveInt("HTTP_MAX_HEADER_BYTES", 1<<20); err != nil {
+		serverConfig.httpSettingsErr = err
+	}
+
+	return serverConfig
+}
+
+func getPositiveDurationFromSeconds(key string, defaultValue time.Duration) (time.Duration, error) {
+	seconds, err := getPositiveInt(key, int(defaultValue/time.Second))
+	if err != nil {
+		return 0, err
+	}
+	if int64(seconds) > int64(^uint64(0)>>1)/int64(time.Second) {
+		return 0, fmt.Errorf("%s is too large for time.Duration", key)
+	}
+	return time.Duration(seconds) * time.Second, nil
+}
+
+func getPositiveInt(key string, defaultValue int) (int, error) {
+	value, isSet := os.LookupEnv(key)
+	if !isSet {
+		return defaultValue, nil
+	}
+
+	intValue, err := strconv.Atoi(value)
+	if err != nil || intValue <= 0 {
+		return 0, fmt.Errorf("%s must be a positive integer", key)
+	}
+	return intValue, nil
 }
 
 // loadDatabaseConfig carga la configuración de base de datos

@@ -175,6 +175,16 @@ Railway deployments can use `GIN_MODE=release`, `JWT_SECRET_KEY`, and `DATABASE_
 - **Documentación Swagger**: http://localhost:8080/swagger/index.html
 - **Health Check**: http://localhost:8080/health
 
+## Preparación de runtime para Dokploy
+
+La imagen se construye con `docker build -t fintech-backend .` y se ejecuta como el usuario no privilegiado `app`. El binario inicia desde `/app`; `PORT` sigue siendo configurable en tiempo de ejecución y el puerto interno predeterminado es `8080`.
+
+Dokploy debe comprobar `/health` en `http://127.0.0.1:${PORT:-8080}`: el `HEALTHCHECK` de la imagen usa el `PORT` configurado en tiempo de ejecución o `8080` si no se define. La imagen instala `curl` como dependencia explícita de healthcheck, porque Alpine no garantiza que `curl` o `wget` estén disponibles. La aplicación no cambia el comportamiento de `/health`.
+
+La imagen incluye las migraciones en `/app/migrations`, que mantiene compatible el valor predeterminado `DB_MIGRATION_PATH=file://migrations` al iniciar desde `/app`. Configure secretos exclusivamente como variables de Dokploy; no los incluya en la imagen ni en el repositorio.
+
+Esta fase no realiza corte de VPS, base de datos o DNS; tampoco añade copias de seguridad, un trabajo de migración previo al despliegue, retiro de Railway ni almacenamiento de objetos. La documentación y configuración actuales de Railway se conservan hasta completar el corte.
+
 ## API Endpoints
 
 ### Autenticación

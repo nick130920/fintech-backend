@@ -19,6 +19,7 @@ const (
 	ErrCodeConflict       ErrorCode = "CONFLICT"
 	ErrCodeRateLimit      ErrorCode = "RATE_LIMIT_EXCEEDED"
 	ErrCodeTimeout        ErrorCode = "TIMEOUT"
+	ErrCodeAIUnavailable  ErrorCode = "AI_SERVICE_UNAVAILABLE"
 
 	// Códigos específicos de dominio
 	ErrCodeUserNotFound     ErrorCode = "USER_NOT_FOUND"
@@ -78,16 +79,17 @@ func (e *AppError) WithField(key string, value interface{}) *AppError {
 
 // Errores predefinidos más estructurados
 var (
-	ErrInternal         = NewAppError(ErrCodeInternal, "Error interno del servidor", http.StatusInternalServerError)
-	ErrInvalidRequest   = NewAppError(ErrCodeInvalidRequest, "Datos de solicitud inválidos", http.StatusBadRequest)
-	ErrValidation       = NewAppError(ErrCodeValidation, "Error de validación", http.StatusBadRequest)
-	ErrUnauthorized     = NewAppError(ErrCodeUnauthorized, "No autorizado", http.StatusUnauthorized)
-	ErrForbidden        = NewAppError(ErrCodeForbidden, "Acceso denegado", http.StatusForbidden)
-	ErrNotFound         = NewAppError(ErrCodeNotFound, "Recurso no encontrado", http.StatusNotFound)
-	ErrConflict         = NewAppError(ErrCodeConflict, "Conflicto: el recurso ya existe", http.StatusConflict)
-	ErrRateLimit        = NewAppError(ErrCodeRateLimit, "Límite de solicitudes excedido", http.StatusTooManyRequests)
-	ErrTimeout          = NewAppError(ErrCodeTimeout, "Tiempo de espera agotado", http.StatusRequestTimeout)
-	ErrPermissionDenied = NewAppError(ErrCodeForbidden, "Permisos denegados", http.StatusForbidden)
+	ErrInternal             = NewAppError(ErrCodeInternal, "Error interno del servidor", http.StatusInternalServerError)
+	ErrInvalidRequest       = NewAppError(ErrCodeInvalidRequest, "Datos de solicitud inválidos", http.StatusBadRequest)
+	ErrValidation           = NewAppError(ErrCodeValidation, "Error de validación", http.StatusBadRequest)
+	ErrUnauthorized         = NewAppError(ErrCodeUnauthorized, "No autorizado", http.StatusUnauthorized)
+	ErrForbidden            = NewAppError(ErrCodeForbidden, "Acceso denegado", http.StatusForbidden)
+	ErrNotFound             = NewAppError(ErrCodeNotFound, "Recurso no encontrado", http.StatusNotFound)
+	ErrConflict             = NewAppError(ErrCodeConflict, "Conflicto: el recurso ya existe", http.StatusConflict)
+	ErrRateLimit            = NewAppError(ErrCodeRateLimit, "Límite de solicitudes excedido", http.StatusTooManyRequests)
+	ErrTimeout              = NewAppError(ErrCodeTimeout, "Tiempo de espera agotado", http.StatusRequestTimeout)
+	ErrAIServiceUnavailable = NewAppError(ErrCodeAIUnavailable, "AI service is not configured", http.StatusServiceUnavailable)
+	ErrPermissionDenied     = NewAppError(ErrCodeForbidden, "Permisos denegados", http.StatusForbidden)
 )
 
 // Errores específicos de dominio más estructurados

@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/nick130920/fintech-backend/internal/controller/http/v1/dto"
 	"github.com/nick130920/fintech-backend/internal/usecase"
+	"github.com/nick130920/fintech-backend/pkg/apperrors"
 	"github.com/rs/zerolog"
 )
 
@@ -49,6 +50,14 @@ func paginatePatternResponses(items []*dto.BankNotificationPatternResponse, page
 // NewBankNotificationPatternHandler creates a new bankNotificationPatternHandler.
 func NewBankNotificationPatternHandler(uc *usecase.BankNotificationPatternUseCase, logger zerolog.Logger) *BankNotificationPatternHandler {
 	return &BankNotificationPatternHandler{uc: uc, logger: logger}
+}
+
+func (h *BankNotificationPatternHandler) requireAIProvider(c *gin.Context) bool {
+	if h.uc != nil && h.uc.HasAIProvider() {
+		return true
+	}
+	handleErrorResponse(c, apperrors.ErrAIServiceUnavailable)
+	return false
 }
 
 // GetUserPatterns godoc
@@ -178,6 +187,10 @@ func (h *BankNotificationPatternHandler) GetPatternStatistics(c *gin.Context) {
 // @Failure 500 {object} dto.ErrorResponse
 // @Router /notification-patterns/process [post]
 func (h *BankNotificationPatternHandler) ProcessNotification(c *gin.Context) {
+	if !h.requireAIProvider(c) {
+		return
+	}
+
 	var req dto.ProcessNotificationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.logger.Error().Err(err).Msg("bad request on process notification")
@@ -198,7 +211,7 @@ func (h *BankNotificationPatternHandler) ProcessNotification(c *gin.Context) {
 	result, err := h.uc.ProcessNotificationWebhook(req)
 	if err != nil {
 		h.logger.Error().Err(err).Msg("failed to process notification")
-		respondError(c, http.StatusInternalServerError, "failed to process notification")
+		handleErrorResponse(c, err)
 		return
 	}
 
@@ -219,6 +232,10 @@ func (h *BankNotificationPatternHandler) ProcessNotification(c *gin.Context) {
 // @Failure      500 {object} dto.ErrorResponse
 // @Router       /notification-patterns/process-sms [post]
 func (h *BankNotificationPatternHandler) ProcessSMSWithAI(c *gin.Context) {
+	if !h.requireAIProvider(c) {
+		return
+	}
+
 	userID, exists := c.Get("user_id")
 	if !exists {
 		respondError(c, http.StatusUnauthorized, "unauthorized")
@@ -237,7 +254,7 @@ func (h *BankNotificationPatternHandler) ProcessSMSWithAI(c *gin.Context) {
 	result, err := h.uc.ProcessSMSWithAI(c.Request.Context(), userID.(uint), req.Message)
 	if err != nil {
 		h.logger.Error().Err(err).Msg("failed to process SMS with AI")
-		respondError(c, http.StatusInternalServerError, "failed to process SMS with AI")
+		handleErrorResponse(c, err)
 		return
 	}
 
@@ -257,6 +274,10 @@ func (h *BankNotificationPatternHandler) ProcessSMSWithAI(c *gin.Context) {
 // @Failure      500 {object} dto.ErrorResponse
 // @Router       /notification-patterns/analyze-sms-batch [post]
 func (h *BankNotificationPatternHandler) AnalyzeSMSBatch(c *gin.Context) {
+	if !h.requireAIProvider(c) {
+		return
+	}
+
 	userID, exists := c.Get("user_id")
 	if !exists {
 		respondError(c, http.StatusUnauthorized, "unauthorized")
@@ -284,7 +305,7 @@ func (h *BankNotificationPatternHandler) AnalyzeSMSBatch(c *gin.Context) {
 	result, err := h.uc.ProcessSMSBatchForSuggestions(ctx, userID.(uint), req.Messages)
 	if err != nil {
 		h.logger.Error().Err(err).Msg("failed to analyze SMS batch")
-		respondError(c, http.StatusInternalServerError, "failed to analyze SMS batch")
+		handleErrorResponse(c, err)
 		return
 	}
 
@@ -304,6 +325,10 @@ func (h *BankNotificationPatternHandler) AnalyzeSMSBatch(c *gin.Context) {
 // @Failure      500 {object} dto.ErrorResponse
 // @Router       /notification-patterns/process-sms-batch [post]
 func (h *BankNotificationPatternHandler) ProcessSMSBatchWithAI(c *gin.Context) {
+	if !h.requireAIProvider(c) {
+		return
+	}
+
 	userID, exists := c.Get("user_id")
 	if !exists {
 		respondError(c, http.StatusUnauthorized, "unauthorized")
@@ -349,6 +374,10 @@ func (h *BankNotificationPatternHandler) ProcessSMSBatchWithAI(c *gin.Context) {
 // @Failure      500 {object} dto.ErrorResponse
 // @Router       /notification-patterns/analyze-sms-batch/jobs [post]
 func (h *BankNotificationPatternHandler) StartAnalyzeSMSBatchJob(c *gin.Context) {
+	if !h.requireAIProvider(c) {
+		return
+	}
+
 	userID, exists := c.Get("user_id")
 	if !exists {
 		respondError(c, http.StatusUnauthorized, "unauthorized")
@@ -365,7 +394,7 @@ func (h *BankNotificationPatternHandler) StartAnalyzeSMSBatchJob(c *gin.Context)
 	out, err := h.uc.StartSMSBatchSuggestionJob(userID.(uint), req.Messages)
 	if err != nil {
 		h.logger.Error().Err(err).Msg("failed to start SMS batch suggestion job")
-		respondError(c, http.StatusInternalServerError, err.Error())
+		handleErrorResponse(c, err)
 		return
 	}
 
@@ -422,6 +451,10 @@ func (h *BankNotificationPatternHandler) GetAnalyzeSMSBatchJobStatus(c *gin.Cont
 // @Failure      500 {object} dto.ErrorResponse
 // @Router       /notification-patterns/analyze-statement [post]
 func (h *BankNotificationPatternHandler) AnalyzeStatement(c *gin.Context) {
+	if !h.requireAIProvider(c) {
+		return
+	}
+
 	userID, exists := c.Get("user_id")
 	if !exists {
 		respondError(c, http.StatusUnauthorized, "unauthorized")
@@ -473,7 +506,7 @@ func (h *BankNotificationPatternHandler) AnalyzeStatement(c *gin.Context) {
 	if strings.HasSuffix(lower, ".txt") || strings.HasSuffix(lower, ".csv") {
 		resp, err := h.uc.AnalyzeStatementText(c.Request.Context(), userID.(uint), string(content))
 		if err != nil {
-			respondError(c, http.StatusInternalServerError, "failed to analyze statement")
+			handleErrorResponse(c, err)
 			return
 		}
 		c.JSON(http.StatusOK, resp)
@@ -483,7 +516,7 @@ func (h *BankNotificationPatternHandler) AnalyzeStatement(c *gin.Context) {
 	resp, err := h.uc.AnalyzeStatementDocument(c.Request.Context(), userID.(uint), lower, content)
 	if err != nil {
 		h.logger.Error().Err(err).Str("filename", file.Filename).Msg("failed to analyze statement document with OCR")
-		respondError(c, http.StatusInternalServerError, "failed to analyze statement document")
+		handleErrorResponse(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, resp)

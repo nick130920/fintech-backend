@@ -419,8 +419,8 @@ func (uc *BankNotificationPatternUseCase) ProcessNotificationWebhook(req dto.Pro
 // ProcessSMSWithAI processes an SMS directly using AI without pattern matching.
 // This is the new simplified flow that uses only AI with fallback support.
 func (uc *BankNotificationPatternUseCase) ProcessSMSWithAI(ctx context.Context, userID uint, message string) (*dto.ProcessedNotificationResponse, error) {
-	if uc.aiService == nil {
-		return nil, apperrors.ErrInternal.WithDetails("Servicio de IA no está configurado")
+	if err := uc.requireAIService(); err != nil {
+		return nil, err
 	}
 
 	// 1. Extract transaction data using AI (with automatic fallback)
@@ -845,6 +845,10 @@ func (uc *BankNotificationPatternUseCase) IncrementPendingNotificationAttempt(id
 // ProcessSMSBatchForSuggestions analyzes multiple SMS with pocas llamadas a la IA (lotes), no una por SMS.
 // Solo se usan los SMS más recientes (cap bajo) para no hacer esperar minutos al usuario; el perfil de gasto suele verse bien con esa muestra.
 func (uc *BankNotificationPatternUseCase) ProcessSMSBatchForSuggestions(ctx context.Context, userID uint, messages []dto.SMSMessageForAnalysis) (*dto.AnalyzeSMSBatchResponse, error) {
+	if err := uc.requireAIService(); err != nil {
+		return nil, err
+	}
+
 	const (
 		maxSMSForSuggestions = 100 // muestra reciente; pocas llamadas a la IA
 		smsPerChunk          = 25  // máx. 4 chunks con el cap anterior
@@ -995,8 +999,8 @@ func (uc *BankNotificationPatternUseCase) ProcessSMSBatchWithAI(ctx context.Cont
 		TotalReceived: totalIn,
 	}
 
-	if uc.aiService == nil {
-		return nil, apperrors.ErrInternal.WithDetails("Servicio de IA no está configurado")
+	if err := uc.requireAIService(); err != nil {
+		return nil, err
 	}
 
 	if len(messages) == 0 {
@@ -1094,6 +1098,18 @@ func (uc *BankNotificationPatternUseCase) ProcessSMSBatchWithAI(ctx context.Cont
 
 	out.PatternUsed = uc.aiService.GetUsedService()
 	return out, nil
+}
+
+// HasAIProvider reports whether AI-dependent operations can be served.
+func (uc *BankNotificationPatternUseCase) HasAIProvider() bool {
+	return uc.aiService != nil && uc.aiService.HasProvider()
+}
+
+func (uc *BankNotificationPatternUseCase) requireAIService() error {
+	if !uc.HasAIProvider() {
+		return apperrors.ErrAIServiceUnavailable
+	}
+	return nil
 }
 
 func batchTxnLineToExtraction(line webapi.BatchSMSTransactionLine, raw string) *webapi.TransactionExtraction {
@@ -1235,6 +1251,10 @@ func sanitizeSMSLine(body string, maxRunes int) string {
 
 // AnalyzeStatementText procesa texto plano de extracto y reutiliza sugerencias por lotes.
 func (uc *BankNotificationPatternUseCase) AnalyzeStatementText(ctx context.Context, userID uint, statementText string) (*dto.AnalyzeSMSBatchResponse, error) {
+	if err := uc.requireAIService(); err != nil {
+		return nil, err
+	}
+
 	rawLines := strings.Split(statementText, "\n")
 	messages := make([]dto.SMSMessageForAnalysis, 0, len(rawLines))
 
@@ -1263,6 +1283,9 @@ func (uc *BankNotificationPatternUseCase) AnalyzeStatementText(ctx context.Conte
 
 // AnalyzeStatementDocument procesa PDF/imagen con OCR y reutiliza el pipeline de texto.
 func (uc *BankNotificationPatternUseCase) AnalyzeStatementDocument(ctx context.Context, userID uint, filename string, content []byte) (*dto.AnalyzeSMSBatchResponse, error) {
+	if err := uc.requireAIService(); err != nil {
+		return nil, err
+	}
 	if uc.ocrService == nil {
 		return nil, apperrors.ErrInternal.WithDetails("OCR provider not configured in server")
 	}

@@ -185,6 +185,7 @@ func (h *BankNotificationPatternHandler) GetPatternStatistics(c *gin.Context) {
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 401 {object} dto.ErrorResponse
 // @Failure 500 {object} dto.ErrorResponse
+// @Failure 503 {object} dto.ErrorResponse
 // @Router /notification-patterns/process [post]
 func (h *BankNotificationPatternHandler) ProcessNotification(c *gin.Context) {
 	if !h.requireAIProvider(c) {
@@ -230,6 +231,7 @@ func (h *BankNotificationPatternHandler) ProcessNotification(c *gin.Context) {
 // @Failure      400 {object} dto.ErrorResponse
 // @Failure      401 {object} dto.ErrorResponse
 // @Failure      500 {object} dto.ErrorResponse
+// @Failure      503 {object} dto.ErrorResponse
 // @Router       /notification-patterns/process-sms [post]
 func (h *BankNotificationPatternHandler) ProcessSMSWithAI(c *gin.Context) {
 	if !h.requireAIProvider(c) {
@@ -272,6 +274,7 @@ func (h *BankNotificationPatternHandler) ProcessSMSWithAI(c *gin.Context) {
 // @Failure      400 {object} dto.ErrorResponse
 // @Failure      401 {object} dto.ErrorResponse
 // @Failure      500 {object} dto.ErrorResponse
+// @Failure      503 {object} dto.ErrorResponse
 // @Router       /notification-patterns/analyze-sms-batch [post]
 func (h *BankNotificationPatternHandler) AnalyzeSMSBatch(c *gin.Context) {
 	if !h.requireAIProvider(c) {
@@ -323,6 +326,7 @@ func (h *BankNotificationPatternHandler) AnalyzeSMSBatch(c *gin.Context) {
 // @Failure      400 {object} dto.ErrorResponse
 // @Failure      401 {object} dto.ErrorResponse
 // @Failure      500 {object} dto.ErrorResponse
+// @Failure      503 {object} dto.ErrorResponse
 // @Router       /notification-patterns/process-sms-batch [post]
 func (h *BankNotificationPatternHandler) ProcessSMSBatchWithAI(c *gin.Context) {
 	if !h.requireAIProvider(c) {
@@ -372,6 +376,7 @@ func (h *BankNotificationPatternHandler) ProcessSMSBatchWithAI(c *gin.Context) {
 // @Failure      400 {object} dto.ErrorResponse
 // @Failure      401 {object} dto.ErrorResponse
 // @Failure      500 {object} dto.ErrorResponse
+// @Failure      503 {object} dto.ErrorResponse
 // @Router       /notification-patterns/analyze-sms-batch/jobs [post]
 func (h *BankNotificationPatternHandler) StartAnalyzeSMSBatchJob(c *gin.Context) {
 	if !h.requireAIProvider(c) {
@@ -449,6 +454,7 @@ func (h *BankNotificationPatternHandler) GetAnalyzeSMSBatchJobStatus(c *gin.Cont
 // @Failure      400 {object} dto.ErrorResponse
 // @Failure      401 {object} dto.ErrorResponse
 // @Failure      500 {object} dto.ErrorResponse
+// @Failure      503 {object} dto.ErrorResponse
 // @Router       /notification-patterns/analyze-statement [post]
 func (h *BankNotificationPatternHandler) AnalyzeStatement(c *gin.Context) {
 	if !h.requireAIProvider(c) {

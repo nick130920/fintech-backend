@@ -5033,6 +5033,10 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
       summary: Analyze SMS batch for budget suggestions
       tags:
       - notification-patterns
@@ -5066,6 +5070,10 @@ paths:
             $ref: '#/definitions/dto.ErrorResponse'
         "500":
           description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "503":
+          description: Service Unavailable
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
       security:
@@ -5135,6 +5143,10 @@ paths:
             $ref: '#/definitions/dto.ErrorResponse'
         "500":
           description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "503":
+          description: Service Unavailable
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
       summary: Analyze bank statement for budget suggestions
@@ -5216,6 +5228,10 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Procesar notificación bancaria
@@ -5252,6 +5268,10 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
       summary: Process SMS with AI
       tags:
       - notification-patterns
@@ -5285,6 +5305,10 @@ paths:
             $ref: '#/definitions/dto.ErrorResponse'
         "500":
           description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "503":
+          description: Service Unavailable
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
       summary: Procesar lote de SMS con IA

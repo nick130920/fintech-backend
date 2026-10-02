@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/nick130920/fintech-backend/pkg/apperrors"
 	"go.uber.org/zap"
 )
 
@@ -18,9 +19,9 @@ type AIService interface {
 
 // AIServiceWithFallback wraps multiple AI services and provides fallback capability.
 type AIServiceWithFallback struct {
-	primary   AIService
-	fallback  AIService
-	logger    *zap.Logger
+	primary     AIService
+	fallback    AIService
+	logger      *zap.Logger
 	usedService string
 }
 
@@ -63,9 +64,9 @@ func NewAIServiceWithFallback() (*AIServiceWithFallback, error) {
 		}
 	}
 
-	// If neither service is available, return error
 	if service.primary == nil {
-		return nil, fmt.Errorf("ningún servicio de IA está disponible (configure OPENROUTER_API_KEY o GEMINI_API_KEY)")
+		service.primary = unavailableAIService{}
+		logger.Warn("No AI provider configured; AI-dependent endpoints are unavailable")
 	}
 
 	return service, nil
@@ -144,6 +145,12 @@ func (s *AIServiceWithFallback) ExtractTransactionsFromSMSChunk(ctx context.Cont
 }
 
 // GetUsedService returns the name of the service that was last used successfully.
+// HasProvider reports whether an AI provider is configured.
+func (s *AIServiceWithFallback) HasProvider() bool {
+	_, unavailable := s.primary.(unavailableAIService)
+	return s.primary != nil && !unavailable
+}
+
 func (s *AIServiceWithFallback) GetUsedService() string {
 	if s.usedService == "" {
 		return s.getPrimaryServiceName()
@@ -179,4 +186,18 @@ func (s *AIServiceWithFallback) getFallbackServiceName() string {
 // HasFallback returns true if a fallback service is configured.
 func (s *AIServiceWithFallback) HasFallback() bool {
 	return s.fallback != nil
+}
+
+type unavailableAIService struct{}
+
+func (unavailableAIService) ExtractTransactionFromSMS(context.Context, string) (*TransactionExtraction, error) {
+	return nil, apperrors.ErrAIServiceUnavailable
+}
+
+func (unavailableAIService) ExtractBudgetLinesFromSMSChunk(context.Context, string) (*BatchSMSBudgetResponse, error) {
+	return nil, apperrors.ErrAIServiceUnavailable
+}
+
+func (unavailableAIService) ExtractTransactionsFromSMSChunk(context.Context, string) (*BatchSMSTransactionResponse, error) {
+	return nil, apperrors.ErrAIServiceUnavailable
 }

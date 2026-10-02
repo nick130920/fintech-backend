@@ -18,6 +18,9 @@ const smsBatchJobProcessTimeout = 12 * time.Minute
 
 // StartSMSBatchSuggestionJob encola análisis por lotes; respuesta inmediata (evita conexión HTTP larga).
 func (uc *BankNotificationPatternUseCase) StartSMSBatchSuggestionJob(userID uint, messages []dto.SMSMessageForAnalysis) (*dto.StartSMSBatchJobResponse, error) {
+	if err := uc.requireAIService(); err != nil {
+		return nil, err
+	}
 	if uc.suggestionJobRepo == nil {
 		return nil, fmt.Errorf("suggestion job repository not configured")
 	}

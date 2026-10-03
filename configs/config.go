@@ -72,9 +72,19 @@ type CORSConfig struct {
 
 // UploadConfig representa la configuración de subida de archivos
 type UploadConfig struct {
-	MaxSize      int64    `json:"max_size"`
-	AllowedTypes []string `json:"allowed_types"`
-	Path         string   `json:"path"`
+	MaxSize                      int64    `json:"max_size"`
+	AllowedTypes                 []string `json:"allowed_types"`
+	Path                         string   `json:"path"`
+	ObjectStorageEndpoint        string   `json:"object_storage_endpoint"`
+	ObjectStorageRegion          string   `json:"object_storage_region"`
+	ObjectStorageBucket          string   `json:"object_storage_bucket"`
+	ObjectStorageAccessKeyID     string   `json:"-"`
+	ObjectStorageSecretAccessKey string   `json:"-"`
+	ObjectStorageUseTLS          bool     `json:"object_storage_use_tls"`
+	ObjectStorageForcePathStyle  bool     `json:"object_storage_force_path_style"`
+	SignedURLTTLSeconds          int      `json:"signed_url_ttl_seconds"`
+	objectStorageExplicitlySet   bool
+	settingsErr                  error
 }
 
 // EmailConfig representa la configuración de email
@@ -147,11 +157,7 @@ func Load() *Config {
 			AllowedMethods: getEnvAsStringSlice("CORS_ALLOWED_METHODS", []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}),
 			AllowedHeaders: getEnvAsStringSlice("CORS_ALLOWED_HEADERS", []string{"Origin", "Content-Type", "Accept", "Authorization"}),
 		},
-		Upload: UploadConfig{
-			MaxSize:      getEnvAsInt64("UPLOAD_MAX_SIZE", 10*1024*1024), // 10MB
-			AllowedTypes: getEnvAsStringSlice("UPLOAD_ALLOWED_TYPES", []string{"image/jpeg", "image/png", "image/gif", "application/pdf"}),
-			Path:         getEnv("UPLOAD_PATH", "./uploads"),
-		},
+		Upload: loadUploadConfig(),
 		Email: EmailConfig{
 			SMTPHost:     getEnv("SMTP_HOST", "smtp.gmail.com"),
 			SMTPPort:     getEnvAsInt("SMTP_PORT", 587),
@@ -234,7 +240,21 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("HTTP_MAX_HEADER_BYTES must be greater than zero")
 	}
 
+	if err := c.Upload.Validate(); err != nil {
+		return err
+	}
+
 	if c.IsProduction() {
+		if c.Upload.objectStorageConfigured() {
+			endpoint, _ := url.Parse(strings.TrimSpace(c.Upload.ObjectStorageEndpoint))
+			if endpoint == nil || endpoint.Scheme != "https" {
+				return fmt.Errorf("OBJECT_STORAGE_ENDPOINT must use HTTPS in release mode")
+			}
+			if !c.Upload.ObjectStorageUseTLS {
+				return fmt.Errorf("OBJECT_STORAGE_USE_TLS must be true in release mode")
+			}
+		}
+
 		jwtSecret := strings.TrimSpace(c.JWT.SecretKey)
 		if jwtSecret == "" || jwtSecret == "default-secret-key-change-in-production" || len([]byte(jwtSecret)) < 32 {
 			return fmt.Errorf("JWT_SECRET_KEY must be configured with at least 32 bytes in release mode")
@@ -264,6 +284,147 @@ func (c *Config) Validate() error {
 	}
 
 	return nil
+}
+
+func loadUploadConfig() UploadConfig {
+	const defaultUploadSize = 10 * 1024 * 1024
+	const defaultSignedURLTTLSeconds = 900
+
+	config := UploadConfig{
+		MaxSize:                     defaultUploadSize,
+		AllowedTypes:                []string{"image/jpeg", "image/png", "image/gif", "application/pdf"},
+		Path:                        getEnv("UPLOAD_PATH", "./uploads"),
+		ObjectStorageUseTLS:         true,
+		ObjectStorageForcePathStyle: true,
+		SignedURLTTLSeconds:         defaultSignedURLTTLSeconds,
+	}
+
+	if value, isSet := os.LookupEnv("UPLOAD_MAX_SIZE"); isSet && strings.TrimSpace(value) != "" {
+		parsed, err := strconv.ParseInt(value, 10, 64)
+		if err != nil || parsed <= 0 {
+			config.settingsErr = fmt.Errorf("UPLOAD_MAX_SIZE must be a positive integer")
+		} else {
+			config.MaxSize = parsed
+		}
+	}
+	if value, isSet := os.LookupEnv("UPLOAD_ALLOWED_TYPES"); isSet && strings.TrimSpace(value) != "" {
+		config.AllowedTypes = strings.Split(value, ",")
+	}
+
+	config.ObjectStorageEndpoint, _ = os.LookupEnv("OBJECT_STORAGE_ENDPOINT")
+	config.ObjectStorageRegion, _ = os.LookupEnv("OBJECT_STORAGE_REGION")
+	config.ObjectStorageBucket, _ = os.LookupEnv("OBJECT_STORAGE_BUCKET")
+	config.ObjectStorageAccessKeyID, _ = os.LookupEnv("OBJECT_STORAGE_ACCESS_KEY_ID")
+	config.ObjectStorageSecretAccessKey, _ = os.LookupEnv("OBJECT_STORAGE_SECRET_ACCESS_KEY")
+	config.objectStorageExplicitlySet = objectStorageEnvironmentIsSet()
+
+	if value, isSet := os.LookupEnv("OBJECT_STORAGE_USE_TLS"); isSet {
+		parsed, err := strconv.ParseBool(value)
+		if err != nil {
+			config.settingsErr = fmt.Errorf("OBJECT_STORAGE_USE_TLS must be a boolean")
+		} else {
+			config.ObjectStorageUseTLS = parsed
+		}
+	}
+	if value, isSet := os.LookupEnv("OBJECT_STORAGE_FORCE_PATH_STYLE"); isSet {
+		parsed, err := strconv.ParseBool(value)
+		if err != nil {
+			config.settingsErr = fmt.Errorf("OBJECT_STORAGE_FORCE_PATH_STYLE must be a boolean")
+		} else {
+			config.ObjectStorageForcePathStyle = parsed
+		}
+	}
+	if value, isSet := os.LookupEnv("UPLOAD_SIGNED_URL_TTL_SECONDS"); isSet {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed <= 0 || parsed > 3600 {
+			config.settingsErr = fmt.Errorf("UPLOAD_SIGNED_URL_TTL_SECONDS must be a positive integer no greater than 3600")
+		} else {
+			config.SignedURLTTLSeconds = parsed
+		}
+	}
+
+	return config
+}
+
+// Validate validates upload and optional object storage configuration.
+func (c UploadConfig) Validate() error {
+	if c.settingsErr != nil {
+		return c.settingsErr
+	}
+	if !c.hasValues() {
+		return nil
+	}
+	if c.MaxSize <= 0 {
+		return fmt.Errorf("UPLOAD_MAX_SIZE must be a positive integer")
+	}
+	if len(c.AllowedTypes) == 0 {
+		return fmt.Errorf("UPLOAD_ALLOWED_TYPES must not be empty")
+	}
+	for _, mimeType := range c.AllowedTypes {
+		if strings.TrimSpace(mimeType) == "" {
+			return fmt.Errorf("UPLOAD_ALLOWED_TYPES must not contain empty MIME types")
+		}
+	}
+
+	if !c.objectStorageConfigured() {
+		return nil
+	}
+
+	endpoint, err := url.Parse(strings.TrimSpace(c.ObjectStorageEndpoint))
+	if err != nil || endpoint.Hostname() == "" || (endpoint.Scheme != "http" && endpoint.Scheme != "https") {
+		return fmt.Errorf("OBJECT_STORAGE_ENDPOINT must be a complete HTTP or HTTPS URL")
+	}
+	for _, field := range []struct {
+		name  string
+		value string
+	}{
+		{name: "OBJECT_STORAGE_REGION", value: c.ObjectStorageRegion},
+		{name: "OBJECT_STORAGE_BUCKET", value: c.ObjectStorageBucket},
+		{name: "OBJECT_STORAGE_ACCESS_KEY_ID", value: c.ObjectStorageAccessKeyID},
+		{name: "OBJECT_STORAGE_SECRET_ACCESS_KEY", value: c.ObjectStorageSecretAccessKey},
+	} {
+		if strings.TrimSpace(field.value) == "" {
+			return fmt.Errorf("%s must be configured when object storage is configured", field.name)
+		}
+	}
+	if c.SignedURLTTLSeconds <= 0 || c.SignedURLTTLSeconds > 3600 {
+		return fmt.Errorf("UPLOAD_SIGNED_URL_TTL_SECONDS must be a positive integer no greater than 3600")
+	}
+	return nil
+}
+
+func (c UploadConfig) hasValues() bool {
+	return c.MaxSize != 0 || len(c.AllowedTypes) != 0 || c.Path != "" || c.SignedURLTTLSeconds != 0 || c.objectStorageIsConfigured()
+}
+
+func (c UploadConfig) objectStorageConfigured() bool {
+	return c.objectStorageExplicitlySet || c.objectStorageIsConfigured()
+}
+
+func (c UploadConfig) objectStorageIsConfigured() bool {
+	return strings.TrimSpace(c.ObjectStorageEndpoint) != "" ||
+		strings.TrimSpace(c.ObjectStorageRegion) != "" ||
+		strings.TrimSpace(c.ObjectStorageBucket) != "" ||
+		strings.TrimSpace(c.ObjectStorageAccessKeyID) != "" ||
+		strings.TrimSpace(c.ObjectStorageSecretAccessKey) != ""
+}
+
+func objectStorageEnvironmentIsSet() bool {
+	for _, key := range []string{
+		"OBJECT_STORAGE_ENDPOINT",
+		"OBJECT_STORAGE_REGION",
+		"OBJECT_STORAGE_BUCKET",
+		"OBJECT_STORAGE_ACCESS_KEY_ID",
+		"OBJECT_STORAGE_SECRET_ACCESS_KEY",
+		"OBJECT_STORAGE_USE_TLS",
+		"OBJECT_STORAGE_FORCE_PATH_STYLE",
+		"UPLOAD_SIGNED_URL_TTL_SECONDS",
+	} {
+		if _, isSet := os.LookupEnv(key); isSet {
+			return true
+		}
+	}
+	return false
 }
 
 func loadServerConfig() ServerConfig {

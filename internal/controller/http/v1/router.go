@@ -34,6 +34,7 @@ func NewRouter(
 	tripItineraryUC *usecase.TripItineraryUseCase,
 	tripImportUC *usecase.TripImportUseCase,
 	tripReportUC *usecase.TripReportUseCase,
+	uploadUC *usecase.UploadUseCase,
 	categoryRepo repo.CategoryRepo,
 	exchangeProvider exchange.Provider,
 	jwtManager *auth.JWTManager,
@@ -68,6 +69,7 @@ func NewRouter(
 		tripUC, tripMemberUC, tripBudgetUC, tripExpenseUC, tripBalanceUC,
 		settlementUC, tripItineraryUC, tripImportUC, tripReportUC, logger,
 	)
+	uploadHandler := NewUploadHandler(uploadUC)
 
 	// Public currency endpoints (no auth required, cacheable)
 	v1.GET("/currencies", currencyHandler.GetCurrencies)
@@ -104,6 +106,8 @@ func NewRouter(
 	protectedGroup := v1.Group("/")
 	protectedGroup.Use(authMiddleware.RequireAuth())
 	{
+		protectedGroup.POST("/uploads/presign", uploadHandler.PresignUpload)
+
 		// Rutas de usuarios
 		usersGroup := protectedGroup.Group("/users")
 		{

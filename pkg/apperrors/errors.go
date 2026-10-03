@@ -10,16 +10,17 @@ type ErrorCode string
 
 const (
 	// Códigos de error genéricos
-	ErrCodeInternal       ErrorCode = "INTERNAL_ERROR"
-	ErrCodeInvalidRequest ErrorCode = "INVALID_REQUEST"
-	ErrCodeValidation     ErrorCode = "VALIDATION_ERROR"
-	ErrCodeUnauthorized   ErrorCode = "UNAUTHORIZED"
-	ErrCodeForbidden      ErrorCode = "FORBIDDEN"
-	ErrCodeNotFound       ErrorCode = "NOT_FOUND"
-	ErrCodeConflict       ErrorCode = "CONFLICT"
-	ErrCodeRateLimit      ErrorCode = "RATE_LIMIT_EXCEEDED"
-	ErrCodeTimeout        ErrorCode = "TIMEOUT"
-	ErrCodeAIUnavailable  ErrorCode = "AI_SERVICE_UNAVAILABLE"
+	ErrCodeInternal                 ErrorCode = "INTERNAL_ERROR"
+	ErrCodeInvalidRequest           ErrorCode = "INVALID_REQUEST"
+	ErrCodeValidation               ErrorCode = "VALIDATION_ERROR"
+	ErrCodeUnauthorized             ErrorCode = "UNAUTHORIZED"
+	ErrCodeForbidden                ErrorCode = "FORBIDDEN"
+	ErrCodeNotFound                 ErrorCode = "NOT_FOUND"
+	ErrCodeConflict                 ErrorCode = "CONFLICT"
+	ErrCodeRateLimit                ErrorCode = "RATE_LIMIT_EXCEEDED"
+	ErrCodeTimeout                  ErrorCode = "TIMEOUT"
+	ErrCodeAIUnavailable            ErrorCode = "AI_SERVICE_UNAVAILABLE"
+	ErrCodeObjectStorageUnavailable ErrorCode = "OBJECT_STORAGE_UNAVAILABLE"
 
 	// Códigos específicos de dominio
 	ErrCodeUserNotFound     ErrorCode = "USER_NOT_FOUND"

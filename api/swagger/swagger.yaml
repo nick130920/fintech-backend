@@ -1035,6 +1035,26 @@ definitions:
       total_pages:
         type: integer
     type: object
+  dto.PresignUploadRequest:
+    properties:
+      content_length:
+        type: integer
+      content_type:
+        type: string
+    type: object
+  dto.PresignUploadResponse:
+    properties:
+      expires_in_seconds:
+        type: integer
+      headers:
+        additionalProperties:
+          type: string
+        type: object
+      object_ref:
+        type: string
+      upload_url:
+        type: string
+    type: object
   dto.ProcessNotificationRequest:
     properties:
       bank_code:
@@ -4157,6 +4177,43 @@ paths:
       summary: Actualizar viaje
       tags:
       - trips
+  /api/v1/uploads/presign:
+    post:
+      consumes:
+      - application/json
+      description: Creates a user-scoped, time-limited authorization for an object
+        upload.
+      parameters:
+      - description: Upload properties
+        in: body
+        name: upload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.PresignUploadRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.PresignUploadResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a presigned upload URL
+      tags:
+      - uploads
   /auth/forgot-password:
     post:
       consumes:

@@ -27,6 +27,18 @@ func TestLoadUploadConfigLeavesObjectStorageOptional(t *testing.T) {
 	}
 }
 
+func TestUploadConfigObjectStorageConfiguredDistinguishesAbsentAndConfiguredSettings(t *testing.T) {
+	absent := loadUploadConfigForTest(t, "debug", nil)
+	if absent.Upload.ObjectStorageConfigured() {
+		t.Fatal("ObjectStorageConfigured() = true, want false when no object-storage setting is present")
+	}
+
+	configured := loadUploadConfigForTest(t, "debug", map[string]string{"OBJECT_STORAGE_BUCKET": "uploads"})
+	if !configured.Upload.ObjectStorageConfigured() {
+		t.Fatal("ObjectStorageConfigured() = false, want true when an object-storage setting is present")
+	}
+}
+
 func TestLoadUploadConfigExplicitObjectStorageSettingsRequireCompleteConfiguration(t *testing.T) {
 	tests := []struct {
 		name string

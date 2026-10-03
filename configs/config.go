@@ -397,8 +397,14 @@ func (c UploadConfig) hasValues() bool {
 	return c.MaxSize != 0 || len(c.AllowedTypes) != 0 || c.Path != "" || c.SignedURLTTLSeconds != 0 || c.objectStorageIsConfigured()
 }
 
-func (c UploadConfig) objectStorageConfigured() bool {
+// ObjectStorageConfigured reports whether object storage was configured at all.
+// It distinguishes an absent optional configuration from an incomplete one.
+func (c UploadConfig) ObjectStorageConfigured() bool {
 	return c.objectStorageExplicitlySet || c.objectStorageIsConfigured()
+}
+
+func (c UploadConfig) objectStorageConfigured() bool {
+	return c.ObjectStorageConfigured()
 }
 
 func (c UploadConfig) objectStorageIsConfigured() bool {

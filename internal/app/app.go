@@ -20,6 +20,7 @@ import (
 	docs "github.com/nick130920/fintech-backend/api/swagger"
 	"github.com/nick130920/fintech-backend/configs"
 	v1 "github.com/nick130920/fintech-backend/internal/controller/http/v1"
+	"github.com/nick130920/fintech-backend/internal/storage"
 	"github.com/nick130920/fintech-backend/internal/usecase"
 	"github.com/nick130920/fintech-backend/internal/usecase/repo"
 	"github.com/nick130920/fintech-backend/internal/usecase/webapi"
@@ -122,6 +123,7 @@ type Dependencies struct {
 	BankAccountUC             *usecase.BankAccountUseCase
 	BankNotificationPatternUC *usecase.BankNotificationPatternUseCase
 	EmailGmailUC              *usecase.EmailGmailUseCase
+	UploadUC                  *usecase.UploadUseCase
 
 	// Modulo de viajes (turismo)
 	TripUC          *usecase.TripUseCase
@@ -224,6 +226,15 @@ func initDependencies(cfg *configs.Config, db *gorm.DB, jwtManager *auth.JWTMana
 		log.Fatal().Err(err).Msg("failed to init EmailGmailUseCase")
 	}
 
+	var objectStore storage.ObjectStore
+	if cfg.Upload.ObjectStorageConfigured() {
+		objectStore, err = storage.NewS3ObjectStore(cfg.Upload)
+		if err != nil {
+			log.Fatal().Msg("failed to initialize object storage")
+		}
+	}
+	uploadUC := usecase.NewUploadUseCase(objectStore, cfg.Upload, nil)
+
 	// Modulo de viajes
 	tripRepo := repository.NewTripPostgres(db)
 	tripMemberRepo := repository.NewTripMemberPostgres(db)
@@ -257,6 +268,7 @@ func initDependencies(cfg *configs.Config, db *gorm.DB, jwtManager *auth.JWTMana
 		BankAccountUC:             bankAccountUC,
 		BankNotificationPatternUC: bankNotificationPatternUC,
 		EmailGmailUC:              emailGmailUC,
+		UploadUC:                  uploadUC,
 		TripUC:                    tripUC,
 		TripMemberUC:              tripMemberUC,
 		TripBudgetUC:              tripBudgetUC,
@@ -322,7 +334,7 @@ func initHTTPServer(cfg *configs.Config, deps *Dependencies, log zerolog.Logger)
 		deps.IncomeUC, deps.BankAccountUC, deps.BankNotificationPatternUC, deps.EmailGmailUC,
 		deps.TripUC, deps.TripMemberUC, deps.TripBudgetUC, deps.TripExpenseUC,
 		deps.TripBalanceUC, deps.SettlementUC, deps.TripItineraryUC, deps.TripImportUC, deps.TripReportUC,
-		deps.CategoryRepo, deps.ExchangeProvider, deps.JWTManager, log,
+		deps.UploadUC, deps.CategoryRepo, deps.ExchangeProvider, deps.JWTManager, log,
 	)
 
 	startGmailSyncWorker(deps.EmailGmailUC)

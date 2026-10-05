@@ -100,6 +100,8 @@ func assertVersionedMigrationState(t *testing.T, db *gorm.DB, wantVersion uint) 
 func assertVersionedOnlySchema(t *testing.T, db *gorm.DB) {
 	t.Helper()
 	assertVersionedSchema(t, db, append(versionThreeTables(), "incomes"))
+	assertUsersDefaultAccountCatalog(t, db)
+	assertVersionedForeignKeys(t, db)
 }
 
 func assertVersionThreeSchema(t *testing.T, db *gorm.DB) {
@@ -170,22 +172,23 @@ func assertVersionedSchema(t *testing.T, db *gorm.DB, expectedTables []string) {
 	assertColumn(t, db, "expenses", "paid_by_member_id", true)
 	assertColumn(t, db, "expenses", "budget_id", true)
 	assertColumn(t, db, "expenses", "allocation_id", true)
+}
 
-	var ownerForeignKey bool
-	if err := db.Raw(`
-		SELECT EXISTS (
-			SELECT 1
-			FROM pg_constraint
-			WHERE conname = 'fk_trips_owner'
-				AND conrelid = 'trips'::regclass
-				AND confrelid = 'users'::regclass
-		)
-	`).Row().Scan(&ownerForeignKey); err != nil {
-		t.Fatalf("check trips owner foreign key: %v", err)
-	}
-	if !ownerForeignKey {
-		t.Error("trips owner foreign key is missing")
-	}
+func assertUsersDefaultAccountCatalog(t *testing.T, db *gorm.DB) {
+	t.Helper()
+
+	assertColumn(t, db, "users", "default_account_id", true)
+	assertIndexColumns(t, db, "users", "idx_users_default_account_id", "default_account_id")
+	assertForeignKeySourceCount(t, db, "users", "default_account_id", 0)
+}
+
+func assertVersionedForeignKeys(t *testing.T, db *gorm.DB) {
+	t.Helper()
+
+	assertForeignKey(t, db, "fk_trips_owner", "trips", "owner_user_id", "users", "id", "NO ACTION", "CASCADE")
+	assertForeignKey(t, db, "fk_expenses_trip", "expenses", "trip_id", "trips", "id", "NO ACTION", "SET NULL")
+	assertForeignKey(t, db, "fk_expenses_paid_by", "expenses", "paid_by_member_id", "trip_members", "id", "NO ACTION", "SET NULL")
+	assertForeignKeyMappingCount(t, db, "expenses", "trip_id", "trips", "id", 1)
 }
 
 func stepDownVersionedMigration(t *testing.T, db *gorm.DB, migrationPath string) {
@@ -367,25 +370,122 @@ func assertIncomesIndexes(t *testing.T, db *gorm.DB) {
 
 func assertIncomesForeignKey(t *testing.T, db *gorm.DB) {
 	t.Helper()
+	assertForeignKey(t, db, "fk_incomes_user", "incomes", "user_id", "users", "id", "NO ACTION", "NO ACTION")
+}
 
-	var sourceColumn, targetTable, targetColumn, updateRule, deleteRule string
+func assertIndexColumns(t *testing.T, db *gorm.DB, table, indexName, wantColumns string) {
+	t.Helper()
+
+	var keyColumns, indexColumns, matchingIndexes int
+	var unique, valid, ready, hasPredicate, hasExpressions bool
+	var gotColumns string
 	if err := db.Raw(`
-		SELECT kcu.column_name, kcu2.table_name, kcu2.column_name, rc.update_rule, rc.delete_rule
-		FROM information_schema.referential_constraints rc
-		JOIN information_schema.key_column_usage kcu
-			ON kcu.constraint_catalog = rc.constraint_catalog
-			AND kcu.constraint_schema = rc.constraint_schema
-			AND kcu.constraint_name = rc.constraint_name
-		JOIN information_schema.constraint_column_usage kcu2
-			ON kcu2.constraint_catalog = rc.unique_constraint_catalog
-			AND kcu2.constraint_schema = rc.unique_constraint_schema
-			AND kcu2.constraint_name = rc.unique_constraint_name
-		WHERE rc.constraint_schema = 'public' AND rc.constraint_name = 'fk_incomes_user'
-	`).Row().Scan(&sourceColumn, &targetTable, &targetColumn, &updateRule, &deleteRule); err != nil {
-		t.Fatalf("read incomes foreign key: %v", err)
+		SELECT i.indnkeyatts, i.indnatts, i.indisunique, i.indisvalid, i.indisready,
+			i.indpred IS NOT NULL, i.indexprs IS NOT NULL, COUNT(*) OVER (),
+			string_agg(pg_get_indexdef(i.indexrelid, key.ordinality, true), ',' ORDER BY key.ordinality)
+		FROM pg_index i
+		JOIN pg_class table_class ON table_class.oid = i.indrelid
+		JOIN pg_namespace table_schema ON table_schema.oid = table_class.relnamespace
+		JOIN pg_class index_class ON index_class.oid = i.indexrelid
+		JOIN pg_namespace index_schema ON index_schema.oid = index_class.relnamespace
+		JOIN LATERAL generate_series(1, i.indnkeyatts) AS key(ordinality) ON true
+		WHERE table_schema.nspname = 'public'
+			AND index_schema.nspname = 'public'
+			AND table_class.relname = ?
+			AND index_class.relname = ?
+		GROUP BY i.indexrelid
+	`, table, indexName).Row().Scan(&keyColumns, &indexColumns, &unique, &valid, &ready, &hasPredicate, &hasExpressions, &matchingIndexes, &gotColumns); err != nil {
+		t.Fatalf("read index %s on %s: %v", indexName, table, err)
 	}
-	if sourceColumn != "user_id" || targetTable != "users" || targetColumn != "id" || updateRule != "NO ACTION" || deleteRule != "NO ACTION" {
-		t.Errorf("fk_incomes_user = %s -> %s(%s), update/delete = %s/%s, want user_id -> users(id), NO ACTION/NO ACTION", sourceColumn, targetTable, targetColumn, updateRule, deleteRule)
+	if matchingIndexes != 1 {
+		t.Errorf("index %s on %s has %d matching definitions, want 1", indexName, table, matchingIndexes)
+	}
+	if keyColumns != 1 || indexColumns != 1 || gotColumns != wantColumns {
+		t.Errorf("index %s on %s has %d key columns, %d total columns, columns %s; want exactly %s", indexName, table, keyColumns, indexColumns, gotColumns, wantColumns)
+	}
+	if unique || !valid || !ready || hasPredicate || hasExpressions {
+		t.Errorf("index %s on %s = unique:%t valid:%t ready:%t partial:%t expressions:%t; want unique:false valid:true ready:true partial:false expressions:false", indexName, table, unique, valid, ready, hasPredicate, hasExpressions)
+	}
+}
+
+func assertForeignKey(t *testing.T, db *gorm.DB, name, sourceTable, sourceColumn, targetTable, targetColumn, wantUpdateRule, wantDeleteRule string) {
+	t.Helper()
+
+	var gotSourceColumn, gotTargetTable, gotTargetColumn, gotUpdateRule, gotDeleteRule string
+	var matchingConstraints int
+	if err := db.Raw(`
+		SELECT source_column.attname, target_table.relname, target_column.attname,
+			CASE foreign_key.confupdtype WHEN 'a' THEN 'NO ACTION' WHEN 'c' THEN 'CASCADE' WHEN 'n' THEN 'SET NULL' WHEN 'r' THEN 'RESTRICT' WHEN 'd' THEN 'SET DEFAULT' END,
+			CASE foreign_key.confdeltype WHEN 'a' THEN 'NO ACTION' WHEN 'c' THEN 'CASCADE' WHEN 'n' THEN 'SET NULL' WHEN 'r' THEN 'RESTRICT' WHEN 'd' THEN 'SET DEFAULT' END,
+			COUNT(*) OVER ()
+		FROM pg_constraint foreign_key
+		JOIN pg_class source_table ON source_table.oid = foreign_key.conrelid
+		JOIN pg_namespace source_schema ON source_schema.oid = source_table.relnamespace
+		JOIN pg_class target_table ON target_table.oid = foreign_key.confrelid
+		JOIN pg_namespace target_schema ON target_schema.oid = target_table.relnamespace
+		JOIN LATERAL unnest(foreign_key.conkey) WITH ORDINALITY AS source_key(attnum, ordinality) ON true
+		JOIN LATERAL unnest(foreign_key.confkey) WITH ORDINALITY AS target_key(attnum, ordinality)
+			ON target_key.ordinality = source_key.ordinality
+		JOIN pg_attribute source_column ON source_column.attrelid = foreign_key.conrelid AND source_column.attnum = source_key.attnum
+		JOIN pg_attribute target_column ON target_column.attrelid = foreign_key.confrelid AND target_column.attnum = target_key.attnum
+		WHERE foreign_key.conname = ?
+			AND source_schema.nspname = 'public'
+			AND target_schema.nspname = 'public'
+			AND source_table.relname = ?
+			AND target_table.relname = ?
+			AND array_length(foreign_key.conkey, 1) = 1
+			AND array_length(foreign_key.confkey, 1) = 1
+	`, name, sourceTable, targetTable).Row().Scan(&gotSourceColumn, &gotTargetTable, &gotTargetColumn, &gotUpdateRule, &gotDeleteRule, &matchingConstraints); err != nil {
+		t.Fatalf("read foreign key %s: %v", name, err)
+	}
+	if matchingConstraints != 1 {
+		t.Errorf("foreign key %s has %d matching constraints, want 1", name, matchingConstraints)
+	}
+	if gotSourceColumn != sourceColumn || gotTargetTable != targetTable || gotTargetColumn != targetColumn || gotUpdateRule != wantUpdateRule || gotDeleteRule != wantDeleteRule {
+		t.Errorf("foreign key %s = %s -> %s(%s), update/delete = %s/%s; want %s -> %s(%s), %s/%s", name, gotSourceColumn, gotTargetTable, gotTargetColumn, gotUpdateRule, gotDeleteRule, sourceColumn, targetTable, targetColumn, wantUpdateRule, wantDeleteRule)
+	}
+}
+
+func assertForeignKeySourceCount(t *testing.T, db *gorm.DB, table, column string, want int) {
+	t.Helper()
+
+	assertForeignKeyCount(t, db, table, column, "", "", want)
+}
+
+func assertForeignKeyMappingCount(t *testing.T, db *gorm.DB, sourceTable, sourceColumn, targetTable, targetColumn string, want int) {
+	t.Helper()
+
+	assertForeignKeyCount(t, db, sourceTable, sourceColumn, targetTable, targetColumn, want)
+}
+
+func assertForeignKeyCount(t *testing.T, db *gorm.DB, sourceTable, sourceColumn, targetTable, targetColumn string, want int) {
+	t.Helper()
+
+	var got int
+	if err := db.Raw(`
+		SELECT COUNT(*)
+		FROM pg_constraint foreign_key
+		JOIN pg_class source_table_class ON source_table_class.oid = foreign_key.conrelid
+		JOIN pg_namespace source_schema ON source_schema.oid = source_table_class.relnamespace
+		JOIN pg_class target_table_class ON target_table_class.oid = foreign_key.confrelid
+		JOIN pg_namespace target_schema ON target_schema.oid = target_table_class.relnamespace
+		JOIN pg_attribute source_column_attribute
+			ON source_column_attribute.attrelid = foreign_key.conrelid
+			AND source_column_attribute.attname = ?
+		LEFT JOIN pg_attribute target_column_attribute
+			ON target_column_attribute.attrelid = foreign_key.confrelid
+			AND target_column_attribute.attname = ?
+		WHERE foreign_key.contype = 'f'
+			AND source_schema.nspname = 'public'
+			AND source_table_class.relname = ?
+			AND source_column_attribute.attnum = ANY(foreign_key.conkey)
+			AND (? = '' OR (target_schema.nspname = 'public' AND target_table_class.relname = ?))
+			AND (? = '' OR foreign_key.confkey[array_position(foreign_key.conkey, source_column_attribute.attnum)] = target_column_attribute.attnum)
+	`, sourceColumn, targetColumn, sourceTable, targetTable, targetTable, targetColumn).Row().Scan(&got); err != nil {
+		t.Fatalf("count foreign keys from %s.%s: %v", sourceTable, sourceColumn, err)
+	}
+	if got != want {
+		t.Errorf("foreign key count from %s.%s to %s.%s = %d, want %d", sourceTable, sourceColumn, targetTable, targetColumn, got, want)
 	}
 }
 

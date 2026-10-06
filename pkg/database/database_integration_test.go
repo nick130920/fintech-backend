@@ -216,110 +216,143 @@ func stepDownVersionedMigration(t *testing.T, db *gorm.DB, migrationPath string)
 	}
 }
 
-type incomeColumn struct {
+type catalogColumn struct {
 	name         string
 	dataType     string
 	nullable     bool
 	defaultValue *string
 	maxLength    *int64
+	precision    *int64
+	scale        *int64
+}
+
+type catalogIndex struct {
+	name    string
+	unique  bool
+	columns string
+}
+
+type catalogTable struct {
+	name    string
+	columns []catalogColumn
+	indexes []catalogIndex
 }
 
 func assertIncomesCatalog(t *testing.T, db *gorm.DB) {
 	t.Helper()
 
-	expectedColumns := []incomeColumn{
-		{name: "id", dataType: "bigint", nullable: false, defaultValue: stringPointer("nextval('incomes_id_seq'::regclass)")},
-		{name: "created_at", dataType: "timestamp with time zone", nullable: true},
-		{name: "updated_at", dataType: "timestamp with time zone", nullable: true},
-		{name: "deleted_at", dataType: "timestamp with time zone", nullable: true},
-		{name: "user_id", dataType: "bigint", nullable: false},
-		{name: "amount", dataType: "numeric", nullable: false},
-		{name: "description", dataType: "text", nullable: false},
-		{name: "source", dataType: "text", nullable: false},
-		{name: "date", dataType: "timestamp with time zone", nullable: false},
-		{name: "notes", dataType: "text", nullable: true},
-		{name: "currency", dataType: "character varying", nullable: true, defaultValue: stringPointer("'USD'::character varying"), maxLength: int64Pointer(3)},
-		{name: "is_recurring", dataType: "boolean", nullable: true, defaultValue: stringPointer("false")},
-		{name: "frequency", dataType: "character varying", nullable: true, maxLength: int64Pointer(20)},
-		{name: "next_date", dataType: "timestamp with time zone", nullable: true},
-		{name: "end_date", dataType: "timestamp with time zone", nullable: true},
-		{name: "recurring_until", dataType: "timestamp with time zone", nullable: true},
-		{name: "tax_deducted", dataType: "numeric", nullable: true, defaultValue: stringPointer("0")},
-		{name: "net_amount", dataType: "numeric", nullable: true, defaultValue: stringPointer("0")},
-	}
+	assertTableCatalog(t, db, catalogTable{
+		name: "incomes",
+		columns: []catalogColumn{
+			{name: "id", dataType: "bigint", nullable: false, defaultValue: stringPointer("nextval('incomes_id_seq'::regclass)"), precision: int64Pointer(64), scale: int64Pointer(0)},
+			{name: "created_at", dataType: "timestamp with time zone", nullable: true},
+			{name: "updated_at", dataType: "timestamp with time zone", nullable: true},
+			{name: "deleted_at", dataType: "timestamp with time zone", nullable: true},
+			{name: "user_id", dataType: "bigint", nullable: false, precision: int64Pointer(64), scale: int64Pointer(0)},
+			{name: "amount", dataType: "numeric", nullable: false},
+			{name: "description", dataType: "text", nullable: false},
+			{name: "source", dataType: "text", nullable: false},
+			{name: "date", dataType: "timestamp with time zone", nullable: false},
+			{name: "notes", dataType: "text", nullable: true},
+			{name: "currency", dataType: "character varying", nullable: true, defaultValue: stringPointer("'USD'::character varying"), maxLength: int64Pointer(3)},
+			{name: "is_recurring", dataType: "boolean", nullable: true, defaultValue: stringPointer("false")},
+			{name: "frequency", dataType: "character varying", nullable: true, maxLength: int64Pointer(20)},
+			{name: "next_date", dataType: "timestamp with time zone", nullable: true},
+			{name: "end_date", dataType: "timestamp with time zone", nullable: true},
+			{name: "recurring_until", dataType: "timestamp with time zone", nullable: true},
+			{name: "tax_deducted", dataType: "numeric", nullable: true, defaultValue: stringPointer("0")},
+			{name: "net_amount", dataType: "numeric", nullable: true, defaultValue: stringPointer("0")},
+		},
+		indexes: []catalogIndex{
+			{name: "incomes_pkey", unique: true, columns: "id"},
+			{name: "idx_incomes_deleted_at", unique: false, columns: "deleted_at"},
+			{name: "idx_incomes_user_id", unique: false, columns: "user_id"},
+		},
+	})
+	assertIncomesForeignKey(t, db)
+}
+
+func assertTableCatalog(t *testing.T, db *gorm.DB, table catalogTable) {
+	t.Helper()
 
 	var columnCount int
 	if err := db.Raw(`
 		SELECT COUNT(*)
 		FROM information_schema.columns
-		WHERE table_schema = 'public' AND table_name = 'incomes'
-	`).Row().Scan(&columnCount); err != nil {
-		t.Fatalf("count incomes columns: %v", err)
+		WHERE table_schema = 'public' AND table_name = ?
+	`, table.name).Row().Scan(&columnCount); err != nil {
+		t.Fatalf("count %s columns: %v", table.name, err)
 	}
-	if columnCount != len(expectedColumns) {
-		t.Errorf("incomes column count = %d, want %d", columnCount, len(expectedColumns))
+	if columnCount != len(table.columns) {
+		t.Errorf("%s column count = %d, want %d", table.name, columnCount, len(table.columns))
 	}
-
-	for ordinal, want := range expectedColumns {
-		var gotName, gotType, gotNullable string
-		var gotDefault sql.NullString
-		var gotLength sql.NullInt64
-		var numericPrecision, numericScale sql.NullInt64
-		if err := db.Raw(`
-			SELECT column_name, data_type, is_nullable, column_default,
-				character_maximum_length, numeric_precision, numeric_scale
-			FROM information_schema.columns
-			WHERE table_schema = 'public' AND table_name = 'incomes' AND ordinal_position = ?
-		`, ordinal+1).Row().Scan(&gotName, &gotType, &gotNullable, &gotDefault, &gotLength, &numericPrecision, &numericScale); err != nil {
-			t.Errorf("read incomes column %d: %v", ordinal+1, err)
-			continue
-		}
-		if gotName != want.name || gotType != want.dataType {
-			t.Errorf("incomes column %d = %s %s, want %s %s", ordinal+1, gotName, gotType, want.name, want.dataType)
-		}
-		wantNullable := "NO"
-		if want.nullable {
-			wantNullable = "YES"
-		}
-		if gotNullable != wantNullable {
-			t.Errorf("incomes.%s nullable = %s, want %s", want.name, gotNullable, wantNullable)
-		}
-		if want.defaultValue == nil {
-			if gotDefault.Valid {
-				t.Errorf("incomes.%s default = %q, want NULL", want.name, gotDefault.String)
-			}
-		} else if !gotDefault.Valid || gotDefault.String != *want.defaultValue {
-			t.Errorf("incomes.%s default = %q, want %q", want.name, gotDefault.String, *want.defaultValue)
-		}
-		if want.maxLength == nil {
-			if gotLength.Valid {
-				t.Errorf("incomes.%s maximum length = %d, want NULL", want.name, gotLength.Int64)
-			}
-		} else if !gotLength.Valid || gotLength.Int64 != *want.maxLength {
-			t.Errorf("incomes.%s maximum length = %d, want %d", want.name, gotLength.Int64, *want.maxLength)
-		}
-		if want.dataType == "numeric" && (numericPrecision.Valid || numericScale.Valid) {
-			t.Errorf("incomes.%s numeric precision/scale = %v/%v, want unqualified NUMERIC", want.name, numericPrecision, numericScale)
-		}
+	for ordinal, want := range table.columns {
+		assertCatalogColumn(t, db, table.name, ordinal+1, want)
 	}
-
-	assertIncomesIndexes(t, db)
-	assertIncomesForeignKey(t, db)
+	assertCatalogIndexes(t, db, table)
 }
 
-func assertIncomesIndexes(t *testing.T, db *gorm.DB) {
+func assertCatalogColumn(t *testing.T, db *gorm.DB, table string, ordinal int, want catalogColumn) {
 	t.Helper()
 
-	type incomeIndex struct {
-		name    string
-		unique  bool
-		columns string
+	var gotName, gotType, gotNullable string
+	var gotDefault sql.NullString
+	var gotLength, gotPrecision, gotScale sql.NullInt64
+	if err := db.Raw(`
+		SELECT column_name, data_type, is_nullable, column_default,
+			character_maximum_length, numeric_precision, numeric_scale
+		FROM information_schema.columns
+		WHERE table_schema = 'public' AND table_name = ? AND ordinal_position = ?
+	`, table, ordinal).Row().Scan(&gotName, &gotType, &gotNullable, &gotDefault, &gotLength, &gotPrecision, &gotScale); err != nil {
+		t.Errorf("read %s column %d: %v", table, ordinal, err)
+		return
 	}
-	expected := []incomeIndex{
-		{name: "incomes_pkey", unique: true, columns: "id"},
-		{name: "idx_incomes_deleted_at", unique: false, columns: "deleted_at"},
-		{name: "idx_incomes_user_id", unique: false, columns: "user_id"},
+	if gotName != want.name || gotType != want.dataType {
+		t.Errorf("%s column %d = %s %s, want %s %s", table, ordinal, gotName, gotType, want.name, want.dataType)
 	}
+	wantNullable := "NO"
+	if want.nullable {
+		wantNullable = "YES"
+	}
+	if gotNullable != wantNullable {
+		t.Errorf("%s.%s nullable = %s, want %s", table, want.name, gotNullable, wantNullable)
+	}
+	assertCatalogString(t, table+"."+want.name+" default", gotDefault, want.defaultValue)
+	assertCatalogInt64(t, table+"."+want.name+" maximum length", gotLength, want.maxLength)
+	assertCatalogInt64(t, table+"."+want.name+" numeric precision", gotPrecision, want.precision)
+	assertCatalogInt64(t, table+"."+want.name+" numeric scale", gotScale, want.scale)
+}
+
+func assertCatalogString(t *testing.T, description string, got sql.NullString, want *string) {
+	t.Helper()
+
+	if want == nil {
+		if got.Valid {
+			t.Errorf("%s = %q, want NULL", description, got.String)
+		}
+		return
+	}
+	if !got.Valid || got.String != *want {
+		t.Errorf("%s = %q, want %q", description, got.String, *want)
+	}
+}
+
+func assertCatalogInt64(t *testing.T, description string, got sql.NullInt64, want *int64) {
+	t.Helper()
+
+	if want == nil {
+		if got.Valid {
+			t.Errorf("%s = %d, want NULL", description, got.Int64)
+		}
+		return
+	}
+	if !got.Valid || got.Int64 != *want {
+		t.Errorf("%s = %d, want %d", description, got.Int64, *want)
+	}
+}
+
+func assertCatalogIndexes(t *testing.T, db *gorm.DB, table catalogTable) {
+	t.Helper()
 
 	rows, err := db.Raw(`
 		SELECT index_class.relname, i.indisunique,
@@ -327,30 +360,30 @@ func assertIncomesIndexes(t *testing.T, db *gorm.DB) {
 		FROM pg_index i
 		JOIN pg_class index_class ON index_class.oid = i.indexrelid
 		JOIN LATERAL generate_series(1, i.indnkeyatts) AS key(ordinality) ON true
-		WHERE i.indrelid = 'incomes'::regclass
+		WHERE i.indrelid = (?::text)::regclass
 		GROUP BY index_class.relname, i.indisunique
 		ORDER BY index_class.relname
-	`).Rows()
+	`, "public."+table.name).Rows()
 	if err != nil {
-		t.Fatalf("read incomes indexes: %v", err)
+		t.Fatalf("read %s indexes: %v", table.name, err)
 	}
 	defer rows.Close()
 
-	var actual []incomeIndex
+	var actual []catalogIndex
 	for rows.Next() {
-		var index incomeIndex
+		var index catalogIndex
 		if err := rows.Scan(&index.name, &index.unique, &index.columns); err != nil {
-			t.Fatalf("scan incomes index: %v", err)
+			t.Fatalf("scan %s index: %v", table.name, err)
 		}
 		actual = append(actual, index)
 	}
 	if err := rows.Err(); err != nil {
-		t.Fatalf("iterate incomes indexes: %v", err)
+		t.Fatalf("iterate %s indexes: %v", table.name, err)
 	}
-	if len(actual) != len(expected) {
-		t.Errorf("incomes index count = %d, want %d", len(actual), len(expected))
+	if len(actual) != len(table.indexes) {
+		t.Errorf("%s index count = %d, want %d", table.name, len(actual), len(table.indexes))
 	}
-	for _, want := range expected {
+	for _, want := range table.indexes {
 		found := false
 		for _, got := range actual {
 			if got.name != want.name {
@@ -358,12 +391,12 @@ func assertIncomesIndexes(t *testing.T, db *gorm.DB) {
 			}
 			found = true
 			if got.unique != want.unique || got.columns != want.columns {
-				t.Errorf("incomes index %s = unique:%t columns:%s, want unique:%t columns:%s", got.name, got.unique, got.columns, want.unique, want.columns)
+				t.Errorf("%s index %s = unique:%t columns:%s, want unique:%t columns:%s", table.name, got.name, got.unique, got.columns, want.unique, want.columns)
 			}
 			break
 		}
 		if !found {
-			t.Errorf("incomes index %s is missing", want.name)
+			t.Errorf("%s index %s is missing", table.name, want.name)
 		}
 	}
 }

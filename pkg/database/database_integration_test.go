@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/golang-migrate/migrate/v4"
@@ -24,9 +25,12 @@ func TestVersionedMigrationsFromEmptyDatabase(t *testing.T) {
 		t.Fatalf("run versioned migrations: %v", err)
 	}
 
-	assertVersionedMigrationState(t, db, 4)
+	if !assertVersionedMigrationState(t, db, 5) {
+		return
+	}
 	assertVersionedOnlySchema(t, db)
 	assertIncomesCatalog(t, db)
+	assertPlannedTablesCatalog(t, db)
 }
 
 func TestVersionedMigrationsAfterGORMBootstrap(t *testing.T) {
@@ -36,11 +40,20 @@ func TestVersionedMigrationsAfterGORMBootstrap(t *testing.T) {
 	if err := runMigrations(db); err != nil {
 		t.Fatalf("run GORM bootstrap migrations: %v", err)
 	}
-	if err := runVersionedMigrations(db, integrationMigrationPath(t)); err != nil {
-		t.Fatalf("run versioned migrations after GORM bootstrap: %v", err)
+	err := runVersionedMigrations(db, integrationMigrationPath(t))
+	if err == nil {
+		t.Fatal("run versioned migrations after GORM bootstrap: expected migration 000005 to reject the existing accounts table")
+	}
+	if !strings.Contains(err.Error(), `relation "accounts" already exists`) || !strings.Contains(err.Error(), "SQLSTATE 42P07") {
+		t.Errorf("run versioned migrations after GORM bootstrap error = %q, want accounts already-exists SQLSTATE 42P07 failure", err)
 	}
 
-	assertVersionedMigrationState(t, db, 4)
+	// golang-migrate records the failed 000005 attempt as version 5 and dirty;
+	// it must not be interpreted as a clean application of migration 000005.
+	if !assertDirtyVersionedMigrationState(t, db, 5) {
+		return
+	}
+	// Migrations through 000004 remain covered for the historical GORM bootstrap.
 	assertIncomesCatalog(t, db)
 }
 
@@ -52,9 +65,11 @@ func TestVersionedMigrationsStepDownFromIncomes(t *testing.T) {
 	if err := runVersionedMigrations(db, migrationPath); err != nil {
 		t.Fatalf("run versioned migrations: %v", err)
 	}
-	stepDownVersionedMigration(t, db, migrationPath)
+	stepDownVersionedMigrations(t, db, migrationPath, 2)
 
-	assertVersionedMigrationState(t, db, 3)
+	if !assertVersionedMigrationState(t, db, 3) {
+		return
+	}
 	assertVersionThreeSchema(t, db)
 }
 
@@ -81,7 +96,37 @@ func resetDisposablePublicSchema(t *testing.T, db *gorm.DB) {
 	}
 }
 
-func assertVersionedMigrationState(t *testing.T, db *gorm.DB, wantVersion uint) {
+func assertVersionedMigrationState(t *testing.T, db *gorm.DB, wantVersion uint) bool {
+	t.Helper()
+
+	version, dirty := versionedMigrationState(t, db)
+	if version != wantVersion {
+		t.Errorf("schema_migrations version = %d, want %d", version, wantVersion)
+		return false
+	}
+	if dirty {
+		t.Error("schema_migrations is dirty")
+		return false
+	}
+	return true
+}
+
+func assertDirtyVersionedMigrationState(t *testing.T, db *gorm.DB, wantVersion uint) bool {
+	t.Helper()
+
+	version, dirty := versionedMigrationState(t, db)
+	if version != wantVersion {
+		t.Errorf("schema_migrations version = %d, want failed migration version %d", version, wantVersion)
+		return false
+	}
+	if !dirty {
+		t.Errorf("schema_migrations version %d is clean, want dirty failed-migration state", wantVersion)
+		return false
+	}
+	return true
+}
+
+func versionedMigrationState(t *testing.T, db *gorm.DB) (uint, bool) {
 	t.Helper()
 
 	var version uint
@@ -89,17 +134,12 @@ func assertVersionedMigrationState(t *testing.T, db *gorm.DB, wantVersion uint) 
 	if err := db.Raw("SELECT version, dirty FROM schema_migrations LIMIT 1").Row().Scan(&version, &dirty); err != nil {
 		t.Fatalf("read migration state: %v", err)
 	}
-	if version != wantVersion {
-		t.Errorf("schema_migrations version = %d, want %d", version, wantVersion)
-	}
-	if dirty {
-		t.Error("schema_migrations is dirty")
-	}
+	return version, dirty
 }
 
 func assertVersionedOnlySchema(t *testing.T, db *gorm.DB) {
 	t.Helper()
-	assertVersionedSchema(t, db, append(versionThreeTables(), "incomes"))
+	assertVersionedSchema(t, db, append(append(versionThreeTables(), "incomes"), plannedTables()...))
 	assertUsersDefaultAccountCatalog(t, db)
 	assertVersionedForeignKeys(t, db)
 }
@@ -114,6 +154,20 @@ func assertVersionThreeSchema(t *testing.T, db *gorm.DB) {
 	}
 	if incomesExists {
 		t.Error("incomes remains after stepping down to version 3")
+	}
+}
+
+func plannedTables() []string {
+	return []string{
+		"accounts",
+		"bank_accounts",
+		"bank_notification_patterns",
+		"transactions",
+		"budget_suggestion_slug_stats",
+		"budget_suggestion_jobs",
+		"pending_notifications",
+		"user_email_connections",
+		"processed_email_messages",
 	}
 }
 
@@ -191,7 +245,7 @@ func assertVersionedForeignKeys(t *testing.T, db *gorm.DB) {
 	assertForeignKeyMappingCount(t, db, "expenses", "trip_id", "trips", "id", 1)
 }
 
-func stepDownVersionedMigration(t *testing.T, db *gorm.DB, migrationPath string) {
+func stepDownVersionedMigrations(t *testing.T, db *gorm.DB, migrationPath string, steps int) {
 	t.Helper()
 
 	sqlDB, err := db.DB()
@@ -211,8 +265,8 @@ func stepDownVersionedMigration(t *testing.T, db *gorm.DB, migrationPath string)
 		t.Fatalf("open versioned migrations: %v", err)
 	}
 
-	if err := migration.Steps(-1); err != nil && !errors.Is(err, migrate.ErrNoChange) {
-		t.Fatalf("step down versioned migration: %v", err)
+	if err := migration.Steps(-steps); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+		t.Fatalf("step down %d versioned migrations: %v", steps, err)
 	}
 }
 
@@ -228,8 +282,19 @@ type catalogColumn struct {
 
 type catalogIndex struct {
 	name    string
+	primary bool
 	unique  bool
 	columns string
+}
+
+type catalogIndexResult struct {
+	catalogIndex
+	keyColumns     int
+	indexColumns   int
+	valid          bool
+	ready          bool
+	hasPredicate   bool
+	hasExpressions bool
 }
 
 type catalogTable struct {
@@ -263,11 +328,7 @@ func assertIncomesCatalog(t *testing.T, db *gorm.DB) {
 			{name: "tax_deducted", dataType: "numeric", nullable: true, defaultValue: stringPointer("0")},
 			{name: "net_amount", dataType: "numeric", nullable: true, defaultValue: stringPointer("0")},
 		},
-		indexes: []catalogIndex{
-			{name: "incomes_pkey", unique: true, columns: "id"},
-			{name: "idx_incomes_deleted_at", unique: false, columns: "deleted_at"},
-			{name: "idx_incomes_user_id", unique: false, columns: "user_id"},
-		},
+		indexes: indexes("incomes", "idx_incomes_deleted_at:deleted_at", "idx_incomes_user_id:user_id"),
 	})
 	assertIncomesForeignKey(t, db)
 }
@@ -285,7 +346,9 @@ func assertTableCatalog(t *testing.T, db *gorm.DB, table catalogTable) {
 	}
 	if columnCount != len(table.columns) {
 		t.Errorf("%s column count = %d, want %d", table.name, columnCount, len(table.columns))
+		return
 	}
+
 	for ordinal, want := range table.columns {
 		assertCatalogColumn(t, db, table.name, ordinal+1, want)
 	}
@@ -319,8 +382,8 @@ func assertCatalogColumn(t *testing.T, db *gorm.DB, table string, ordinal int, w
 	}
 	assertCatalogString(t, table+"."+want.name+" default", gotDefault, want.defaultValue)
 	assertCatalogInt64(t, table+"."+want.name+" maximum length", gotLength, want.maxLength)
-	assertCatalogInt64(t, table+"."+want.name+" numeric precision", gotPrecision, want.precision)
-	assertCatalogInt64(t, table+"."+want.name+" numeric scale", gotScale, want.scale)
+	assertCatalogInt64(t, table+"."+want.name+" numeric precision", gotPrecision, catalogNumericPrecision(want))
+	assertCatalogInt64(t, table+"."+want.name+" numeric scale", gotScale, catalogNumericScale(want))
 }
 
 func assertCatalogString(t *testing.T, description string, got sql.NullString, want *string) {
@@ -335,6 +398,20 @@ func assertCatalogString(t *testing.T, description string, got sql.NullString, w
 	if !got.Valid || got.String != *want {
 		t.Errorf("%s = %q, want %q", description, got.String, *want)
 	}
+}
+
+func catalogNumericPrecision(column catalogColumn) *int64 {
+	if column.dataType == "bigint" && column.precision == nil {
+		return int64Pointer(64)
+	}
+	return column.precision
+}
+
+func catalogNumericScale(column catalogColumn) *int64 {
+	if column.dataType == "bigint" && column.scale == nil {
+		return int64Pointer(0)
+	}
+	return column.scale
 }
 
 func assertCatalogInt64(t *testing.T, description string, got sql.NullInt64, want *int64) {
@@ -355,13 +432,16 @@ func assertCatalogIndexes(t *testing.T, db *gorm.DB, table catalogTable) {
 	t.Helper()
 
 	rows, err := db.Raw(`
-		SELECT index_class.relname, i.indisunique,
+		SELECT index_class.relname, i.indisprimary, i.indisunique,
+			i.indnkeyatts, i.indnatts, i.indisvalid, i.indisready,
+			i.indpred IS NOT NULL, i.indexprs IS NOT NULL,
 			string_agg(pg_get_indexdef(i.indexrelid, key.ordinality, true), ',' ORDER BY key.ordinality)
 		FROM pg_index i
 		JOIN pg_class index_class ON index_class.oid = i.indexrelid
 		JOIN LATERAL generate_series(1, i.indnkeyatts) AS key(ordinality) ON true
 		WHERE i.indrelid = (?::text)::regclass
-		GROUP BY index_class.relname, i.indisunique
+		GROUP BY i.indexrelid, index_class.relname, i.indisprimary, i.indisunique,
+			i.indnkeyatts, i.indnatts, i.indisvalid, i.indisready, i.indpred, i.indexprs
 		ORDER BY index_class.relname
 	`, "public."+table.name).Rows()
 	if err != nil {
@@ -369,10 +449,14 @@ func assertCatalogIndexes(t *testing.T, db *gorm.DB, table catalogTable) {
 	}
 	defer rows.Close()
 
-	var actual []catalogIndex
+	var actual []catalogIndexResult
 	for rows.Next() {
-		var index catalogIndex
-		if err := rows.Scan(&index.name, &index.unique, &index.columns); err != nil {
+		var index catalogIndexResult
+		if err := rows.Scan(
+			&index.name, &index.primary, &index.unique,
+			&index.keyColumns, &index.indexColumns, &index.valid, &index.ready,
+			&index.hasPredicate, &index.hasExpressions, &index.columns,
+		); err != nil {
 			t.Fatalf("scan %s index: %v", table.name, err)
 		}
 		actual = append(actual, index)
@@ -390,8 +474,11 @@ func assertCatalogIndexes(t *testing.T, db *gorm.DB, table catalogTable) {
 				continue
 			}
 			found = true
-			if got.unique != want.unique || got.columns != want.columns {
-				t.Errorf("%s index %s = unique:%t columns:%s, want unique:%t columns:%s", table.name, got.name, got.unique, got.columns, want.unique, want.columns)
+			wantColumnCount := strings.Count(want.columns, ",") + 1
+			if got.primary != want.primary || got.unique != want.unique || got.columns != want.columns ||
+				got.keyColumns != wantColumnCount || got.indexColumns != wantColumnCount ||
+				!got.valid || !got.ready || got.hasPredicate || got.hasExpressions {
+				t.Errorf("%s index %s = primary:%t unique:%t columns:%s key/total:%d/%d valid:%t ready:%t partial:%t expressions:%t; want primary:%t unique:%t columns:%s key/total:%d/%d valid:true ready:true partial:false expressions:false", table.name, got.name, got.primary, got.unique, got.columns, got.keyColumns, got.indexColumns, got.valid, got.ready, got.hasPredicate, got.hasExpressions, want.primary, want.unique, want.columns, wantColumnCount, wantColumnCount)
 			}
 			break
 		}
@@ -399,6 +486,255 @@ func assertCatalogIndexes(t *testing.T, db *gorm.DB, table catalogTable) {
 			t.Errorf("%s index %s is missing", table.name, want.name)
 		}
 	}
+}
+
+func assertPlannedTablesCatalog(t *testing.T, db *gorm.DB) {
+	t.Helper()
+
+	for _, table := range plannedTablesCatalog() {
+		assertTableCatalog(t, db, table)
+	}
+}
+
+func plannedTablesCatalog() []catalogTable {
+	return []catalogTable{
+		{
+			name: "accounts",
+			columns: append(auditColumns("accounts"), []catalogColumn{
+				{name: "user_id", dataType: "bigint", nullable: false},
+				{name: "name", dataType: "text", nullable: false},
+				{name: "description", dataType: "text", nullable: true},
+				{name: "type", dataType: "text", nullable: false},
+				decimalColumn("balance", true, "0", 15, 2),
+				decimalColumn("initial_balance", true, "0", 15, 2),
+				decimalColumn("credit_limit", true, "0", 15, 2),
+				{name: "bank_name", dataType: "text", nullable: true},
+				{name: "account_number", dataType: "text", nullable: true},
+				{name: "is_active", dataType: "boolean", nullable: true, defaultValue: stringPointer("true")},
+				varcharColumn("currency", true, "'USD'::character varying", 3),
+				{name: "color", dataType: "text", nullable: true, defaultValue: stringPointer("'#007bff'::text")},
+				{name: "icon", dataType: "text", nullable: true},
+				{name: "low_balance_alert", dataType: "boolean", nullable: true, defaultValue: stringPointer("false")},
+				decimalColumn("low_balance_limit", true, "0", 15, 2),
+			}...),
+			indexes: indexes("accounts", "idx_accounts_deleted_at:deleted_at", "idx_accounts_user_id:user_id"),
+		},
+		{
+			name: "bank_accounts",
+			columns: append(auditColumns("bank_accounts"), []catalogColumn{
+				{name: "user_id", dataType: "bigint", nullable: false},
+				{name: "bank_name", dataType: "text", nullable: false},
+				{name: "bank_code", dataType: "text", nullable: true},
+				{name: "branch_code", dataType: "text", nullable: true},
+				{name: "branch_name", dataType: "text", nullable: true},
+				{name: "account_number", dataType: "text", nullable: true},
+				{name: "account_number_mask", dataType: "text", nullable: false},
+				{name: "account_alias", dataType: "text", nullable: false},
+				{name: "type", dataType: "text", nullable: false},
+				{name: "color", dataType: "text", nullable: true, defaultValue: stringPointer("'#007bff'::text")},
+				{name: "icon", dataType: "text", nullable: true, defaultValue: stringPointer("'credit_card'::text")},
+				{name: "is_active", dataType: "boolean", nullable: true, defaultValue: stringPointer("true")},
+				{name: "is_notification_enabled", dataType: "boolean", nullable: true, defaultValue: stringPointer("true")},
+				varcharColumn("currency", true, "'USD'::character varying", 3),
+				decimalColumn("last_balance", true, "", 15, 2),
+				{name: "last_balance_update", dataType: "timestamp with time zone", nullable: true},
+				{name: "notification_phone", dataType: "text", nullable: true},
+				{name: "notification_email", dataType: "text", nullable: true},
+				decimalColumn("min_amount_to_notify", true, "0", 15, 2),
+				{name: "notes", dataType: "text", nullable: true},
+				{name: "external_id", dataType: "text", nullable: true},
+				{name: "imported_from", dataType: "text", nullable: true},
+			}...),
+			indexes: indexes("bank_accounts", "idx_bank_accounts_deleted_at:deleted_at", "idx_bank_accounts_user_id:user_id"),
+		},
+		{
+			name: "bank_notification_patterns",
+			columns: append(auditColumns("bank_notification_patterns"), []catalogColumn{
+				{name: "user_id", dataType: "bigint", nullable: false},
+				{name: "bank_account_id", dataType: "bigint", nullable: false},
+				{name: "name", dataType: "text", nullable: false},
+				{name: "description", dataType: "text", nullable: true},
+				{name: "channel", dataType: "text", nullable: false},
+				{name: "status", dataType: "text", nullable: true, defaultValue: stringPointer("'active'::text")},
+				{name: "message_pattern", dataType: "text", nullable: true},
+				{name: "example_message", dataType: "text", nullable: true},
+				{name: "keywords_trigger", dataType: "text", nullable: true},
+				{name: "keywords_exclude", dataType: "text", nullable: true},
+				{name: "amount_regex", dataType: "text", nullable: true},
+				{name: "date_regex", dataType: "text", nullable: true},
+				{name: "description_regex", dataType: "text", nullable: true},
+				{name: "merchant_regex", dataType: "text", nullable: true},
+				{name: "requires_validation", dataType: "boolean", nullable: true, defaultValue: stringPointer("true")},
+				decimalColumn("confidence_threshold", true, "0.8", 3, 2),
+				{name: "auto_approve", dataType: "boolean", nullable: true, defaultValue: stringPointer("false")},
+				{name: "match_count", dataType: "bigint", nullable: true, defaultValue: stringPointer("0")},
+				{name: "success_count", dataType: "bigint", nullable: true, defaultValue: stringPointer("0")},
+				decimalColumn("success_rate", true, "0", 5, 2),
+				{name: "last_matched_at", dataType: "timestamp with time zone", nullable: true},
+				{name: "priority", dataType: "bigint", nullable: true, defaultValue: stringPointer("100")},
+				{name: "is_default", dataType: "boolean", nullable: true, defaultValue: stringPointer("false")},
+				{name: "tags", dataType: "text", nullable: true},
+				{name: "metadata", dataType: "text", nullable: true},
+			}...),
+			indexes: indexes("bank_notification_patterns", "idx_bank_notification_patterns_deleted_at:deleted_at", "idx_bank_notification_patterns_user_id:user_id", "idx_bank_notification_patterns_bank_account_id:bank_account_id"),
+		},
+		{
+			name: "transactions",
+			columns: append(auditColumns("transactions"), []catalogColumn{
+				{name: "user_id", dataType: "bigint", nullable: false},
+				{name: "account_id", dataType: "bigint", nullable: false},
+				{name: "bank_account_id", dataType: "bigint", nullable: true},
+				{name: "to_account_id", dataType: "bigint", nullable: true},
+				{name: "type", dataType: "text", nullable: false},
+				{name: "status", dataType: "text", nullable: true, defaultValue: stringPointer("'completed'::text")},
+				decimalColumn("amount", false, "", 15, 2),
+				{name: "description", dataType: "text", nullable: false},
+				{name: "category_id", dataType: "bigint", nullable: true},
+				{name: "category_name", dataType: "text", nullable: true},
+				{name: "tags", dataType: "text", nullable: true},
+				{name: "transaction_date", dataType: "timestamp with time zone", nullable: false},
+				{name: "location", dataType: "text", nullable: true},
+				{name: "reference", dataType: "text", nullable: true},
+				{name: "notes", dataType: "text", nullable: true},
+				{name: "recurring", dataType: "boolean", nullable: true, defaultValue: stringPointer("false")},
+				{name: "recurring_id", dataType: "bigint", nullable: true},
+				{name: "currency", dataType: "text", nullable: true, defaultValue: stringPointer("'USD'::text")},
+				decimalColumn("exchange_rate", true, "1", 10, 6),
+				{name: "source", dataType: "text", nullable: true, defaultValue: stringPointer("'manual'::text")},
+				{name: "validation_status", dataType: "text", nullable: true, defaultValue: stringPointer("'auto'::text")},
+				{name: "raw_notification", dataType: "text", nullable: true},
+				decimalColumn("ai_confidence", true, "0", 3, 2),
+				{name: "pattern_id", dataType: "bigint", nullable: true},
+				{name: "imported_from", dataType: "text", nullable: true},
+				{name: "external_id", dataType: "text", nullable: true},
+			}...),
+			indexes: indexes("transactions", "idx_transactions_deleted_at:deleted_at", "idx_transactions_user_id:user_id", "idx_transactions_account_id:account_id", "idx_transactions_bank_account_id:bank_account_id", "idx_transactions_to_account_id:to_account_id", "idx_transactions_category_id:category_id", "idx_transactions_transaction_date:transaction_date", "idx_transactions_recurring_id:recurring_id", "idx_transactions_pattern_id:pattern_id"),
+		},
+		{
+			name: "budget_suggestion_slug_stats",
+			columns: []catalogColumn{
+				bigserialID("budget_suggestion_slug_stats"),
+				{name: "stat_date", dataType: "date", nullable: false},
+				varcharColumn("category_slug", false, "", 32),
+				{name: "hit_count", dataType: "bigint", nullable: false, defaultValue: stringPointer("0")},
+				{name: "created_at", dataType: "timestamp with time zone", nullable: true},
+				{name: "updated_at", dataType: "timestamp with time zone", nullable: true},
+			},
+			indexes: indexes("budget_suggestion_slug_stats", "unique:uq_budget_slug_stat:stat_date,category_slug"),
+		},
+		{
+			name: "budget_suggestion_jobs",
+			columns: []catalogColumn{
+				{name: "id", dataType: "uuid", nullable: false},
+				{name: "user_id", dataType: "bigint", nullable: false},
+				varcharColumn("status", false, "", 20),
+				{name: "messages_json", dataType: "text", nullable: false},
+				{name: "result_json", dataType: "text", nullable: true},
+				{name: "error_message", dataType: "text", nullable: true},
+				{name: "created_at", dataType: "timestamp with time zone", nullable: true},
+				{name: "updated_at", dataType: "timestamp with time zone", nullable: true},
+			},
+			indexes: indexes("budget_suggestion_jobs", "idx_budget_suggestion_jobs_user_id:user_id", "idx_budget_suggestion_jobs_status:status"),
+		},
+		{
+			name: "pending_notifications",
+			columns: append(auditColumns("pending_notifications"), []catalogColumn{
+				{name: "user_id", dataType: "bigint", nullable: false},
+				{name: "raw_message", dataType: "text", nullable: false},
+				varcharColumn("channel", false, "'sms'::character varying", 20),
+				varcharColumn("phone", true, "", 30),
+				{name: "received_at", dataType: "timestamp with time zone", nullable: true},
+				{name: "attempts", dataType: "bigint", nullable: true, defaultValue: stringPointer("0")},
+				{name: "last_error", dataType: "text", nullable: true},
+				varcharColumn("status", true, "'pending'::character varying", 20),
+			}...),
+			indexes: indexes("pending_notifications", "idx_pending_notifications_deleted_at:deleted_at", "idx_pending_notifications_user_id:user_id", "idx_pending_notifications_received_at:received_at", "idx_pending_notifications_status:status"),
+		},
+		{
+			name: "user_email_connections",
+			columns: append(auditColumns("user_email_connections"), []catalogColumn{
+				{name: "user_id", dataType: "bigint", nullable: false},
+				varcharColumn("provider", false, "", 32),
+				varcharColumn("email_address", false, "", 255),
+				{name: "refresh_token_enc", dataType: "text", nullable: true},
+				{name: "access_token_enc", dataType: "text", nullable: true},
+				{name: "access_expires_at", dataType: "timestamp with time zone", nullable: true},
+				varcharColumn("last_history_id", true, "", 64),
+				{name: "last_synced_at", dataType: "timestamp with time zone", nullable: true},
+				{name: "revoked_at", dataType: "timestamp with time zone", nullable: true},
+			}...),
+			indexes: indexes("user_email_connections", "idx_user_email_connections_deleted_at:deleted_at", "unique:idx_user_email_provider:user_id,provider"),
+		},
+		{
+			name: "processed_email_messages",
+			columns: []catalogColumn{
+				bigserialID("processed_email_messages"),
+				{name: "created_at", dataType: "timestamp with time zone", nullable: true},
+				{name: "user_id", dataType: "bigint", nullable: false},
+				varcharColumn("provider", false, "", 32),
+				varcharColumn("provider_message_id", false, "", 128),
+			},
+			indexes: indexes("processed_email_messages", "unique:idx_proc_email_dedupe:user_id,provider,provider_message_id"),
+		},
+	}
+}
+
+func auditColumns(table string) []catalogColumn {
+	return []catalogColumn{
+		bigserialID(table),
+		{name: "created_at", dataType: "timestamp with time zone", nullable: true},
+		{name: "updated_at", dataType: "timestamp with time zone", nullable: true},
+		{name: "deleted_at", dataType: "timestamp with time zone", nullable: true},
+	}
+}
+
+func bigserialID(table string) catalogColumn {
+	return catalogColumn{
+		name:         "id",
+		dataType:     "bigint",
+		nullable:     false,
+		defaultValue: stringPointer("nextval('" + table + "_id_seq'::regclass)"),
+		precision:    int64Pointer(64),
+		scale:        int64Pointer(0),
+	}
+}
+
+func varcharColumn(name string, nullable bool, defaultValue string, length int64) catalogColumn {
+	column := catalogColumn{name: name, dataType: "character varying", nullable: nullable, maxLength: int64Pointer(length)}
+	if defaultValue != "" {
+		column.defaultValue = stringPointer(defaultValue)
+	}
+	return column
+}
+
+func decimalColumn(name string, nullable bool, defaultValue string, precision, scale int64) catalogColumn {
+	column := catalogColumn{name: name, dataType: "numeric", nullable: nullable, precision: int64Pointer(precision), scale: int64Pointer(scale)}
+	if defaultValue != "" {
+		column.defaultValue = stringPointer(defaultValue)
+	}
+	return column
+}
+
+func indexes(table string, specifications ...string) []catalogIndex {
+	result := []catalogIndex{{name: table + "_pkey", primary: true, unique: true, columns: "id"}}
+	for _, specification := range specifications {
+		unique := false
+		if len(specification) > len("unique:") && specification[:len("unique:")] == "unique:" {
+			unique = true
+			specification = specification[len("unique:"):]
+		}
+		separator := 0
+		for i, character := range specification {
+			if character == ':' {
+				separator = i
+				break
+			}
+		}
+		result = append(result, catalogIndex{
+			name: specification[:separator], unique: unique, columns: specification[separator+1:],
+		})
+	}
+	return result
 }
 
 func assertIncomesForeignKey(t *testing.T, db *gorm.DB) {

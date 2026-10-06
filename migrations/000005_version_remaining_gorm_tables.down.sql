@@ -1,0 +1,9 @@
+DROP TABLE processed_email_messages;
+DROP TABLE user_email_connections;
+DROP TABLE pending_notifications;
+DROP TABLE budget_suggestion_jobs;
+DROP TABLE budget_suggestion_slug_stats;
+DROP TABLE transactions;
+DROP TABLE bank_notification_patterns;
+DROP TABLE bank_accounts;
+DROP TABLE accounts;

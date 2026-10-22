@@ -18,6 +18,8 @@ const (
 	openRouterBaseURL = "https://openrouter.ai/api/v1/chat/completions"
 	// Modelo gratuito de Mistral
 	defaultModel = "openrouter/free"
+	// SMS budget extraction must use a ZDR-eligible route, never the free router.
+	smsBudgetModel = "deepseek/deepseek-v4.1-flash"
 	// Lotes grandes pueden tardar >2 min en generar JSON (tokens + lectura del body).
 	openRouterBatchHTTPTimeout = 5 * time.Minute
 )
@@ -32,10 +34,16 @@ type OpenRouterService struct {
 
 // OpenRouterRequest represents the request body for OpenRouter API.
 type OpenRouterRequest struct {
-	Model          string          `json:"model"`
-	Messages       []OpenRouterMsg `json:"messages"`
-	Temperature    float32         `json:"temperature,omitempty"`
-	ResponseFormat *ResponseFormat `json:"response_format,omitempty"`
+	Model          string              `json:"model"`
+	Messages       []OpenRouterMsg     `json:"messages"`
+	Temperature    float32             `json:"temperature,omitempty"`
+	ResponseFormat *ResponseFormat     `json:"response_format,omitempty"`
+	Provider       *OpenRouterProvider `json:"provider,omitempty"`
+}
+
+// OpenRouterProvider restricts routing for the strict SMS budget path.
+type OpenRouterProvider struct {
+	ZDR bool `json:"zdr"`
 }
 
 // OpenRouterMsg represents a message in the OpenRouter API.
@@ -142,14 +150,15 @@ func (s *OpenRouterService) ExtractTransactionFromSMS(ctx context.Context, smsCo
 // ExtractBudgetLinesFromSMSChunk analyzes many numbered SMS in a single IA request.
 func (s *OpenRouterService) ExtractBudgetLinesFromSMSChunk(ctx context.Context, numberedSMSBlock string) (*BatchSMSBudgetResponse, error) {
 	prompt := s.buildBatchBudgetPrompt(numberedSMSBlock)
-	response, err := s.callOpenRouterBatch(ctx, prompt)
+	response, err := s.callOpenRouterBatchWithPrivacy(ctx, prompt, true)
 	if err != nil {
-		return nil, fmt.Errorf("OpenRouter batch: %w", err)
+		return nil, err
 	}
 	var out BatchSMSBudgetResponse
 	if err := json.Unmarshal([]byte(response), &out); err != nil {
-		s.logger.Error("Error parsing batch budget response", zap.String("response", response), zap.Error(err))
-		return nil, fmt.Errorf("parse batch JSON: %w", err)
+		// Decoder errors can contain model-controlled field names or values.
+		s.logger.Error("Error parsing batch budget response", zap.String("error_class", "invalid_batch_json"))
+		return nil, newBudgetBatchError("parse batch JSON: invalid batch response", nil)
 	}
 	return &out, nil
 }
@@ -221,6 +230,22 @@ JSON solo:
 }
 
 func (s *OpenRouterService) callOpenRouterBatch(ctx context.Context, prompt string) (string, error) {
+	return s.callOpenRouterBatchWithPrivacy(ctx, prompt, false)
+}
+
+func (s *OpenRouterService) callOpenRouterBatchWithPrivacy(ctx context.Context, prompt string, budgetOnly bool) (string, error) {
+	// Keep transaction-creation batch behavior unchanged. Budget failures alone
+	// discard untrusted causes, retaining only context sentinel identity.
+	failure := func(class string, err error) error {
+		if budgetOnly {
+			return newBudgetBatchError(class, err)
+		}
+		return err
+	}
+	safeFailure := func(format string, args ...any) error {
+		err := fmt.Errorf(format, args...)
+		return failure(err.Error(), err)
+	}
 	reqBody := OpenRouterRequest{
 		Model: defaultModel,
 		Messages: []OpenRouterMsg{
@@ -231,12 +256,17 @@ func (s *OpenRouterService) callOpenRouterBatch(ctx context.Context, prompt stri
 			Type: "json_object",
 		},
 	}
+	if budgetOnly {
+		reqBody.Model = smsBudgetModel
+		reqBody.Provider = &OpenRouterProvider{ZDR: true}
+	}
+	// Marshal once so every retry preserves the mandatory budget routing policy.
 	jsonBody, err := json.Marshal(reqBody)
 	if err != nil {
-		return "", err
+		return "", failure("budget batch: request encoding failure", err)
 	}
 
-	// Modelo gratuito: 429 frecuente; reintentos con backoff antes de delegar al fallback.
+	// Preserve the existing retry schedule; budget failures never downgrade routing.
 	backoffs := []time.Duration{0, 3 * time.Second, 8 * time.Second, 15 * time.Second}
 	var lastErr error
 
@@ -244,14 +274,14 @@ func (s *OpenRouterService) callOpenRouterBatch(ctx context.Context, prompt stri
 		if wait > 0 {
 			select {
 			case <-ctx.Done():
-				return "", ctx.Err()
+				return "", failure("budget batch: context ended", ctx.Err())
 			case <-time.After(wait):
 			}
 		}
 
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, openRouterBaseURL, bytes.NewReader(jsonBody))
 		if err != nil {
-			return "", err
+			return "", failure("budget batch: request creation failure", err)
 		}
 		req.Header.Set("Authorization", "Bearer "+s.apiKey)
 		req.Header.Set("Content-Type", "application/json")
@@ -260,14 +290,14 @@ func (s *OpenRouterService) callOpenRouterBatch(ctx context.Context, prompt stri
 
 		resp, err := s.batchClient.Do(req)
 		if err != nil {
-			lastErr = err
+			lastErr = failure("budget batch: transport failure", err)
 			continue
 		}
 
 		body, readErr := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
 		if readErr != nil {
-			lastErr = readErr
+			lastErr = failure("budget batch: response body read failure", readErr)
 			continue
 		}
 
@@ -276,17 +306,17 @@ func (s *OpenRouterService) callOpenRouterBatch(ctx context.Context, prompt stri
 				zap.Int("intento", attempt+1),
 				zap.Int("max_intentos", len(backoffs)),
 			)
-			lastErr = fmt.Errorf("status 429: %s", string(body))
+			lastErr = safeFailure("status 429: rate limit")
 			continue
 		}
 
 		if resp.StatusCode != http.StatusOK {
-			return "", fmt.Errorf("status %d: %s", resp.StatusCode, string(body))
+			return "", safeFailure("status %d: provider HTTP error", resp.StatusCode)
 		}
 
 		var openRouterResp OpenRouterResponse
 		if err := json.Unmarshal(body, &openRouterResp); err != nil {
-			return "", err
+			return "", safeFailure("parse provider JSON: invalid response envelope")
 		}
 		if openRouterResp.Error != nil {
 			// Algunos errores de proveedor vienen como 200 + error JSON
@@ -294,28 +324,36 @@ func (s *OpenRouterService) callOpenRouterBatch(ctx context.Context, prompt stri
 			if strings.Contains(msg, "rate") || strings.Contains(msg, "429") || strings.Contains(msg, "limit") {
 				s.logger.Warn("OpenRouter batch error tipo rate limit en body, reintentando",
 					zap.Int("intento", attempt+1),
-					zap.String("message", openRouterResp.Error.Message),
+					zap.String("error_class", "rate_limit"),
 				)
-				lastErr = fmt.Errorf("%s", openRouterResp.Error.Message)
+				lastErr = safeFailure("provider error: rate limit (code %d)", openRouterResp.Error.Code)
 				continue
 			}
-			return "", fmt.Errorf("%s", openRouterResp.Error.Message)
+			return "", safeFailure("provider error (code %d)", openRouterResp.Error.Code)
 		}
 		if len(openRouterResp.Choices) == 0 {
-			return "", fmt.Errorf("sin choices")
+			return "", safeFailure("sin choices")
 		}
 		content := s.cleanJSONResponse(openRouterResp.Choices[0].Message.Content)
-		s.logger.Info("OpenRouter batch OK",
-			zap.Int("prompt_tokens", openRouterResp.Usage.PromptTokens),
-			zap.Int("lines_in_response_estimate", len(content)),
-		)
+		if budgetOnly {
+			s.logger.Info("OpenRouter budget batch OK")
+		} else {
+			s.logger.Info("OpenRouter batch OK",
+				zap.Int("prompt_tokens", openRouterResp.Usage.PromptTokens),
+				zap.Int("lines_in_response_estimate", len(content)),
+			)
+		}
 		return content, nil
 	}
 
 	if lastErr != nil {
+		if budgetOnly {
+			// lastErr is already sanitized, including its context sentinel.
+			return "", newBudgetBatchError("OpenRouter batch tras reintentos: "+lastErr.Error(), lastErr)
+		}
 		return "", fmt.Errorf("OpenRouter batch tras reintentos: %w", lastErr)
 	}
-	return "", fmt.Errorf("OpenRouter batch: sin respuesta tras reintentos")
+	return "", safeFailure("OpenRouter batch: sin respuesta tras reintentos")
 }
 
 // buildExtractionPrompt creates the prompt for transaction extraction.

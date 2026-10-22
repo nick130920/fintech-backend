@@ -243,4 +243,6 @@ Limitations: deterministic mocks verify request policy and fail-closed handling,
 ## Delivery
 
 - Branch: `fix/sms-empty-result`
-- Work-unit commit: pending explicit authorization.
+- Failure-semantics work unit: `e46df9ab5e9b5f6f8e33318865557f5f8626f893` (`fix(ai): surface SMS suggestion processing failures`).
+- Strict-ZDR/privacy work unit: `ef5329d8bbd063142dc2b757ac1572ab6310d2d8` (`fix(ai): enforce ZDR routing for SMS budgets`).
+- Both commits are local only; push, pull request, merge, and deployment remain unauthorized.

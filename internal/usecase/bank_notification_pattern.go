@@ -845,6 +845,13 @@ func (uc *BankNotificationPatternUseCase) IncrementPendingNotificationAttempt(id
 // ProcessSMSBatchForSuggestions analyzes multiple SMS with pocas llamadas a la IA (lotes), no una por SMS.
 // Solo se usan los SMS más recientes (cap bajo) para no hacer esperar minutos al usuario; el perfil de gasto suele verse bien con esa muestra.
 func (uc *BankNotificationPatternUseCase) ProcessSMSBatchForSuggestions(ctx context.Context, userID uint, messages []dto.SMSMessageForAnalysis) (*dto.AnalyzeSMSBatchResponse, error) {
+	receivedMessages := len(messages)
+	var filteredMessages, attemptedChunks, successfulChunks, failedChunks, acceptedExpenseLines int
+	defer func() {
+		log.Printf("sms_budget_suggestions: received_messages=%d filtered_messages=%d attempted_chunks=%d successful_chunks=%d failed_chunks=%d accepted_expense_lines=%d",
+			receivedMessages, filteredMessages, attemptedChunks, successfulChunks, failedChunks, acceptedExpenseLines)
+	}()
+
 	if err := uc.requireAIService(); err != nil {
 		return nil, err
 	}
@@ -862,11 +869,21 @@ func (uc *BankNotificationPatternUseCase) ProcessSMSBatchForSuggestions(ctx cont
 		messages = messages[:maxSMSForSuggestions]
 	}
 
-	categories, err := uc.categoryRepo.GetAllAvailableForUser(userID)
-	if err != nil || len(categories) == 0 {
+	// Only messages that resemble actual movements require AI processing.
+	filtered := filterMessagesLikelyBankSMS(messages)
+	filteredMessages = len(filtered)
+	if filteredMessages == 0 {
 		return &dto.AnalyzeSMSBatchResponse{
 			Suggestions: dto.BudgetSuggestions{ByCategory: []dto.BudgetSuggestionCategory{}},
 		}, nil
+	}
+
+	categories, err := uc.categoryRepo.GetAllAvailableForUser(userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get categories for SMS budget suggestions: %w", err)
+	}
+	if len(categories) == 0 {
+		return nil, errors.New("no categories available for SMS budget suggestions")
 	}
 
 	var otrosCategory *entity.Category
@@ -880,9 +897,6 @@ func (uc *BankNotificationPatternUseCase) ProcessSMSBatchForSuggestions(ctx cont
 		otrosCategory = categories[0]
 	}
 
-	// Solo SMS que parecen movimientos reales; no reinyectar todo el inbox (ofertas/moras/OTP).
-	filtered := filterMessagesLikelyBankSMS(messages)
-
 	type catAgg struct {
 		total float64
 		count int
@@ -890,6 +904,7 @@ func (uc *BankNotificationPatternUseCase) ProcessSMSBatchForSuggestions(ctx cont
 	byCatID := make(map[uint]*catAgg)
 	slugHits := make(map[string]int)
 
+	var chunkContextErr error
 	chunksDone := 0
 	for chunkStart := 0; chunkStart < len(filtered) && chunksDone < maxAIChunks; chunkStart += smsPerChunk {
 		chunkEnd := chunkStart + smsPerChunk
@@ -912,10 +927,20 @@ func (uc *BankNotificationPatternUseCase) ProcessSMSBatchForSuggestions(ctx cont
 			continue
 		}
 
+		attemptedChunks++
 		resp, err := uc.aiService.ExtractBudgetLinesFromSMSChunk(ctx, block)
 		if err != nil || resp == nil {
+			failedChunks++
+			// Retain only sentinel identity, never the provider error or its chain.
+			for _, sentinel := range []error{context.Canceled, context.DeadlineExceeded} {
+				if errors.Is(err, sentinel) && !errors.Is(chunkContextErr, sentinel) {
+					chunkContextErr = errors.Join(chunkContextErr, sentinel)
+				}
+			}
 			continue
 		}
+		// A processed chunk is successful even if no expense lines are accepted.
+		successfulChunks++
 		seenLine := make(map[int]bool)
 		for _, line := range resp.Lines {
 			if line.Line < 1 || seenLine[line.Line] {
@@ -937,12 +962,20 @@ func (uc *BankNotificationPatternUseCase) ProcessSMSBatchForSuggestions(ctx cont
 			}
 			byCatID[cat.ID].total += line.Amount
 			byCatID[cat.ID].count++
+			acceptedExpenseLines++
 			slugHits[normalizeSlugForAnalytics(line.CategoryKey)]++
 		}
 	}
 
+	if attemptedChunks > 0 && successfulChunks == 0 {
+		// Do not forward provider errors: they may contain sensitive response data.
+		if chunkContextErr != nil {
+			return nil, fmt.Errorf("all attempted AI chunks failed for SMS budget suggestions: %w", chunkContextErr)
+		}
+		return nil, errors.New("all attempted AI chunks failed for SMS budget suggestions")
+	}
+
 	var totalExpense float64
-	var expenseCount int
 	byCategory := make([]dto.BudgetSuggestionCategory, 0, len(byCatID))
 	for _, c := range categories {
 		agg := byCatID[c.ID]
@@ -950,7 +983,6 @@ func (uc *BankNotificationPatternUseCase) ProcessSMSBatchForSuggestions(ctx cont
 			continue
 		}
 		totalExpense += agg.total
-		expenseCount += agg.count
 		byCategory = append(byCategory, dto.BudgetSuggestionCategory{
 			CategoryID:   c.ID,
 			CategoryName: c.Name,

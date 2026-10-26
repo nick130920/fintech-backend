@@ -147,13 +147,14 @@ food=comida super; transport=gas uber; entertainment=ocio; utilities=luz interne
 		},
 	)
 	if err != nil {
-		return nil, fmt.Errorf("gemini batch: %w", err)
+		return nil, newBudgetBatchError("gemini budget batch: SDK failure", err)
 	}
 	responseText := s.cleanJSONResponse(result.Text())
 	var out BatchSMSBudgetResponse
 	if err := json.Unmarshal([]byte(responseText), &out); err != nil {
-		s.logger.Error("parse gemini batch", zap.String("response", responseText), zap.Error(err))
-		return nil, fmt.Errorf("parse batch: %w", err)
+		// Both model output and decoder diagnostics are untrusted content.
+		s.logger.Error("parse gemini batch", zap.String("error_class", "invalid_batch_json"))
+		return nil, newBudgetBatchError("gemini budget batch: invalid batch JSON", nil)
 	}
 	return &out, nil
 }

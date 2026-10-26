@@ -2,6 +2,7 @@ package webapi
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/nick130920/fintech-backend/pkg/apperrors"
@@ -106,23 +107,60 @@ func (s *AIServiceWithFallback) ExtractTransactionFromSMS(ctx context.Context, s
 	return nil, fmt.Errorf("servicio primario de IA falló y no hay fallback disponible: %w", err)
 }
 
-// ExtractBudgetLinesFromSMSChunk runs batch budget extraction on primary with fallback.
+// ExtractBudgetLinesFromSMSChunk requires OpenRouter's strict ZDR budget route.
+// Direct providers, including Gemini promoted to primary, cannot satisfy it.
 func (s *AIServiceWithFallback) ExtractBudgetLinesFromSMSChunk(ctx context.Context, numberedSMSBlock string) (*BatchSMSBudgetResponse, error) {
-	resp, err := s.primary.ExtractBudgetLinesFromSMSChunk(ctx, numberedSMSBlock)
+	primary, ok := s.primary.(*OpenRouterService)
+	if !ok || primary == nil {
+		return nil, apperrors.ErrAIServiceUnavailable
+	}
+	resp, err := primary.ExtractBudgetLinesFromSMSChunk(ctx, numberedSMSBlock)
 	if err == nil {
 		s.usedService = s.getPrimaryServiceName()
 		return resp, nil
 	}
-	s.logger.Warn("Batch extracción: primario falló, intentando fallback", zap.Error(err))
-	if s.fallback != nil {
-		resp, fallbackErr := s.fallback.ExtractBudgetLinesFromSMSChunk(ctx, numberedSMSBlock)
-		if fallbackErr == nil {
-			s.usedService = s.getFallbackServiceName()
-			return resp, nil
-		}
-		return nil, fmt.Errorf("batch IA: primario=%v, fallback=%v", err, fallbackErr)
-	}
+	// Providers are a trust boundary: never log or return their raw errors.
+	err = sanitizeBudgetBatchError(err)
+	s.logger.Warn("Batch extracción: primario falló; ZDR obligatorio, sin fallback", zap.Error(err))
 	return nil, err
+}
+
+// budgetBatchError retains only a fixed local classification and a context sentinel.
+// In particular, it never unwraps the original provider error, which may contain
+// SMS, model output, credentials, or request URLs.
+type budgetBatchError struct {
+	class      string
+	contextErr error
+}
+
+func (e *budgetBatchError) Error() string { return e.class }
+func (e *budgetBatchError) Unwrap() error { return e.contextErr }
+
+func newBudgetBatchError(class string, err error) error {
+	var contextErr error
+	switch {
+	case errors.Is(err, context.Canceled):
+		contextErr = context.Canceled
+	case errors.Is(err, context.DeadlineExceeded):
+		contextErr = context.DeadlineExceeded
+	}
+	return &budgetBatchError{class: class, contextErr: contextErr}
+}
+
+func sanitizeBudgetBatchError(err error) error {
+	// Only errors constructed locally can carry a trusted classification. Do not
+	// use errors.As: an untrusted wrapper could add private text around one.
+	if safe, ok := err.(*budgetBatchError); ok {
+		return safe
+	}
+	class := "budget batch: provider failure"
+	switch {
+	case errors.Is(err, context.Canceled):
+		class = "budget batch: canceled"
+	case errors.Is(err, context.DeadlineExceeded):
+		class = "budget batch: deadline exceeded"
+	}
+	return newBudgetBatchError(class, err)
 }
 
 // ExtractTransactionsFromSMSChunk runs batch transaction extraction on primary with fallback.

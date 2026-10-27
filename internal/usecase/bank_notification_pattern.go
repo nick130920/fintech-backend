@@ -842,8 +842,18 @@ func (uc *BankNotificationPatternUseCase) IncrementPendingNotificationAttempt(id
 	return uc.patternRepo.IncrementPendingNotificationAttempt(id, lastError)
 }
 
-// ProcessSMSBatchForSuggestions analyzes multiple SMS with pocas llamadas a la IA (lotes), no una por SMS.
-// Solo se usan los SMS más recientes (cap bajo) para no hacer esperar minutos al usuario; el perfil de gasto suele verse bien con esa muestra.
+const maxSMSForSuggestions = 500
+
+func validateSMSSuggestionBatchSize(messages []dto.SMSMessageForAnalysis) error {
+	if len(messages) > maxSMSForSuggestions {
+		return apperrors.NewAppError(apperrors.ErrCodeInvalidRequest, "Datos de solicitud inválidos", apperrors.ErrInvalidRequest.StatusCode).
+			WithDetails(fmt.Sprintf("Se permiten como máximo %d mensajes por análisis", maxSMSForSuggestions))
+	}
+	return nil
+}
+
+// ProcessSMSBatchForSuggestions analyzes every qualifying SMS in a bounded batch,
+// using 25-message chunks rather than one AI request per SMS.
 func (uc *BankNotificationPatternUseCase) ProcessSMSBatchForSuggestions(ctx context.Context, userID uint, messages []dto.SMSMessageForAnalysis) (*dto.AnalyzeSMSBatchResponse, error) {
 	receivedMessages := len(messages)
 	var filteredMessages, attemptedChunks, successfulChunks, failedChunks, acceptedExpenseLines int
@@ -852,22 +862,20 @@ func (uc *BankNotificationPatternUseCase) ProcessSMSBatchForSuggestions(ctx cont
 			receivedMessages, filteredMessages, attemptedChunks, successfulChunks, failedChunks, acceptedExpenseLines)
 	}()
 
+	if err := validateSMSSuggestionBatchSize(messages); err != nil {
+		return nil, err
+	}
 	if err := uc.requireAIService(); err != nil {
 		return nil, err
 	}
 
 	const (
-		maxSMSForSuggestions = 100 // muestra reciente; pocas llamadas a la IA
-		smsPerChunk          = 25  // máx. 4 chunks con el cap anterior
-		maxAIChunks          = 4   // cinturón: no más de 4 rondas aunque cambien constantes
-		maxBodyRunes         = 220
-		minConfidence        = 0.3
+		smsPerChunk   = 25
+		maxBodyRunes  = 220
+		minConfidence = 0.3
 	)
 
 	sortSMSMessagesNewestFirst(messages)
-	if len(messages) > maxSMSForSuggestions {
-		messages = messages[:maxSMSForSuggestions]
-	}
 
 	// Only messages that resemble actual movements require AI processing.
 	filtered := filterMessagesLikelyBankSMS(messages)
@@ -905,14 +913,12 @@ func (uc *BankNotificationPatternUseCase) ProcessSMSBatchForSuggestions(ctx cont
 	slugHits := make(map[string]int)
 
 	var chunkContextErr error
-	chunksDone := 0
-	for chunkStart := 0; chunkStart < len(filtered) && chunksDone < maxAIChunks; chunkStart += smsPerChunk {
+	for chunkStart := 0; chunkStart < len(filtered); chunkStart += smsPerChunk {
 		chunkEnd := chunkStart + smsPerChunk
 		if chunkEnd > len(filtered) {
 			chunkEnd = len(filtered)
 		}
 		chunk := filtered[chunkStart:chunkEnd]
-		chunksDone++
 		var sb strings.Builder
 		for i, msg := range chunk {
 			lineNum := i + 1

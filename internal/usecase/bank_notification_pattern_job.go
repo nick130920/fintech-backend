@@ -18,6 +18,9 @@ const smsBatchJobProcessTimeout = 12 * time.Minute
 
 // StartSMSBatchSuggestionJob encola análisis por lotes; respuesta inmediata (evita conexión HTTP larga).
 func (uc *BankNotificationPatternUseCase) StartSMSBatchSuggestionJob(userID uint, messages []dto.SMSMessageForAnalysis) (*dto.StartSMSBatchJobResponse, error) {
+	if err := validateSMSSuggestionBatchSize(messages); err != nil {
+		return nil, err
+	}
 	if err := uc.requireAIService(); err != nil {
 		return nil, err
 	}
@@ -34,17 +37,14 @@ func (uc *BankNotificationPatternUseCase) StartSMSBatchSuggestionJob(userID uint
 		}, nil
 	}
 
-	raw, err := json.Marshal(messages)
-	if err != nil {
-		return nil, fmt.Errorf("marshal messages: %w", err)
-	}
-
 	jobID := uuid.NewString()
 	job := &entity.BudgetSuggestionJob{
-		ID:           jobID,
-		UserID:       userID,
-		Status:       entity.BudgetSuggestionJobPending,
-		MessagesJSON: string(raw),
+		ID:     jobID,
+		UserID: userID,
+		Status: entity.BudgetSuggestionJobPending,
+		// Raw SMS stay only in the worker's in-process copy. The existing
+		// NOT NULL column safely stores its zero-value empty string.
+		MessagesJSON: "",
 	}
 	if err := uc.suggestionJobRepo.Create(job); err != nil {
 		return nil, fmt.Errorf("create suggestion job: %w", err)

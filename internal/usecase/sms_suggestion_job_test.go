@@ -13,8 +13,25 @@ import (
 
 type suggestionProcessingJobRepo struct {
 	repo.BudgetSuggestionJobRepo
-	job      *entity.BudgetSuggestionJob
-	statuses []string
+	job                 *entity.BudgetSuggestionJob
+	statuses            []string
+	createCalls         int
+	createErr           error
+	createdMessagesJSON string
+}
+
+func (r *suggestionProcessingJobRepo) Create(job *entity.BudgetSuggestionJob) error {
+	r.createCalls++
+	r.createdMessagesJSON = job.MessagesJSON
+	r.job = job
+	return r.createErr
+}
+
+func (r *suggestionProcessingJobRepo) FindByIDAndUser(id string, userID uint) (*entity.BudgetSuggestionJob, error) {
+	if r.job != nil && r.job.ID == id && r.job.UserID == userID {
+		return r.job, nil
+	}
+	return nil, nil
 }
 
 func (r *suggestionProcessingJobRepo) FindByID(string) (*entity.BudgetSuggestionJob, error) {

@@ -17,6 +17,7 @@ import (
 	"github.com/nick130920/fintech-backend/internal/entity"
 	"github.com/nick130920/fintech-backend/internal/usecase/repo"
 	"github.com/nick130920/fintech-backend/internal/usecase/webapi"
+	"github.com/nick130920/fintech-backend/pkg/apperrors"
 )
 
 type suggestionCategoryRepo struct {
@@ -307,17 +308,109 @@ func TestProcessSMSBatchForSuggestions_CategoryFailures(t *testing.T) {
 	}
 }
 
-func TestProcessSMSBatchForSuggestions_CapsProcessingButCountsAllReceived(t *testing.T) {
-	empty := &webapi.BatchSMSBudgetResponse{}
-	uc, logs, calls := newSuggestionProcessingTestUseCase(t, empty, empty, empty, empty)
-	response, err := uc.ProcessSMSBatchForSuggestions(context.Background(), 1, syntheticSuggestionMessages(101))
-	if err != nil || response == nil {
-		t.Fatalf("capped batch: response = %#v, error = %v", response, err)
+// Inspect numbered input as well as results: aggregate totals alone cannot prove
+// that every submitted message reaches exactly one chunk.
+func newCompleteSuggestionBatchTestUseCase(t *testing.T, n int) (*BankNotificationPatternUseCase, *bytes.Buffer, *int, []dto.SMSMessageForAnalysis, map[string]int) {
+	t.Helper()
+	messages := syntheticSuggestionMessages(n)
+	for i := range messages {
+		messages[i].Body += fmt.Sprintf(" synthetic-message-%03d", i)
 	}
-	if *calls != 4 {
-		t.Errorf("provider calls = %d; want capped maximum of 4", *calls)
+	results := make([]*webapi.BatchSMSBudgetResponse, (n+24)/25)
+	for chunk := range results {
+		results[chunk] = &webapi.BatchSMSBudgetResponse{}
+		for line := 1; line <= 25 && chunk*25+line <= n; line++ {
+			results[chunk].Lines = append(results[chunk].Lines, webapi.BatchSMSBudgetLine{
+				Line: line, Amount: 10, TransactionType: "expense", Confidence: 0.9, CategoryKey: "food",
+			})
+		}
 	}
-	assertSuggestionCounts(t, logs, "received_messages=101 filtered_messages=100 attempted_chunks=4 successful_chunks=4 failed_chunks=0 accepted_expense_lines=0")
+	uc, logs, calls := newSuggestionProcessingTestUseCase(t, results...)
+	transport := http.DefaultTransport
+	seen := make(map[string]int)
+	http.DefaultTransport = suggestionRoundTripper(func(req *http.Request) (*http.Response, error) {
+		body, err := io.ReadAll(req.Body)
+		if err != nil {
+			t.Fatal("cannot read synthetic request")
+		}
+		req.Body = io.NopCloser(bytes.NewReader(body))
+		var payload struct {
+			Model    string `json:"model"`
+			Provider struct {
+				ZDR bool `json:"zdr"`
+			} `json:"provider"`
+			Messages []struct {
+				Content string `json:"content"`
+			} `json:"messages"`
+		}
+		if json.Unmarshal(body, &payload) != nil || len(payload.Messages) != 1 {
+			t.Fatal("invalid synthetic request envelope")
+		}
+		if payload.Model != "deepseek/deepseek-v4.1-flash" || !payload.Provider.ZDR {
+			t.Error("budget request lost strict model/ZDR routing")
+		}
+		_, block, ok := strings.Cut(payload.Messages[0].Content, "BLOQUE:\n")
+		if !ok {
+			t.Fatal("numbered SMS block missing")
+		}
+		block, _, _ = strings.Cut(block, "\nPara cada línea")
+		lines := strings.Split(strings.TrimSpace(block), "\n")
+		wantSize := 25
+		if remaining := n - *calls*25; remaining < wantSize {
+			wantSize = remaining
+		}
+		if len(lines) != wantSize {
+			t.Errorf("chunk size = %d; want %d", len(lines), wantSize)
+		}
+		for i, line := range lines {
+			prefix := fmt.Sprintf("[%d] ", i+1)
+			if !strings.HasPrefix(line, prefix) {
+				t.Error("invalid chunk-local line numbering")
+			}
+			seen[strings.TrimPrefix(line, prefix)]++
+		}
+		return transport.RoundTrip(req)
+	})
+	return uc, logs, calls, messages, seen
+}
+
+func TestProcessSMSBatchForSuggestions_ProcessesEveryMessageExactlyOnce(t *testing.T) {
+	for _, n := range []int{101, 126, 500} {
+		t.Run(fmt.Sprintf("messages_%d", n), func(t *testing.T) {
+			uc, logs, calls, messages, seen := newCompleteSuggestionBatchTestUseCase(t, n)
+			response, err := uc.ProcessSMSBatchForSuggestions(context.Background(), 1, messages)
+			if err != nil || response == nil {
+				t.Fatalf("complete batch error = %v", err)
+			}
+			chunks := (n + 24) / 25
+			if *calls != chunks {
+				t.Errorf("provider calls = %d; want %d", *calls, chunks)
+			}
+			for i, message := range messages {
+				if seen[message.Body] != 1 {
+					t.Errorf("message index %d processed %d times; want once", i, seen[message.Body])
+				}
+			}
+			if len(seen) != n || response.Suggestions.TotalExpense3m != float64(n*10) || len(response.Suggestions.ByCategory) != 1 || response.Suggestions.ByCategory[0].Count != n {
+				t.Error("complete batch must aggregate every expense exactly once")
+			}
+			assertSuggestionCounts(t, logs, fmt.Sprintf("received_messages=%d filtered_messages=%d attempted_chunks=%d successful_chunks=%d failed_chunks=0 accepted_expense_lines=%d", n, n, chunks, chunks, n))
+		})
+	}
+}
+
+func TestProcessSMSBatchForSuggestions_RejectsOverLimitBeforeProcessing(t *testing.T) {
+	uc, logs, calls := newSuggestionProcessingTestUseCase(t)
+	uc.categoryRepo = suggestionCategoryRepo{err: errors.New("category lookup must not run")}
+	response, err := uc.ProcessSMSBatchForSuggestions(context.Background(), 1, syntheticSuggestionMessages(501))
+	var appErr *apperrors.AppError
+	if response != nil || !errors.As(err, &appErr) || appErr.Code != apperrors.ErrCodeInvalidRequest || appErr.StatusCode != http.StatusBadRequest || appErr.Internal != nil {
+		t.Errorf("over-limit batch must return a safe invalid-request 400; got %T", err)
+	}
+	if *calls != 0 {
+		t.Errorf("provider calls = %d; want zero", *calls)
+	}
+	assertSuggestionCounts(t, logs, "received_messages=501 filtered_messages=0 attempted_chunks=0 successful_chunks=0 failed_chunks=0 accepted_expense_lines=0")
 }
 
 func TestProcessSMSBatchForSuggestions_NoFilteredMessages(t *testing.T) {
